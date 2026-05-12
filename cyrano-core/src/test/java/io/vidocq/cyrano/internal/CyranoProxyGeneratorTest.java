@@ -1,0 +1,108 @@
+/*
+ * Copyright (c) 2026 Vidocq contributors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.vidocq.cyrano.internal;
+
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Modifier;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Tests TDD du {@link CyranoProxyGenerator} — vérifie que la classe générée par la
+ * Class-File API (JEP 484) implémente correctement l'interface, est nommée
+ * {@code Cyrano$<SimpleName>}, et délègue à {@link CyranoInvocationHandler}.
+ *
+ * <p>Conformément à la philosophie Cyrano, la vérification porte sur le comportement
+ * observable (instance valide, appel délégué) et non sur l'inspection du bytecode.</p>
+ */
+class CyranoProxyGeneratorTest {
+
+    @Path("/echo")
+    interface Echo {
+        @GET
+        @Path("/{msg}")
+        String echo(@PathParam("msg") String msg);
+    }
+
+    /** Handler stub : capture l'index + les args, retourne une valeur fixe. */
+    @Test
+    void generated_class_is_named_after_interface() {
+        var entry = CyranoProxyCache.getOrGenerate(Echo.class);
+        assertEquals("io.vidocq.cyrano.internal.Cyrano$Echo", entry.proxyClass().getName(),
+                "Le proxy doit être nommé Cyrano$<SimpleName> dans le package interne");
+    }
+
+    @Test
+    void generated_class_implements_target_interface() {
+        var entry = CyranoProxyCache.getOrGenerate(Echo.class);
+        assertTrue(Echo.class.isAssignableFrom(entry.proxyClass()),
+                "Le proxy doit implémenter l'interface cible");
+    }
+
+    @Test
+    void generated_class_is_final_and_public() {
+        var entry = CyranoProxyCache.getOrGenerate(Echo.class);
+        int mods = entry.proxyClass().getModifiers();
+        // ACC_SUPER n'est plus visible côté reflection ; on vérifie juste FINAL.
+        assertTrue(Modifier.isFinal(mods),
+                "Le proxy doit être final pour interdire l'extension");
+    }
+
+    @Test
+    void invocation_handler_receives_correct_index_and_args() throws Exception {
+        // Handler manuel qui capture l'index + args sans HTTP.
+        var capturing = new CapturingHandler();
+        var entry = CyranoProxyCache.getOrGenerate(Echo.class);
+        Echo proxy = CyranoProxyGenerator.instantiate(entry.proxyClass(), capturing);
+
+        Object result = proxy.echo("hello");
+
+        assertEquals(0, capturing.lastIndex, "Première méthode → index 0");
+        assertNotNull(capturing.lastArgs);
+        assertEquals(1, capturing.lastArgs.length);
+        assertEquals("hello", capturing.lastArgs[0]);
+        assertEquals("stub-response", result);
+    }
+
+    /** Handler de test qui n'a pas besoin de transport HTTP réel. */
+    static final class CapturingHandler extends CyranoInvocationHandler {
+        int lastIndex = -1;
+        Object[] lastArgs;
+        CapturingHandler() {
+            super(java.net.URI.create("http://unused"),
+                    List.of(new RequestSpec("GET", "/echo/{msg}",
+                            List.of(new ParamBinding.Path(0, "msg", null)),
+                            String.class, String.class,
+                            List.of(), List.of(),
+                            java.util.Map.of(), java.util.Map.of(),
+                            findEchoMethod())),
+                    new CyranoHttpTransport());
+        }
+        private static java.lang.reflect.Method findEchoMethod() {
+            try { return Echo.class.getMethod("echo", String.class); }
+            catch (NoSuchMethodException e) { throw new AssertionError(e); }
+        }
+        @Override
+        public Object invoke(Object proxy, int methodIndex, Object[] args) {
+            this.lastIndex = methodIndex;
+            this.lastArgs = args;
+            return "stub-response";
+        }
+    }
+}
+
+

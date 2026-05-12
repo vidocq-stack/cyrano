@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Configuration Arquillian pour la suite TCK MicroProfile Rest Client 4.0.
+    Le qualifier "cyrano" est sélectionné par la propriété système
+    arquillian.launch=cyrano (voir cyrano-tck/pom.xml profil tck-official).
+-->
+<arquillian xmlns="http://jboss.org/schema/arquillian"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://jboss.org/schema/arquillian
+                                http://jboss.org/schema/arquillian/arquillian_1_0.xsd">
+
+    <container qualifier="cyrano" default="true">
+        <!-- Cyrano est un client REST : aucune propriété de container nécessaire. -->
+    </container>
+</arquillian>
+

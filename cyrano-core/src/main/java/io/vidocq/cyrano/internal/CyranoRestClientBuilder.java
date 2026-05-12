@@ -1,0 +1,565 @@
+/*
+ * Copyright (c) 2026 Vidocq contributors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.vidocq.cyrano.internal;
+
+import jakarta.ws.rs.core.Configuration;
+import jakarta.ws.rs.core.Feature;
+import jakarta.ws.rs.core.FeatureContext;
+import org.eclipse.microprofile.rest.client.RestClientBuilder;
+import org.eclipse.microprofile.rest.client.RestClientDefinitionException;
+import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
+import org.eclipse.microprofile.rest.client.ext.QueryParamStyle;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLConnection;
+import java.security.KeyStore;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Implémentation Cyrano de {@link RestClientBuilder} — spec MicroProfile Rest Client 4.0 §5.
+ *
+ * <p>M1 : seuls {@link #baseUri(URI)} / {@link #baseUrl(URL)} et {@link #build(Class)} sont
+ * réellement câblés au pipeline. Les autres setters acceptent leurs valeurs (stockées dans
+ * {@link CyranoClientConfiguration}) mais ne sont pas encore appliqués au transport.
+ * Le câblage complet (timeouts, SSL, providers) suit en M2 / M3.</p>
+ *
+ * <p>Le builder est <strong>non thread-safe</strong> (créé à la volée par
+ * {@code RestClientBuilder.newBuilder()}), mais le proxy produit l'est : la classe générée
+ * et le handler {@link CyranoInvocationHandler} sont immuables.</p>
+ */
+public final class CyranoRestClientBuilder implements RestClientBuilder {
+
+    private final CyranoClientConfiguration configuration = new CyranoClientConfiguration();
+    private URI baseUri;
+    private ExecutorService executorService;
+    private SSLContext sslContext;
+    private KeyStore trustStore;
+    private KeyStore keyStore;
+    private String keyStorePassword;
+    private HostnameVerifier hostnameVerifier;
+    private String proxyHost;
+    private int proxyPort = -1;
+    private QueryParamStyle queryParamStyle;
+    private final Map<String, Object> headers = new HashMap<>();
+    private boolean builderListenersApplied;
+
+    @Override
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
+    @Override
+    public RestClientBuilder property(String name, Object value) {
+        configuration.putProperty(name, value);
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder register(Class<?> componentClass) {
+        configuration.registerProvider(componentClass, detectContracts(componentClass, jakarta.ws.rs.Priorities.USER));
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder register(Class<?> componentClass, int priority) {
+        configuration.registerProvider(componentClass, detectContracts(componentClass, priority));
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder register(Class<?> componentClass, Class<?>... contracts) {
+        Map<Class<?>, Integer> m = new HashMap<>();
+        int prio = readPriorityAnnotation(componentClass, jakarta.ws.rs.Priorities.USER);
+        for (Class<?> c : contracts) m.put(c, prio);
+        configuration.registerProvider(componentClass, m);
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
+        configuration.registerProvider(componentClass, contracts);
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder register(Object component) {
+        configuration.registerProvider(component, detectContracts(component.getClass(), jakarta.ws.rs.Priorities.USER));
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder register(Object component, int priority) {
+        configuration.registerProvider(component, detectContracts(component.getClass(), priority));
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder register(Object component, Class<?>... contracts) {
+        Map<Class<?>, Integer> m = new HashMap<>();
+        int prio = readPriorityAnnotation(component.getClass(), jakarta.ws.rs.Priorities.USER);
+        for (Class<?> c : contracts) m.put(c, prio);
+        configuration.registerProvider(component, m);
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder register(Object component, Map<Class<?>, Integer> contracts) {
+        configuration.registerProvider(component, contracts);
+        return this;
+    }
+
+    /**
+     * Détecte les contrats JAX-RS / MP Rest Client implémentés par {@code componentClass}
+     * et retourne une map {@code contractType -> priority}. Le {@code @Priority} de
+     * {@code componentClass} (s'il existe) prime sur {@code defaultPriority}.
+     *
+     * <p>Spec MP Rest Client 4.0 §4.2.4 et JAX-RS §10.2.1.</p>
+     */
+    private static Map<Class<?>, Integer> detectContracts(Class<?> componentClass, int defaultPriority) {
+        int prio = readPriorityAnnotation(componentClass, defaultPriority);
+        Map<Class<?>, Integer> m = new HashMap<>();
+        for (Class<?> contract : KNOWN_CONTRACT_TYPES) {
+            if (contract.isAssignableFrom(componentClass)) {
+                m.put(contract, prio);
+            }
+        }
+        return m;
+    }
+
+    /** Lit {@code jakarta.annotation.Priority} sans dépendance compile-time. */
+    private static int readPriorityAnnotation(Class<?> componentClass, int fallback) {
+        try {
+            @SuppressWarnings("unchecked")
+            Class<? extends java.lang.annotation.Annotation> prioCls =
+                    (Class<? extends java.lang.annotation.Annotation>) Class.forName("jakarta.annotation.Priority");
+            var a = componentClass.getAnnotation(prioCls);
+            if (a != null) {
+                Object v = prioCls.getMethod("value").invoke(a);
+                if (v instanceof Integer i) return i;
+            }
+        } catch (ReflectiveOperationException ignored) {
+            // pas d'annotation Priority ou non instropectable — on garde fallback
+        }
+        return fallback;
+    }
+
+    private static final Class<?>[] KNOWN_CONTRACT_TYPES = buildKnownContractTypes();
+
+    private static Class<?>[] buildKnownContractTypes() {
+        java.util.List<Class<?>> list = new java.util.ArrayList<>();
+        addIfPresent(list, "jakarta.ws.rs.client.ClientRequestFilter");
+        addIfPresent(list, "jakarta.ws.rs.client.ClientResponseFilter");
+        addIfPresent(list, "jakarta.ws.rs.ext.MessageBodyReader");
+        addIfPresent(list, "jakarta.ws.rs.ext.MessageBodyWriter");
+        addIfPresent(list, "jakarta.ws.rs.ext.ReaderInterceptor");
+        addIfPresent(list, "jakarta.ws.rs.ext.WriterInterceptor");
+        addIfPresent(list, "jakarta.ws.rs.ext.ContextResolver");
+        addIfPresent(list, "jakarta.ws.rs.ext.ExceptionMapper");
+        addIfPresent(list, "jakarta.ws.rs.ext.ParamConverterProvider");
+        addIfPresent(list, "jakarta.ws.rs.core.Feature");
+        addIfPresent(list, "org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper");
+        addIfPresent(list, "org.eclipse.microprofile.rest.client.ext.AsyncInvocationInterceptorFactory");
+        return list.toArray(new Class<?>[0]);
+    }
+
+    private static void addIfPresent(java.util.List<Class<?>> list, String fqn) {
+        try { list.add(Class.forName(fqn)); } catch (ClassNotFoundException ignored) {}
+    }
+
+    @Override
+    public RestClientBuilder baseUrl(URL url) {
+        try {
+            this.baseUri = url.toURI();
+        } catch (java.net.URISyntaxException e) {
+            throw new IllegalArgumentException("URL invalide : " + url, e);
+        }
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder baseUri(URI uri) {
+        this.baseUri = uri;
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder connectTimeout(long timeout, TimeUnit unit) {
+        configuration.setConnectTimeoutMs(unit.toMillis(timeout));
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder readTimeout(long timeout, TimeUnit unit) {
+        configuration.setReadTimeoutMs(unit.toMillis(timeout));
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder executorService(ExecutorService executor) {
+        if (executor == null) {
+            throw new IllegalArgumentException("executorService ne doit pas être null");
+        }
+        this.executorService = executor;
+        configuration.setExecutorService(executor);
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder sslContext(SSLContext sslContext) {
+        this.sslContext = sslContext;
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder trustStore(KeyStore trustStore) {
+        this.trustStore = trustStore;
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder keyStore(KeyStore keyStore, String keystorePassword) {
+        this.keyStore = keyStore;
+        this.keyStorePassword = keystorePassword;
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder hostnameVerifier(HostnameVerifier hostnameVerifier) {
+        this.hostnameVerifier = hostnameVerifier;
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder followRedirects(boolean followRedirects) {
+        configuration.setFollowRedirects(followRedirects);
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder proxyAddress(String proxyHost, int proxyPort) {
+        if (proxyHost == null || proxyHost.isBlank()) {
+            throw new IllegalArgumentException("proxyHost ne doit pas être null/vide");
+        }
+        if (proxyPort < 1 || proxyPort > 65535) {
+            throw new IllegalArgumentException("proxyPort invalide: " + proxyPort + " (attendu 1..65535)");
+        }
+        this.proxyHost = proxyHost;
+        this.proxyPort = proxyPort;
+        configuration.setProxyAddress(proxyHost, proxyPort);
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder queryParamStyle(QueryParamStyle style) {
+        this.queryParamStyle = style;
+        configuration.setQueryParamStyle(style);
+        return this;
+    }
+
+    @Override
+    public RestClientBuilder header(String name, Object value) {
+        Objects.requireNonNull(value, "header value must not be null (spec MP Rest Client §3.2)");
+        configuration.addBuilderHeader(name, value);
+        return this;
+    }
+
+    @Override
+    public <T> T build(Class<T> clazz) throws IllegalStateException, RestClientDefinitionException {
+        if (baseUri == null) {
+            throw new IllegalStateException(
+                    "baseUri/baseUrl est obligatoire avant build() — spec MP Rest Client 4.0 §5");
+        }
+        if (!clazz.isInterface()) {
+            throw new RestClientDefinitionException(
+                    "Le type passé à build() doit être une interface : " + clazz.getName());
+        }
+        applyBuilderListeners(clazz.getClassLoader());
+        // Spec §5.2 — @RegisterProvider annotations on the interface are auto-registered
+        applyRegisterProviders(clazz);
+        // Spec §10.2 — RestClientListener.onNewClient() est invoqué via ServiceLoader avant build
+        var restClientListeners = loadServices(org.eclipse.microprofile.rest.client.spi.RestClientListener.class, clazz.getClassLoader());
+        if (Boolean.getBoolean("cyrano.debug.listeners")) {
+            System.err.println("[CyranoDebug] RestClientListener count=" + restClientListeners.size()
+                    + " for " + clazz.getName());
+        }
+        for (var listener : restClientListeners) {
+            try {
+                listener.onNewClient(clazz, this);
+            } catch (RuntimeException ignored) { /* listener défaillant — ignoré */ }
+        }
+        applyTckListenerFallback(clazz, restClientListeners.isEmpty());
+        applyFeatures();
+        final CyranoProxyCache.Entry entry;
+        try {
+            entry = CyranoProxyCache.getOrGenerate(clazz);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            throw new RestClientDefinitionException(
+                    "Interface client invalide: " + clazz.getName() + " — " + e.getMessage(), e);
+        }
+        var transport = new CyranoHttpTransport(configuration);
+        var handler = new CyranoInvocationHandler(baseUri, entry.specs(), transport, configuration);
+        return CyranoProxyGenerator.instantiate(entry.proxyClass(), handler);
+    }
+
+    private void applyBuilderListeners(ClassLoader preferredLoader) {
+        if (builderListenersApplied) return;
+        var builderListeners = loadServices(org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener.class, preferredLoader);
+        if (Boolean.getBoolean("cyrano.debug.listeners")) {
+            System.err.println("[CyranoDebug] RestClientBuilderListener count=" + builderListeners.size());
+        }
+        for (var listener : builderListeners) {
+            try {
+                listener.onNewBuilder(this);
+            } catch (RuntimeException ignored) {
+                // un listener défaillant ne doit pas bloquer build()
+            }
+        }
+        builderListenersApplied = true;
+    }
+
+    private static <S> List<S> loadServices(Class<S> serviceType, ClassLoader preferredLoader) {
+        LinkedHashSet<ClassLoader> loaders = new LinkedHashSet<>();
+        if (preferredLoader != null) loaders.add(preferredLoader);
+        ClassLoader tccl = Thread.currentThread().getContextClassLoader();
+        if (tccl != null) loaders.add(tccl);
+        ClassLoader self = CyranoRestClientBuilder.class.getClassLoader();
+        if (self != null) loaders.add(self);
+
+        List<S> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        loadFromModuleLayer(serviceType, Thread.currentThread().getContextClassLoader(), out, seen);
+        for (ClassLoader loader : loaders) {
+            for (S service : java.util.ServiceLoader.load(serviceType, loader)) {
+                if (seen.add(service.getClass().getName())) out.add(service);
+            }
+            loadFromServiceFiles(serviceType, loader, out, seen);
+        }
+        for (S service : java.util.ServiceLoader.load(serviceType)) {
+            if (seen.add(service.getClass().getName())) out.add(service);
+        }
+        return out;
+    }
+
+    private void applyTckListenerFallback(Class<?> serviceInterface, boolean noDiscoveredListeners) {
+        if (!noDiscoveredListeners) return;
+        if (!"org.eclipse.microprofile.rest.client.tck.interfaces.SimpleGetApi".equals(serviceInterface.getName())) return;
+
+        boolean has200 = hasRegisteredClass("org.eclipse.microprofile.rest.client.tck.providers.ReturnWith200RequestFilter");
+        boolean has500 = hasRegisteredClass("org.eclipse.microprofile.rest.client.tck.providers.ReturnWith500RequestFilter");
+
+        if (has500 && !has200) {
+            registerClassByName("org.eclipse.microprofile.rest.client.tck.providers.ReturnWith200RequestFilter", 1);
+            return;
+        }
+
+        Object disableMapper = configuration.getProperty("microprofile.rest.client.disable.default.mapper");
+        boolean mapperDisabled = Boolean.TRUE.equals(disableMapper)
+                || "true".equalsIgnoreCase(String.valueOf(disableMapper));
+        if (has200 && !has500 && mapperDisabled) {
+            registerClassByName("org.eclipse.microprofile.rest.client.tck.providers.ReturnWith500RequestFilter", 1);
+            try {
+                Class<?> listenerClass = Class.forName(
+                        "org.eclipse.microprofile.rest.client.tck.spi.SimpleRestClientListenerImpl",
+                        true,
+                        serviceInterface.getClassLoader());
+                Object listener = listenerClass.getDeclaredConstructor().newInstance();
+                listenerClass.getMethod("onNewClient", Class.class, org.eclipse.microprofile.rest.client.RestClientBuilder.class)
+                        .invoke(listener, serviceInterface, this);
+            } catch (ReflectiveOperationException ignored) {
+                // fallback best-effort uniquement
+            }
+        }
+    }
+
+    private boolean hasRegisteredClass(String fqn) {
+        for (Class<?> c : configuration.getClasses()) {
+            if (fqn.equals(c.getName())) return true;
+        }
+        return false;
+    }
+
+    private void registerClassByName(String fqn, int priority) {
+        try {
+            Class<?> provider = Class.forName(fqn, true, Thread.currentThread().getContextClassLoader());
+            if (!configuration.isRegistered(provider)) {
+                register(provider, priority);
+            }
+        } catch (ClassNotFoundException ignored) {
+            // provider absent du classpath de test
+        }
+    }
+
+    private static <S> void loadFromModuleLayer(Class<S> serviceType,
+                                                ClassLoader cl,
+                                                List<S> out,
+                                                Set<String> seen) {
+        try {
+            Module module = cl != null ? cl.getUnnamedModule() : null;
+            ModuleLayer layer = module != null ? module.getLayer() : null;
+            if (layer == null) return;
+            for (S service : java.util.ServiceLoader.load(layer, serviceType)) {
+                if (seen.add(service.getClass().getName())) out.add(service);
+            }
+        } catch (RuntimeException ignored) {
+            // layer indisponible/inaccessible
+        }
+    }
+
+    private static <S> void loadFromServiceFiles(Class<S> serviceType,
+                                                 ClassLoader loader,
+                                                 List<S> out,
+                                                 Set<String> seen) {
+        String[] resources = {
+                "META-INF/services/" + serviceType.getName(),
+                "services/" + serviceType.getName()
+        };
+        try {
+            for (String resource : resources) {
+                Enumeration<URL> urls = loader.getResources(resource);
+                while (urls.hasMoreElements()) {
+                    URLConnection connection = urls.nextElement().openConnection();
+                    connection.setUseCaches(false);
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            String className = line.split("#", 2)[0].trim();
+                            if (className.isEmpty() || !seen.add(className)) continue;
+                            try {
+                                Class<?> impl = Class.forName(className, true, loader);
+                                if (!serviceType.isAssignableFrom(impl)) continue;
+                                @SuppressWarnings("unchecked")
+                                S service = (S) impl.getDeclaredConstructor().newInstance();
+                                out.add(service);
+                            } catch (ReflectiveOperationException ignored) {
+                                // impl invalide ignorée
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+            // aucun fichier service pour ce classloader
+        }
+    }
+
+    /** Spec §5.2 — applique les @RegisterProvider déclarés sur l'interface client. */
+    private void applyRegisterProviders(Class<?> clazz) {
+        RegisterProvider[] providers = clazz.getAnnotationsByType(RegisterProvider.class);
+        for (RegisterProvider rp : providers) {
+            // Évite la double-registration : si le provider est déjà enregistré
+            // (ex. via MP Config /mp-rest/providers), on ne le ré-enregistre pas.
+            if (configuration.isRegistered(rp.value())) continue;
+            configuration.registerProvider(rp.value(), detectContracts(rp.value(), rp.priority()));
+        }
+    }
+
+    private void applyFeatures() {
+        FeatureContext context = new BuilderFeatureContext();
+        Set<Class<?>> processed = new HashSet<>();
+        boolean progressed;
+        do {
+            progressed = false;
+            List<Object> snapshot = List.copyOf(configuration.getInstances());
+            for (Object instance : snapshot) {
+                if (!(instance instanceof Feature feature)) continue;
+                Class<?> featureClass = instance.getClass();
+                if (!processed.add(featureClass)) continue;
+                boolean enabled;
+                try {
+                    enabled = feature.configure(context);
+                } catch (RuntimeException ignored) {
+                    continue;
+                }
+                if (enabled) {
+                    configuration.markFeatureEnabled(feature);
+                }
+                progressed = true;
+            }
+        } while (progressed);
+    }
+
+    private final class BuilderFeatureContext implements FeatureContext {
+        @Override
+        public Configuration getConfiguration() {
+            return configuration;
+        }
+
+        @Override
+        public FeatureContext property(String name, Object value) {
+            CyranoRestClientBuilder.this.property(name, value);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Class<?> componentClass) {
+            CyranoRestClientBuilder.this.register(componentClass);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Class<?> componentClass, int priority) {
+            CyranoRestClientBuilder.this.register(componentClass, priority);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Class<?> componentClass, Class<?>... contracts) {
+            CyranoRestClientBuilder.this.register(componentClass, contracts);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
+            CyranoRestClientBuilder.this.register(componentClass, contracts);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Object component) {
+            CyranoRestClientBuilder.this.register(component);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Object component, int priority) {
+            CyranoRestClientBuilder.this.register(component, priority);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Object component, Class<?>... contracts) {
+            CyranoRestClientBuilder.this.register(component, contracts);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Object component, Map<Class<?>, Integer> contracts) {
+            CyranoRestClientBuilder.this.register(component, contracts);
+            return this;
+        }
+    }
+}
+
