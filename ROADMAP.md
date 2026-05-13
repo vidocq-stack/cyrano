@@ -306,12 +306,16 @@ MicroProfile Rest Client 4.0 **100 % PASS** via `./run-official-tck-mp-rest-clie
 | Documentation `docs/integration-cassini.md` | Utiliser Cyrano pour appeler des services Cassini externes | [x] |
 | Documentation `docs/integration-vidocq-mps.md` | Configuration Cyrano dans vidocq-mps, base URL via Ravel | [x] |
 | ADR-001 stratégie génération proxy (Class-File API vs réflexion) | Rationale, AOT, jlink, GraalVM | [x] |
-| Module wrapper `vidocq-mps-cyrano-extension` dans `vidocq-mps` | Active Cyrano via une seule dépendance, sans code Java additionnel | [ ] |
-| ServiceLoader BCE (`META-INF/services/...BuildCompatibleExtension`) | `CyranoRestClientExtension` exposée via le contrat CDI 4.1 standard | [ ] |
-| `module-info.java` `provides ... with` | JPMS pour les fichiers de services | [ ] |
+| Module wrapper `vidocq-mps-cyrano-extension` dans `vidocq-mps` | Active Cyrano via une seule dépendance, sans code Java additionnel — à livrer dans le dépôt `vidocq-mps` | [ ] |
+| ServiceLoader BCE (`META-INF/services/...BuildCompatibleExtension`) | `CyranoRestClientCdiExtension` exposée via le contrat CDI 4.1 standard, couverte par `CyranoRestClientCdiExtensionDiscoveryTest` | [x] |
+| `module-info.java` `provides ... with` | JPMS pour les fichiers de services, validé par le test de découverte BCE | [x] |
 
 **Livrable :** documentation complète, module wrapper installable, Cyrano disponible dans
 tout déploiement vidocq-mps via une seule dépendance.
+
+**État réel côté dépôt Cyrano :** M5 est terminé pour le périmètre présent ici (documentation,
+exposition ServiceLoader + JPMS, test de non-régression). Le seul élément restant vit dans le
+dépôt externe `vidocq-mps` : le module wrapper d'agrégation.
 
 ---
 

@@ -52,6 +52,8 @@ UsersClient usersClient;
 
 - Documentation operationnelle: ce document + `docs/integration-cassini.md`.
 - ADR architecture: `docs/adr/ADR-001-classfile-proxy-strategy.md`.
+- Cote Cyrano, la BCE `CyranoRestClientCdiExtension` est deja publiee via
+  `META-INF/services/...BuildCompatibleExtension` et `module-info.java provides ... with`.
 - Module wrapper `vidocq-mps-cyrano-extension`: a implementer dans le depot `vidocq-mps`.
 
 ## Checklist de rollout
