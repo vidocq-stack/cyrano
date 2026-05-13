@@ -303,9 +303,9 @@ MicroProfile Rest Client 4.0 **100 % PASS** via `./run-official-tck-mp-rest-clie
 
 | Tâche | Notes | État |
 |---|---|---|
-| Documentation `docs/integration-cassini.md` | Utiliser Cyrano pour appeler des services Cassini externes | [ ] |
-| Documentation `docs/integration-vidocq-mps.md` | Configuration Cyrano dans vidocq-mps, base URL via Ravel | [ ] |
-| ADR-001 stratégie génération proxy (Class-File API vs réflexion) | Rationale, AOT, jlink, GraalVM | [ ] |
+| Documentation `docs/integration-cassini.md` | Utiliser Cyrano pour appeler des services Cassini externes | [x] |
+| Documentation `docs/integration-vidocq-mps.md` | Configuration Cyrano dans vidocq-mps, base URL via Ravel | [x] |
+| ADR-001 stratégie génération proxy (Class-File API vs réflexion) | Rationale, AOT, jlink, GraalVM | [x] |
 | Module wrapper `vidocq-mps-cyrano-extension` dans `vidocq-mps` | Active Cyrano via une seule dépendance, sans code Java additionnel | [ ] |
 | ServiceLoader BCE (`META-INF/services/...BuildCompatibleExtension`) | `CyranoRestClientExtension` exposée via le contrat CDI 4.1 standard | [ ] |
 | `module-info.java` `provides ... with` | JPMS pour les fichiers de services | [ ] |
