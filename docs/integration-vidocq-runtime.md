@@ -1,15 +1,15 @@
-# Integration Cyrano dans vidocq-mps
+# Integration Cyrano dans vidocq
 
 ## Objectif
 
-Activer Cyrano comme client REST par defaut dans un deploiement `vidocq-mps`
+Activer Cyrano comme client REST par defaut dans un deploiement `vidocq`
 avec une seule dependance d'extension.
 
 ## Strategie d'integration
 
 1. Conserver `cyrano-core` comme moteur client runtime.
 2. Ajouter `cyrano-cdi-vauban` pour l'injection `@Inject @RestClient`.
-3. Exposer une extension agregee cote `vidocq-mps` pour simplifier l'adoption.
+3. Exposer une extension agregee cote `vidocq` pour simplifier l'adoption.
 
 ## Configuration recommandee
 
@@ -54,11 +54,11 @@ UsersClient usersClient;
 - ADR architecture: `docs/adr/ADR-001-classfile-proxy-strategy.md`.
 - Cote Cyrano, la BCE `CyranoRestClientCdiExtension` est deja publiee via
   `META-INF/services/...BuildCompatibleExtension` et `module-info.java provides ... with`.
-- Module wrapper `vidocq-mps-cyrano-extension`: a implementer dans le depot `vidocq-mps`.
+- Module wrapper `vidocq-runtime-cyrano-extension`: a implementer dans le depot `vidocq`.
 
 ## Checklist de rollout
 
-- Ajouter l'extension Cyrano dans le BOM/packaging `vidocq-mps`.
+- Ajouter l'extension Cyrano dans le BOM/packaging `vidocq`.
 - Verifier que `microprofile-config.properties` est charge en execution.
 - Verifier l'injection `@RestClient` sur au moins un client metier.
 - Executer la suite TCK Cyrano avant publication de l'extension.

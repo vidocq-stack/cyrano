@@ -223,7 +223,7 @@
                                 <exclude>**/ssl/**</exclude>
                                 <!--
                                     SSE : hors scope M0-M5 (cf. ROADMAP.md « Décisions ouvertes »).
-                                    Sera réévalué post-TCK selon les besoins vidocq-mps.
+                                    Sera réévalué post-TCK selon les besoins vidocq.
                                 -->
                                 <exclude>**/sse/**</exclude>
                             </excludes>

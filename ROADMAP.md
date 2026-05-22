@@ -299,23 +299,23 @@ MicroProfile Rest Client 4.0 **100 % PASS** via `./run-official-tck-mp-rest-clie
 
 ### M5 — Intégration écosystème Vidocq
 
-**Scope :** intégrer Cyrano dans `vidocq-mps` comme client REST par défaut.
+**Scope :** intégrer Cyrano dans `vidocq` comme client REST par défaut.
 
 | Tâche | Notes | État |
 |---|---|---|
 | Documentation `docs/integration-cassini.md` | Utiliser Cyrano pour appeler des services Cassini externes | [x] |
-| Documentation `docs/integration-vidocq-mps.md` | Configuration Cyrano dans vidocq-mps, base URL via Ravel | [x] |
+| Documentation `docs/integration-vidocq.md` | Configuration Cyrano dans vidocq, base URL via Ravel | [x] |
 | ADR-001 stratégie génération proxy (Class-File API vs réflexion) | Rationale, AOT, jlink, GraalVM | [x] |
-| Module wrapper `vidocq-mps-cyrano-extension` dans `vidocq-mps` | Active Cyrano via une seule dépendance, sans code Java additionnel — à livrer dans le dépôt `vidocq-mps` | [ ] |
+| Module wrapper `vidocq-runtime-cyrano-extension` dans `vidocq` | Active Cyrano via une seule dépendance, sans code Java additionnel — à livrer dans le dépôt `vidocq` | [ ] |
 | ServiceLoader BCE (`META-INF/services/...BuildCompatibleExtension`) | `CyranoRestClientCdiExtension` exposée via le contrat CDI 4.1 standard, couverte par `CyranoRestClientCdiExtensionDiscoveryTest` | [x] |
 | `module-info.java` `provides ... with` | JPMS pour les fichiers de services, validé par le test de découverte BCE | [x] |
 
 **Livrable :** documentation complète, module wrapper installable, Cyrano disponible dans
-tout déploiement vidocq-mps via une seule dépendance.
+tout déploiement vidocq via une seule dépendance.
 
 **État réel côté dépôt Cyrano :** M5 est terminé pour le périmètre présent ici (documentation,
 exposition ServiceLoader + JPMS, test de non-régression). Le seul élément restant vit dans le
-dépôt externe `vidocq-mps` : le module wrapper d'agrégation.
+dépôt externe `vidocq` : le module wrapper d'agrégation.
 
 ---
 
@@ -361,7 +361,7 @@ dépôt externe `vidocq-mps` : le module wrapper d'agrégation.
 ## Décisions ouvertes
 
 - [ ] Faut-il un module `cyrano-chappe` utilisant Chappe comme transport HTTP client
-      (plutôt que JDK `java.net.http`) pour l'intégration vidocq-mps ? Ou JDK est suffisant ?
+      (plutôt que JDK `java.net.http`) pour l'intégration vidocq ? Ou JDK est suffisant ?
       → JDK `java.net.http` est la valeur par défaut ; `cyrano-chappe` serait un adapter optionnel.
 - [ ] Support multipart/form-data (MIME multipart) ? Spec MP Rest Client 4.0 §3 le mentionne.
       → À confirmer à M2 en lisant la liste des tests TCK ciblés.
