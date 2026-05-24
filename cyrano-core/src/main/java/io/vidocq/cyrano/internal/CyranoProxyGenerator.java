@@ -77,13 +77,20 @@ public final class CyranoProxyGenerator {
      */
     public static Class<?> generate(Class<?> iface, Map<Method, RequestSpec> specs) {
         List<Method> methods = new ArrayList<>(specs.keySet());
-        String simpleName = "Cyrano$" + iface.getSimpleName();
+        // Pour les interfaces inner, inclure la chaîne des classes englobantes dans le
+        // nom du proxy — sinon trois interfaces nommées `SpanResourceClient` dans trois
+        // outer classes différentes (cas TCK MP Telemetry) génèrent le même proxy
+        // `Cyrano$SpanResourceClient` et collisionnent (LinkageError + ClassCastException
+        // entre tests). On remplace les `$` du nom binaire par `_` dans le suffixe pour
+        // garder une seule séparation `Cyrano$` lisible.
+        String pkg = iface.getPackageName();
+        String binaryWithoutPkg = pkg.isEmpty() ? iface.getName() : iface.getName().substring(pkg.length() + 1);
+        String simpleName = "Cyrano$" + binaryWithoutPkg.replace('$', '_');
         // Le proxy est généré dans le même package que l'interface cible afin de pouvoir
         // l'implémenter même quand elle est package-private, et pour éviter les soucis
         // de visibilité entre modules nommés (chaque module reste responsable de ses
         // proxies). Nécessite que le module utilisateur ouvre son package à cyrano-core
         // (ou que les deux soient dans le module unnamed, cas test/classpath).
-        String pkg = iface.getPackageName();
         String binaryName = pkg.isEmpty() ? simpleName : pkg + "." + simpleName;
         ClassDesc thisClass = ClassDesc.of(binaryName);
         ClassDesc ifaceDesc = iface.describeConstable().orElseThrow();
@@ -131,13 +138,30 @@ public final class CyranoProxyGenerator {
             // interfaces de modules nommés, le module utilisateur doit ouvrir son
             // package à cyrano-core via `opens` (sera documenté pour M3 CDI).
             MethodHandles.Lookup target = MethodHandles.privateLookupIn(iface, MethodHandles.lookup());
-            return target.defineClass(bytes);
+            try {
+                return target.defineClass(bytes);
+            } catch (LinkageError dup) {
+                // Le proxy a déjà été défini dans ce classloader (typiquement parce
+                // que le cache CyranoProxyCache n'a pas hit — peut arriver dans des
+                // contextes Arquillian/ShrinkWrap où plusieurs Class<?> représentent
+                // la même interface entre déploiements successifs partageant le même
+                // ClassLoader applicatif). Récupérer la classe déjà définie au lieu
+                // d'échouer — idempotence du proxy garantie par la signature stable
+                // de l'interface.
+                ClassLoader cl = iface.getClassLoader();
+                if (cl == null) cl = ClassLoader.getSystemClassLoader();
+                return Class.forName(binaryName, false, cl);
+            }
         } catch (IllegalAccessException e) {
             throw new IllegalStateException(
                     "Impossible de définir le proxy " + binaryName
                             + " — assurez-vous que le module hôte ouvre son package à "
                             + "'io.vidocq.cyrano.core' (opens "
                             + iface.getPackageName() + " to io.vidocq.cyrano.core).", e);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException(
+                    "LinkageError sur " + binaryName + " mais classe introuvable via Class.forName — "
+                            + "incohérence ClassLoader.", e);
         }
     }
 
