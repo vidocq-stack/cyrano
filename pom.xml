@@ -73,12 +73,9 @@
         <maven.compiler.release>25</maven.compiler.release>
 
         <!--
-            MicroProfile Rest Client 4.0 — ATTENTION : ce JAR n'a pas d'Automatic-Module-Name
-            dans son MANIFEST.MF et pas de module-info.class. Le nom JPMS utilisé dans les
-            module-info.java est "microprofile.rest.client.api" (dérivé du nom du JAR :
-            microprofile-rest-client-api → strip version → remplacement '-' par '.').
-            Si une re-release avec Automatic-Module-Name est publiée, mettre à jour la version
-            ici et les module-info.java correspondants.
+            MicroProfile Rest Client 4.0 upstream reste un module automatique.
+            Cyrano le repacke dans cyrano-mp-rest-client-api (module explicite)
+            pour garder un graphe JPMS linkable par jlink.
         -->
         <microprofile.rest.client.version>4.0</microprofile.rest.client.version>
 
@@ -106,6 +103,7 @@
         après installation locale du reactor.
     -->
     <subprojects>
+        <subproject>cyrano-mp-rest-client-api</subproject>
         <subproject>cyrano-api</subproject>
         <subproject>cyrano-core</subproject>
         <subproject>cyrano-cdi-vauban</subproject>
@@ -192,6 +190,11 @@
             <!-- Modules internes Cyrano -->
             <dependency>
                 <groupId>io.vidocq.cyrano</groupId>
+                <artifactId>cyrano-mp-rest-client-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.vidocq.cyrano</groupId>
                 <artifactId>cyrano-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -253,20 +256,10 @@
         </pluginManagement>
 
         <!--
-            JPMS workaround : microprofile-rest-client-api:4.0 sans Automatic-Module-Name
-            (même patron que knock pour microprofile-health-api).
-
-            Problème : Maven Compiler Plugin 4.0.0-beta-4 place sur le classpath (unnamed
-            module) tout JAR sans module-info.class ni Automatic-Module-Name, rendant
-            'requires microprofile.rest.client.api' impossible dans les module-info.java.
-
-            Solution : maven-dependency-plugin copie tous les JARs compile-scope dans
-            target/javamodules/ en phase initialize. Le maven-compiler-plugin reçoit
-            l'argument "-module-path target/javamodules" (compilerArg) ; javac dérive
-            alors le nom microprofile.rest.client.api depuis le nom de fichier.
-
-            Compatibilité jlink : ce même répertoire target/javamodules/ passé en option
-            -module-path de jlink résout microprofile.rest.client.api par le même mécanisme.
+            JPMS build helper : copie des dépendances compile-scope dans target/javamodules/
+            pour stabiliser le module-path utilisé par javac sur tous les modules du reactor.
+            Le module de repackage cyrano-mp-rest-client-api fournit un module explicite
+            pour la spec MP Rest Client (jlink-compatible).
         -->
         <plugins>
             <plugin>

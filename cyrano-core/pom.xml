@@ -49,14 +49,12 @@
     <build>
         <plugins>
             <!--
-                JPMS workaround cyrano-core — microprofile-rest-client-api:4.0 sans
-                Automatic-Module-Name (même patron que knock-core).
+                JPMS workaround cyrano-core.
 
                 Problème : Maven Compiler Plugin 4.0.0-beta-4 détecte le mode JPMS dès que
                 module-info.class est présent dans target/classes. En mode JPMS pour
-                testCompile, il reconstruit un module-path qui n'inclut pas
-                microprofile-rest-client-api (pas d'Automatic-Module-Name), provoquant :
-                  error: module not found: microprofile.rest.client.api
+                testCompile, il reconstruit un module-path incompatible avec les dépendances
+                test-scope (tests exécutés sur classpath).
 
                 Solution en trois temps :
 

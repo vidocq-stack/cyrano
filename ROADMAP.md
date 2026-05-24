@@ -85,10 +85,9 @@ public interface UserService {
 - [x] `pom.xml` parent (Model 4.1.0, multi-module, dependency management Jakarta + MicroProfile Rest Client)
 - [x] `CLAUDE.md`, `AGENTS.md`, `ROADMAP.md` (ce fichier) ✅
 - [x] Validation JPMS : `microprofile-rest-client-api:4.0` n'a **ni** `Automatic-Module-Name`
-      **ni** `module-info.class`. Adoption du même patron que `knock` : nom JPMS dérivé
-      `microprofile.rest.client.api` (strip version + remplacement `-`/`.`), JAR forcé sur
-      le module-path via `target/javamodules/` (`maven-dependency-plugin` phase
-      `initialize`). Aucun module de repackage requis.
+      **ni** `module-info.class`. Introduction d'un module de repackage explicite
+      `cyrano-mp-rest-client-api` (`io.vidocq.cyrano.mp.rest.client.api`) pour garder
+      un graphe JPMS compatible `jlink`.
 - [x] Création des modules avec `pom.xml` + `module-info.java` squelettes :
       `cyrano-api`, `cyrano-core`, `cyrano-cdi-vauban` + `cyrano-tck` (hors reactor)
 - [x] `run-official-tck-mp-rest-client-4.0.sh`

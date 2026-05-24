@@ -15,8 +15,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.eclipse.microprofile.rest.client</groupId>
-            <artifactId>microprofile-rest-client-api</artifactId>
+            <groupId>io.vidocq.cyrano</groupId>
+            <artifactId>cyrano-mp-rest-client-api</artifactId>
         </dependency>
         <!-- JAX-RS annotations (transitives de la spec MP Rest Client, utilisées sur les interfaces client) -->
         <dependency>
