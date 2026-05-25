@@ -148,8 +148,8 @@ class CyranoEndToEndTest {
         assertNotNull(b);
         assertEquals(a.getClass(), b.getClass(),
                 "Le proxy doit être généré une seule fois et mis en cache");
-        assertTrue(a.getClass().getName().endsWith("Cyrano$UserService"),
-                "Le proxy doit être nommé Cyrano$UserService — était " + a.getClass().getName());
+        assertTrue(a.getClass().getName().endsWith("Cyrano$CyranoEndToEndTest_UserService"),
+                "Proxy name must end with Cyrano$CyranoEndToEndTest_UserService — was " + a.getClass().getName());
     }
 
     @Test

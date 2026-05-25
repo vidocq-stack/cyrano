@@ -42,8 +42,8 @@ class CyranoProxyGeneratorTest {
     @Test
     void generated_class_is_named_after_interface() {
         var entry = CyranoProxyCache.getOrGenerate(Echo.class);
-        assertEquals("io.vidocq.cyrano.internal.Cyrano$Echo", entry.proxyClass().getName(),
-                "Le proxy doit être nommé Cyrano$<SimpleName> dans le package interne");
+        assertEquals("io.vidocq.cyrano.internal.Cyrano$CyranoProxyGeneratorTest_Echo", entry.proxyClass().getName(),
+                "Proxy name is Cyrano$<name>; nested interfaces are qualified with their enclosing class to avoid collisions");
     }
 
     @Test
