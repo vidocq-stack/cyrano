@@ -5,6 +5,13 @@
          root="true">
     <modelVersion>4.1.0</modelVersion>
 
+    <parent>
+        <groupId>io.vidocq</groupId>
+        <artifactId>vidocq-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath/>
+    </parent>
+
     <groupId>io.vidocq.cyrano</groupId>
     <artifactId>cyrano-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
@@ -12,7 +19,7 @@
 
     <name>Cyrano</name>
     <description>Implémentation MicroProfile Rest Client 4.0 — zéro librairie tierce, virtual threads, JPMS strict, proxy via Class-File API (JEP 484)</description>
-    <url>https://forge.vidocq.dev/vidocq/cyrano</url>
+    <url>https://codeberg.org/Vidocq/cyrano</url>
 
     <licenses>
         <license>
@@ -22,56 +29,12 @@
     </licenses>
 
     <scm>
-        <url>https://forge.vidocq.dev/vidocq/cyrano</url>
-        <connection>scm:git:https://forge.vidocq.dev/vidocq/cyrano.git</connection>
+        <url>https://codeberg.org/Vidocq/cyrano</url>
+        <connection>scm:git:https://codeberg.org/Vidocq/cyrano.git</connection>
         <developerConnection>scm:git:git@forge.vidocq.dev:vidocq/cyrano.git</developerConnection>
     </scm>
 
-    <distributionManagement>
-        <repository>
-            <id>vidocq-releases</id>
-            <url>https://repo.vidocq.dev/releases</url>
-        </repository>
-        <snapshotRepository>
-            <id>vidocq-snapshots</id>
-            <url>https://repo.vidocq.dev/snapshots</url>
-        </snapshotRepository>
-    </distributionManagement>
-
-    <repositories>
-        <repository>
-            <id>vidocq-snapshots</id>
-            <url>https://repo.vidocq.dev/snapshots</url>
-            <releases><enabled>false</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </repository>
-        <repository>
-            <id>vidocq-releases</id>
-            <url>https://repo.vidocq.dev/releases</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>false</enabled></snapshots>
-        </repository>
-    </repositories>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>vidocq-snapshots</id>
-            <url>https://repo.vidocq.dev/snapshots</url>
-            <releases><enabled>false</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </pluginRepository>
-        <pluginRepository>
-            <id>vidocq-releases</id>
-            <url>https://repo.vidocq.dev/releases</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>false</enabled></snapshots>
-        </pluginRepository>
-    </pluginRepositories>
-
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>25</maven.compiler.release>
-
         <!--
             MicroProfile Rest Client 4.0 upstream reste un module automatique.
             Cyrano le repacke dans cyrano-mp-rest-client-api (module explicite)
@@ -91,9 +54,6 @@
         <jakarta.cdi.version>4.1.0</jakarta.cdi.version>
         <jakarta.inject.version>2.0.1</jakarta.inject.version>
         <jakarta.annotation.version>3.0.0</jakarta.annotation.version>
-
-        <!-- JUnit 6 minimum (requiert Java 17+, on tourne en Java 25) -->
-        <junit.version>6.0.3</junit.version>
     </properties>
 
     <!--
@@ -111,15 +71,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- JUnit BOM -->
-            <dependency>
-                <groupId>org.junit</groupId>
-                <artifactId>junit-bom</artifactId>
-                <version>${junit.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
             <!-- MicroProfile Rest Client API -->
             <dependency>
                 <groupId>org.eclipse.microprofile.rest.client</groupId>
@@ -212,49 +163,6 @@
     </dependencyManagement>
 
     <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                    <version>4.0.0-beta-4</version>
-                    <configuration>
-                        <release>25</release>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.5.5</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.4.2</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-clean-plugin</artifactId>
-                    <version>3.4.0</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-resources-plugin</artifactId>
-                    <version>3.3.1</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-install-plugin</artifactId>
-                    <version>3.1.3</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-deploy-plugin</artifactId>
-                    <version>3.1.3</version>
-                </plugin>
-            </plugins>
-        </pluginManagement>
-
         <!--
             JPMS build helper : copie des dépendances compile-scope dans target/javamodules/
             pour stabiliser le module-path utilisé par javac sur tous les modules du reactor.
@@ -292,4 +200,3 @@
         </plugins>
     </build>
 </project>
-
