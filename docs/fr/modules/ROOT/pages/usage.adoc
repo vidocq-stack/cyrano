@@ -1,0 +1,99 @@
+= Utilisation
+:description: Déclarer et consommer un client REST Cyrano.
+
+== Déclarer une interface client
+
+Un client REST est une interface Java annotée `@RegisterRestClient` plus les annotations
+JAX-RS standard. Cyrano génère le proxy qui l'implémente.
+
+[source,java]
+----
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+
+@RegisterRestClient(configKey = "users-api")
+@Path("/users")
+public interface UsersClient {
+
+    @GET
+    @Path("/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    UserDto findById(@PathParam("id") long id);
+}
+----
+
+== Injecter le client (CDI via Vauban)
+
+Avec `cyrano-cdi-vauban` sur le chemin, l'interface est découverte au build et exposée en
+tant que bean qualifié `@RestClient` :
+
+[source,java]
+----
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+
+public class UserService {
+
+    @Inject
+    @RestClient
+    UsersClient client;
+
+    public UserDto lookup(long id) {
+        return client.findById(id);
+    }
+}
+----
+
+== Construire un client par programme
+
+Sans CDI, construisez un client directement avec `RestClientBuilder` :
+
+[source,java]
+----
+import java.net.URI;
+import org.eclipse.microprofile.rest.client.RestClientBuilder;
+
+UsersClient client = RestClientBuilder.newBuilder()
+        .baseUri(URI.create("http://127.0.0.1:8080"))
+        .build(UsersClient.class);
+
+UserDto dto = client.findById(1L);
+----
+
+== Configurer la base URL
+
+Avec un `configKey`, définissez la base URL via MicroProfile Config (Ravel) :
+
+[source,properties]
+----
+users-api/mp-rest/url=http://127.0.0.1:8080
+----
+
+Ou via le nom pleinement qualifié de l'interface :
+
+[source,properties]
+----
+com.acme.UsersClient/mp-rest/url=http://127.0.0.1:8080
+----
+
+== Appels asynchrones
+
+Retourner `CompletionStage<T>` rend l'appel non-bloquant ; le stage est complété sur un
+virtual thread.
+
+[source,java]
+----
+import java.util.List;
+import java.util.concurrent.CompletionStage;
+import jakarta.ws.rs.GET;
+
+public interface UsersClient {
+
+    @GET
+    CompletionStage<List<UserDto>> listUsersAsync();
+}
+----

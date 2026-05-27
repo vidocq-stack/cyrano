@@ -1,0 +1,99 @@
+= Usage
+:description: Declaring and consuming a Cyrano REST client.
+
+== Declare a client interface
+
+A REST client is a Java interface annotated with `@RegisterRestClient` plus standard
+JAX-RS annotations. Cyrano generates the proxy that implements it.
+
+[source,java]
+----
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+
+@RegisterRestClient(configKey = "users-api")
+@Path("/users")
+public interface UsersClient {
+
+    @GET
+    @Path("/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    UserDto findById(@PathParam("id") long id);
+}
+----
+
+== Inject the client (CDI via Vauban)
+
+With `cyrano-cdi-vauban` on the path, the interface is discovered at build time and
+exposed as a `@RestClient`-qualified bean:
+
+[source,java]
+----
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+
+public class UserService {
+
+    @Inject
+    @RestClient
+    UsersClient client;
+
+    public UserDto lookup(long id) {
+        return client.findById(id);
+    }
+}
+----
+
+== Build a client programmatically
+
+Without CDI, build a client directly with `RestClientBuilder`:
+
+[source,java]
+----
+import java.net.URI;
+import org.eclipse.microprofile.rest.client.RestClientBuilder;
+
+UsersClient client = RestClientBuilder.newBuilder()
+        .baseUri(URI.create("http://127.0.0.1:8080"))
+        .build(UsersClient.class);
+
+UserDto dto = client.findById(1L);
+----
+
+== Configure the base URL
+
+When using a `configKey`, set the base URL through MicroProfile Config (Ravel):
+
+[source,properties]
+----
+users-api/mp-rest/url=http://127.0.0.1:8080
+----
+
+Or by the interface's fully qualified name:
+
+[source,properties]
+----
+com.acme.UsersClient/mp-rest/url=http://127.0.0.1:8080
+----
+
+== Async calls
+
+Returning `CompletionStage<T>` makes the call non-blocking; the stage is completed on a
+virtual thread.
+
+[source,java]
+----
+import java.util.List;
+import java.util.concurrent.CompletionStage;
+import jakarta.ws.rs.GET;
+
+public interface UsersClient {
+
+    @GET
+    CompletionStage<List<UserDto>> listUsersAsync();
+}
+----

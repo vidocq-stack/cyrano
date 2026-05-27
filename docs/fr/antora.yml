@@ -1,0 +1,8 @@
+name: cyrano-fr
+title: Cyrano
+version: ~
+nav:
+  - modules/ROOT/nav.adoc
+asciidoc:
+  attributes:
+    lang: fr
