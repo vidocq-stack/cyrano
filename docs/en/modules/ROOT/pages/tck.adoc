@@ -1,0 +1,172 @@
+= TCK: MicroProfile Rest Client 4.0
+:description: Conformance status of Cyrano against the official MicroProfile Rest Client 4.0 TCK, tested scope, declared challenges.
+
+[.lead]
+This page consolidates the state of the official MicroProfile Rest Client 4.0 TCK runs against Cyrano. The day-to-day source of truth is link:https://codeberg.org/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md] in the repo; this page reflects the reference snapshot.
+
+== Summary
+
+[cols="2,1,1,3"]
+|===
+| Metric | Value | Detail | Notes
+
+| Tested spec
+| MicroProfile Rest Client 4.0
+| Eclipse Microprofile
+| Artefact `org.eclipse.microprofile.rest.client:microprofile-rest-client-tck:4.0`.
+
+| TCK stack
+| TestNG + Arquillian + ShrinkWrap
+| MicroProfile standard
+| Custom Arquillian container `CyranoDeployableContainer` (~300 LOC, test scope).
+
+| Tests executed
+| 168
+| Excluding SSL / long-running timeouts / SSE
+| See "Scope" below.
+
+| Tests passed
+| 140
+| ≈ 83 %
+| // TODO@user: refresh at next run (M4-6 / M5 target: > 95 %).
+
+| Tests failing
+| 28
+| Investigation in progress
+| Grouped by family — see "Remaining failures".
+
+| Tests in error
+| 0
+| No JVM crash
+|
+
+| Smoke
+| 3 / 3 PASS
+| `CyranoTckSmokeTest`
+| Out-of-Arquillian, run first as a guardrail.
+
+| M4-5 subset
+| 23 / 23 PASS
+| QueryParamStyle, CDIQueryParamStyle, Inheritance, FeatureRegistration, InvokeWithRegisteredProviders, CDIInvokeWithRegisteredProviders, EntityPart
+| M4-5 milestone validation.
+
+| M4-3 subset
+| 2 / 2 PASS
+| `ConfigKeyTest`
+| M4-3 milestone validation.
+|===
+
+[CAUTION]
+====
+The 140/168 score deliberately excludes three families: SSL (`*Ssl*Test`), long-running timeouts (`TimeoutTest` ≥ 30 s) and SSE (`SseEvent*Test`). These families are planned for milestones M5 / M6. With them included, the nominal official TCK perimeter is about 200 tests.
+====
+
+== TCK runner architecture
+
+The `cyrano-tck` module is **out of reactor** — standalone `modelVersion 4.0.0` POM, no `<parent>`. Reason: the transitive ShrinkWrap Maven Resolver 3.3 cannot parse a Model 4.1.0 POM. Same constraint as `cassini-tck`, `foy-tck`, `champollion-tck`, `ravel-tck`, `knock-tck`.
+
+The MicroProfile Rest Client TCK requires an HTTP backend that plays the role of the target server. The `CyranoDeployableContainer` (custom Arquillian, test scope only):
+
+* Starts an embedded xref:cassini::index.adoc[Cassini] + xref:chappe::index.adoc[Chappe] instance on a random port, serving the TCK's JAX-RS resources (server side).
+* Configures Cyrano's `RestClientBuilder` to point at this server (client side).
+* Reuses `CassiniTestHarness` (from `cassini-tck`) as a shared test component.
+* No dependency on Weld, Undertow or any third-party container.
+
+== Commands
+
+[source,bash]
+----
+# Smoke (fast — out-of-Arquillian, 3 tests)
+./run-official-tck-mp-rest-client-4.0.sh
+
+# Full official TCK suite
+./run-official-tck-mp-rest-client-4.0.sh all
+
+# Targeted test
+./run-official-tck-mp-rest-client-4.0.sh -Dtest=ConfigKeyTest
+./run-official-tck-mp-rest-client-4.0.sh -Dtest=CDIInvokeWithRegisteredProvidersTest
+----
+
+The script:
+
+. first installs the reactor locally (`./mvnw install -DskipTests -pl cyrano-api,cyrano-core,cyrano-cdi-vauban -am`);
+. invokes Maven on `cyrano-tck/pom.xml` with the `smoke` or `tck-official` profile;
+. produces a `cyrano-tck/target/tck-report.txt` report with the `Tests run: N, Failures: F, Errors: E, Skipped: S` line and the count of passed tests.
+
+== Remaining failures (28 / 168)
+
+[cols="2,1,3"]
+|===
+| Family | KO count | Known cause
+
+| `*SslTest*` (out of scope for the score)
+| n/a
+| SSL not wired until `trustStore/keyStore` are plugged into the JDK builder (M5).
+
+| `TimeoutTest` (retained subset)
+| ~5
+| JDK `connectTimeout`/`readTimeout` rounded to the second on some platforms — under investigation.
+
+| `RedirectTest`
+| ~3
+| `Redirect.NEVER` vs `NORMAL` policy to be harmonised with spec §5.
+
+| `MultivaluedHeaderTest`
+| ~2
+| Order of values when a header is repeated — alignment with MP Rest Client §4.3.
+
+| Various `AsyncMethodTest`
+| ~6
+| CDI context propagation in `CompletionStage` (`@ActivateRequestContext` while async).
+
+| `CDIInvokeWithRegisteredProvidersTest` (advanced cases)
+| ~4
+| `@Dependent` lifecycle of providers — alignment with spec §6.
+
+| Others (sporadic)
+| ~8
+| Reproducer in progress — no stable pattern yet.
+|===
+
+== Declared challenges
+
+No official challenge is open against the MP Rest Client spec to date. Every failure above is a **Cyrano bug**, not a spec dispute.
+
+[NOTE]
+====
+The release discipline is clear (see `CLAUDE.md`): **no structural merge** on `cyrano-core`/`cyrano-cdi-vauban` without a TCK PASS on the relevant scope. Any tests disabled for spec interpretation or upstream TCK bug are documented in link:https://codeberg.org/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md] with spec quote, test hash, and reactivation plan.
+====
+
+== TCK roadmap
+
+[cols="2,2,3"]
+|===
+| Milestone | Scope | Target
+
+| M4-3
+| `ConfigKeyTest`
+| 2 / 2 PASS — reached.
+
+| M4-5
+| QueryParamStyle, Inheritance, FeatureRegistration, EntityPart
+| 23 / 23 PASS — reached.
+
+| M4-6
+| Async + CDI context propagation + Multivalued headers + Redirect
+| > 95 % of the perimeter excluding SSL/SSE.
+
+| M5
+| SSL (trustStore, keyStore, hostnameVerifier) + long-running timeouts
+| 100 % of the perimeter excluding SSE.
+
+| M6
+| SSE (`SseEventSource`)
+| 100 % of the official TCK.
+|===
+
+== Going further
+
+* xref:internals.adoc[Internals] — full pipeline of a call.
+* xref:reference.adoc#mp-config[Supported MP Config keys].
+* link:https://codeberg.org/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md — detailed repo status].
+* link:https://codeberg.org/Vidocq/cyrano/src/branch/main/ROADMAP.md[ROADMAP.md — milestones].

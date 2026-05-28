@@ -1,0 +1,234 @@
+= Référence
+:description: Artefacts Maven, modules JPMS, annotations supportées, clés MP Config, SPI publique.
+
+[.lead]
+Cette page liste l'ensemble des artefacts publiés par Cyrano, les modules JPMS qu'ils exportent, les annotations MicroProfile Rest Client 4.0 supportées et la totalité des clés MicroProfile Config reconnues.
+
+== Artefacts Maven
+
+[cols="2,1,3"]
+|===
+| Artefact | Scope conseillé | Rôle
+
+| `io.vidocq.cyrano:cyrano-mp-rest-client-api:0.1.0-SNAPSHOT`
+| `compile` (transitif via `cyrano-api`)
+| Repackage JPMS explicite de `microprofile-rest-client-api` 4.0 — neutralise le module automatique upstream.
+
+| `io.vidocq.cyrano:cyrano-api:0.1.0-SNAPSHOT`
+| `compile`
+| Re-exposition contrôlée de la spec + SPI publique stable (`io.vidocq.cyrano.spi`).
+
+| `io.vidocq.cyrano:cyrano-core:0.1.0-SNAPSHOT`
+| `runtime`
+| Implémentation : `CyranoRestClientBuilder`, `CyranoInterfaceScanner`, `CyranoProxyGenerator` (Class-File API), `CyranoInvocationHandler`, `CyranoHttpTransport`.
+
+| `io.vidocq.cyrano:cyrano-cdi-vauban:0.1.0-SNAPSHOT`
+| `runtime` (optionnel)
+| BCE Vauban `CyranoRestClientExtension` — découverte `@RegisterRestClient`, bean synthétique qualifié `@RestClient`, résolution MP Config.
+
+| `io.vidocq.cyrano:cyrano-tck:0.1.0-SNAPSHOT`
+| `test` (hors reactor, POM Model 4.0.0)
+| Runner TCK officiel MicroProfile Rest Client 4.0 — invoqué via `run-official-tck-mp-rest-client-4.0.sh`.
+|===
+
+NOTE: `cyrano-tck` est **volontairement hors reactor** (POM Model 4.0.0 standalone, sans `<parent>`). Raison : ShrinkWrap Maven Resolver 3.3 — transitive du TCK — ne sait pas parser un POM Model 4.1.0. Ne pas le réintégrer aux `<modules>` parent.
+
+== Modules JPMS exportés
+
+[cols="2,3"]
+|===
+| Module | Packages exportés
+
+| `io.vidocq.cyrano.mp.rest.client.api`
+| `org.eclipse.microprofile.rest.client`, `org.eclipse.microprofile.rest.client.annotation`, `org.eclipse.microprofile.rest.client.ext`, `org.eclipse.microprofile.rest.client.inject`, `org.eclipse.microprofile.rest.client.spi`
+
+| `io.vidocq.cyrano.api`
+| `io.vidocq.cyrano.spi`
+
+| `io.vidocq.cyrano.core`
+| `io.vidocq.cyrano.runtime` (`provides RestClientBuilderResolver with CyranoRestClientBuilderResolver`)
+
+| `io.vidocq.cyrano.cdi.vauban`
+| Aucun package exporté (BCE chargée via `META-INF/services/jakarta.enterprise.inject.build.compatible.spi.BuildCompatibleExtension`).
+|===
+
+== Annotations supportées
+
+[cols="2,3"]
+|===
+| Annotation | Spec / Niveau
+
+| `@org.eclipse.microprofile.rest.client.inject.RegisterRestClient`
+| MP Rest Client §6.1 — enregistre l'interface dans CDI.
+
+| `@org.eclipse.microprofile.rest.client.inject.RestClient`
+| MP Rest Client §6.2 — qualifier d'injection.
+
+| `@org.eclipse.microprofile.rest.client.annotation.RegisterProvider`
+| MP Rest Client §5 — déclare un provider.
+
+| `@org.eclipse.microprofile.rest.client.annotation.RegisterProviders`
+| Conteneur répété de `@RegisterProvider`.
+
+| `@org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam`
+| MP Rest Client §4 — header statique ou dynamique (méthode `default`).
+
+| `@org.eclipse.microprofile.rest.client.annotation.RegisterClientHeaders`
+| MP Rest Client §4 — `ClientHeadersFactory` (propagation depuis requête entrante).
+
+| `@org.eclipse.microprofile.rest.client.annotation.ClientQueryParam`
+| MP Rest Client §4 — query param statique ou dynamique.
+
+| `@org.eclipse.microprofile.rest.client.annotation.RegisterClientQueryParams`
+| Conteneur répété de `@ClientQueryParam`.
+
+| `@jakarta.ws.rs.Path`, `@GET`, `@POST`, `@PUT`, `@DELETE`, `@PATCH`, `@HEAD`, `@OPTIONS`
+| JAX-RS — méthode HTTP + template de path.
+
+| `@PathParam`, `@QueryParam`, `@HeaderParam`, `@CookieParam`, `@MatrixParam`, `@FormParam`, `@DefaultValue`, `@BeanParam`
+| JAX-RS — paramètres.
+
+| `@Consumes`, `@Produces`
+| JAX-RS — content negotiation (côté requête / réponse).
+|===
+
+== Types de retour supportés
+
+[cols="2,3"]
+|===
+| Type | Sémantique
+
+| Primitifs et leurs wrappers
+| Conversion depuis le corps texte ou les types JSON-B.
+
+| `String`
+| Corps brut décodé (charset = `Content-Type`).
+
+| POJO / record
+| Désérialisation JSON-B via Champollion.
+
+| `Optional<T>`
+| Présent si statut < 400 et corps non vide ; `Optional.empty()` sinon.
+
+| `List<T>`, `Set<T>`, `Map<K,V>`
+| Désérialisation JSON-B.
+
+| `jakarta.ws.rs.core.Response`
+| Accès au statut, aux headers et au corps brut.
+
+| `CompletionStage<T>`
+| Async via `HttpClient.sendAsync`, complété sur virtual thread.
+
+| `void`
+| La réponse est consommée et ignorée.
+|===
+
+[[mp-config]]
+== Clés MicroProfile Config
+
+Toutes les clés suivent le pattern `<clé>/mp-rest/<attribut>` où `<clé>` est soit le `configKey` déclaré (`@RegisterRestClient(configKey = "x")`), soit le FQN de l'interface (si pas de `configKey`).
+
+[cols="2,3"]
+|===
+| Clé | Effet
+
+| `<clé>/mp-rest/url`
+| URL de base (host + base path). Priorité moyenne.
+
+| `<clé>/mp-rest/uri`
+| URI de base complète. Priorité haute (gagne contre `url`).
+
+| `<clé>/mp-rest/scope`
+| Scope CDI du bean synthétisé (`jakarta.enterprise.context.ApplicationScoped` par défaut).
+
+| `<clé>/mp-rest/providers`
+| Liste de FQN de providers (séparés par virgule).
+
+| `<clé>/mp-rest/providers/<provider-fqn>/priority`
+| Priorité d'un provider.
+
+| `<clé>/mp-rest/connectTimeout`
+| Timeout de connexion en millisecondes.
+
+| `<clé>/mp-rest/readTimeout`
+| Timeout de lecture en millisecondes.
+
+| `<clé>/mp-rest/followRedirects`
+| `true` pour suivre les redirections (3xx).
+
+| `<clé>/mp-rest/proxyAddress`
+| Proxy HTTP au format `host:port`.
+
+| `<clé>/mp-rest/proxyUser`
+| Utilisateur du proxy HTTP.
+
+| `<clé>/mp-rest/proxyPassword`
+| Mot de passe du proxy HTTP.
+
+| `<clé>/mp-rest/queryParamStyle`
+| `MULTI_PAIRS`, `COMMA_SEPARATED` ou `ARRAY_PAIRS` (style de sérialisation des `@QueryParam` multivalués).
+
+| `<clé>/mp-rest/trustStore`
+| URL du truststore (ex. `classpath:/truststore.jks`). // TODO@user: support SSL non encore intégré au TCK officiel.
+
+| `<clé>/mp-rest/trustStorePassword`
+| Mot de passe du truststore.
+
+| `<clé>/mp-rest/keyStore`
+| URL du keystore client.
+
+| `<clé>/mp-rest/keyStorePassword`
+| Mot de passe du keystore.
+
+| `<clé>/mp-rest/hostnameVerifier`
+| FQN d'une implémentation `javax.net.ssl.HostnameVerifier`.
+|===
+
+Priorité de résolution (du plus fort au plus faible) : `mp-rest/uri` > `mp-rest/url` > `@RegisterRestClient(baseUri=...)`. Les autres attributs ont une priorité unique (MP Config gagne sur les valeurs par défaut du builder).
+
+== SPI publique
+
+Le package `io.vidocq.cyrano.spi` expose des hooks stables :
+
+[cols="2,3"]
+|===
+| Interface | Rôle
+
+| `io.vidocq.cyrano.spi.TransportAdapter`
+| Permet de substituer la couche transport (par défaut : `java.net.http.HttpClient`). Chargée via `ServiceLoader`.
+
+| `io.vidocq.cyrano.spi.RequestInterceptor`
+| Hook bas niveau avant envoi (différent des `ClientRequestFilter` JAX-RS — opère sur la `HttpRequest` JDK).
+
+| `io.vidocq.cyrano.spi.ResponseInterceptor`
+| Hook bas niveau après réception.
+|===
+
+== Pré-requis runtime
+
+* JDK 25+ — pour la Class-File API et virtual threads.
+* JPMS : un `module-info.java` par module Maven applicatif consommant Cyrano.
+* Implémentation JSON-B : xref:champollion::index.adoc[Champollion] (déclarée séparément, scope `runtime`).
+* Optionnel — implémentation MP Config (xref:ravel::index.adoc[Ravel]) pour `<clé>/mp-rest/*`.
+
+== Scripts utilitaires
+
+[cols="2,3"]
+|===
+| Script | Effet
+
+| `./mvnw -ntp install -DskipTests`
+| Build du reactor (sans TCK).
+
+| `./mvnw test`
+| Tests unitaires (cyrano-api, cyrano-core, cyrano-cdi-vauban).
+
+| `./run-official-tck-mp-rest-client-4.0.sh`
+| Mode smoke (rapide).
+
+| `./run-official-tck-mp-rest-client-4.0.sh all`
+| Suite TCK officielle complète.
+
+| `./run-official-tck-mp-rest-client-4.0.sh -Dtest=ConfigKeyTest`
+| Test TCK ciblé.
+|===

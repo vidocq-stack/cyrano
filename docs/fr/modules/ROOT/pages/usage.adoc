@@ -1,99 +1,238 @@
-= Utilisation
-:description: Déclarer et consommer un client REST Cyrano.
+= Cas d'usage
+:description: Patterns MicroProfile Rest Client supportés par Cyrano — paramètres, headers, async, exception mapping, providers, BeanParam, propagation de contexte.
 
-== Déclarer une interface client
+[.lead]
+Cette page couvre les patterns courants d'utilisation d'un client REST typé Cyrano. Tous les exemples compilent et s'exécutent contre un endpoint `java.net.http.HttpClient` ; le proxy d'interface est généré à `process-classes` par la Class-File API et chargé à la première invocation.
 
-Un client REST est une interface Java annotée `@RegisterRestClient` plus les annotations
-JAX-RS standard. Cyrano génère le proxy qui l'implémente.
+== Méthodes HTTP
+
+Les sept verbes JAX-RS standards sont supportés :
 
 [source,java]
 ----
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+@RegisterRestClient(configKey = "blog-api")
+@Path("/posts")
+public interface BlogClient {
 
-@RegisterRestClient(configKey = "users-api")
-@Path("/users")
-public interface UsersClient {
+    @GET
+    List<Post> list();
 
     @GET
     @Path("/{id}")
-    @Produces(MediaType.APPLICATION_JSON)
-    UserDto findById(@PathParam("id") long id);
+    Post get(@PathParam("id") long id);
+
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    Post create(Post body);
+
+    @PUT
+    @Path("/{id}")
+    Post replace(@PathParam("id") long id, Post body);
+
+    @PATCH
+    @Path("/{id}")
+    Post update(@PathParam("id") long id, Post body);
+
+    @DELETE
+    @Path("/{id}")
+    void delete(@PathParam("id") long id);
+
+    @HEAD
+    @Path("/{id}")
+    Response head(@PathParam("id") long id);
 }
 ----
 
-== Injecter le client (CDI via Vauban)
+== Paramètres
 
-Avec `cyrano-cdi-vauban` sur le chemin, l'interface est découverte au build et exposée en
-tant que bean qualifié `@RestClient` :
+[cols="2,3"]
+|===
+| Annotation | Sémantique côté client
+
+| `@PathParam("id")`
+| Remplace `{id}` dans le template de path.
+
+| `@QueryParam("limit")`
+| Ajoute `?limit=...` à l'URL.
+
+| `@HeaderParam("X-API-Key")`
+| Ajoute un header HTTP de valeur calculée au runtime.
+
+| `@CookieParam("session")`
+| Ajoute un cookie HTTP.
+
+| `@MatrixParam("color")`
+| Ajoute un paramètre matriciel (`;color=red`).
+
+| `@FormParam("name")`
+| Ajoute un champ à un body `application/x-www-form-urlencoded`.
+
+| `@DefaultValue("0")`
+| Valeur de repli si l'argument est `null`.
+
+| `@BeanParam`
+| Agrège plusieurs paramètres dans un objet (`record` recommandé).
+|===
+
+Exemple `@BeanParam` :
 
 [source,java]
 ----
-import jakarta.inject.Inject;
-import org.eclipse.microprofile.rest.client.inject.RestClient;
+public record SearchFilters(
+    @QueryParam("q") String query,
+    @QueryParam("limit") @DefaultValue("20") int limit,
+    @HeaderParam("X-Trace") String trace
+) {}
 
-public class UserService {
+@GET
+@Path("/search")
+List<Post> search(@BeanParam SearchFilters filters);
+----
 
-    @Inject
-    @RestClient
-    UsersClient client;
+== Headers statiques et dynamiques
 
-    public UserDto lookup(long id) {
-        return client.findById(id);
+`@ClientHeaderParam` permet d'attacher un header **sans le passer en paramètre** à chaque appel. Valeur littérale ou méthode `default` :
+
+[source,java]
+----
+@RegisterRestClient(configKey = "blog-api")
+@ClientHeaderParam(name = "User-Agent", value = "cyrano/0.1")
+public interface BlogClient {
+
+    @GET
+    @ClientHeaderParam(name = "X-Request-Id", value = "{newRequestId}")
+    List<Post> list();
+
+    default String newRequestId() {
+        return java.util.UUID.randomUUID().toString();
     }
 }
 ----
 
-== Construire un client par programme
+`@RegisterClientHeaders` branche un `ClientHeadersFactory` qui peut lire les headers de la requête entrante côté serveur — utile pour propager `Authorization`, `X-Forwarded-For`, etc.
 
-Sans CDI, construisez un client directement avec `RestClientBuilder` :
+== Sérialisation JSON
 
-[source,java]
-----
-import java.net.URI;
-import org.eclipse.microprofile.rest.client.RestClientBuilder;
+Les types Java communs sont sérialisés/désérialisés via Jakarta JSON-B (impl xref:champollion::index.adoc[Champollion]) :
 
-UsersClient client = RestClientBuilder.newBuilder()
-        .baseUri(URI.create("http://127.0.0.1:8080"))
-        .build(UsersClient.class);
+* Records, POJO, classes annotées `@JsonbProperty`.
+* `Optional<T>`, `List<T>`, `Set<T>`, `Map<K,V>`.
+* Types primitifs et leurs wrappers, `String`, `BigDecimal`, `LocalDate`, `Instant`.
+* `jakarta.ws.rs.core.Response` — accès au statut et aux headers bruts.
 
-UserDto dto = client.findById(1L);
-----
+Penser à `opens com.example.dto to jakarta.json.bind;` dans le `module-info.java` du module qui contient les DTO.
 
-== Configurer la base URL
+== Async — `CompletionStage<T>`
 
-Avec un `configKey`, définissez la base URL via MicroProfile Config (Ravel) :
-
-[source,properties]
-----
-users-api/mp-rest/url=http://127.0.0.1:8080
-----
-
-Ou via le nom pleinement qualifié de l'interface :
-
-[source,properties]
-----
-com.acme.UsersClient/mp-rest/url=http://127.0.0.1:8080
-----
-
-== Appels asynchrones
-
-Retourner `CompletionStage<T>` rend l'appel non-bloquant ; le stage est complété sur un
-virtual thread.
+Un retour `CompletionStage<T>` déclenche `HttpClient.sendAsync`. Le `CompletionStage` est complété sur un virtual thread.
 
 [source,java]
 ----
-import java.util.List;
-import java.util.concurrent.CompletionStage;
-import jakarta.ws.rs.GET;
+@GET
+CompletionStage<List<UserDto>> listUsersAsync();
 
-public interface UsersClient {
+CompletionStage<Greeting> chained = client.listUsersAsync()
+    .thenApply(users -> users.size())
+    .thenApply(n -> new Greeting("Trouvé " + n + " utilisateurs"));
+----
 
-    @GET
-    CompletionStage<List<UserDto>> listUsersAsync();
+Aucune configuration n'est requise — l'`HttpClient` interne est déjà construit avec `Executors.newVirtualThreadPerTaskExecutor()`.
+
+== Exception mapping
+
+Par défaut, toute réponse de statut HTTP ≥ 400 est convertie en `jakarta.ws.rs.WebApplicationException` (spec §8, priorité 1). Pour mapper finement, implémenter `ResponseExceptionMapper` :
+
+[source,java]
+----
+public class NotFoundMapper implements ResponseExceptionMapper<UserNotFound> {
+
+    @Override
+    public boolean handles(int status, jakarta.ws.rs.core.MultivaluedMap<String, Object> headers) {
+        return status == 404;
+    }
+
+    @Override
+    public UserNotFound toThrowable(jakarta.ws.rs.core.Response response) {
+        return new UserNotFound("Utilisateur introuvable");
+    }
+
+    @Override
+    public int getPriority() {
+        return 100; // < 1 (défaut) — gagne contre WebApplicationException
+    }
 }
 ----
+
+Enregistrement :
+
+[source,java]
+----
+@RegisterRestClient(configKey = "users-api")
+@RegisterProvider(NotFoundMapper.class)
+public interface UsersClient { /* ... */ }
+----
+
+ou via builder :
+
+[source,java]
+----
+RestClientBuilder.newBuilder()
+    .register(NotFoundMapper.class)
+    .build(UsersClient.class);
+----
+
+== Filtres requête/réponse
+
+Pour logger, ajouter des headers globaux, mesurer la latence — utiliser `ClientRequestFilter` et `ClientResponseFilter` JAX-RS :
+
+[source,java]
+----
+public class LoggingRequestFilter implements ClientRequestFilter {
+
+    @Override
+    public void filter(ClientRequestContext ctx) {
+        System.out.println(">>> " + ctx.getMethod() + " " + ctx.getUri());
+    }
+}
+----
+
+Enregistrement identique aux exception mappers (`@RegisterProvider` ou `register(...)`).
+
+== Builder programmatique
+
+Sans CDI ou pour des cas dynamiques (URL résolue runtime, providers conditionnels) :
+
+[source,java]
+----
+RestClientBuilder builder = RestClientBuilder.newBuilder()
+    .baseUri(URI.create(System.getenv("BLOG_API_URL")))
+    .connectTimeout(2, TimeUnit.SECONDS)
+    .readTimeout(5, TimeUnit.SECONDS)
+    .register(LoggingRequestFilter.class)
+    .register(NotFoundMapper.class);
+
+BlogClient blog = builder.build(BlogClient.class);
+----
+
+== Configuration via MP Config
+
+Tout (URL, timeouts, providers, scope CDI, follow redirects, query param style) peut être surchargé sans toucher au code :
+
+[source,properties]
+----
+blog-api/mp-rest/url=https://staging.example.com
+blog-api/mp-rest/connectTimeout=2000
+blog-api/mp-rest/readTimeout=5000
+blog-api/mp-rest/scope=jakarta.enterprise.context.ApplicationScoped
+blog-api/mp-rest/providers=com.example.LoggingRequestFilter,com.example.NotFoundMapper
+blog-api/mp-rest/followRedirects=true
+blog-api/mp-rest/queryParamStyle=COMMA_SEPARATED
+----
+
+Voir xref:reference.adoc#mp-config[la liste complète] des clés supportées.
+
+== Intégration Vidocq Runtime
+
+Dans un runtime Vidocq complet, l'extension `vidocq-mps-cyrano-extension` (en cours d'intégration) déclare le module Cyrano comme **side-effect-free runtime extension** : les beans synthétiques `@RestClient` deviennent disponibles dès l'amorçage de l'application, et la résolution MP Config est branchée sur xref:ravel::index.adoc[Ravel] sans configuration supplémentaire.
+
+Pour publier côté serveur l'interface consommée côté client, voir xref:cassini::index.adoc[Cassini] — le même `@Path("/users")` peut servir de contrat partagé.

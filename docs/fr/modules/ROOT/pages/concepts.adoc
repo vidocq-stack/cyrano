@@ -1,0 +1,123 @@
+= Concepts
+:description: Vocabulaire MicroProfile Rest Client 4.0 tel que matérialisé par Cyrano — interface typée, RestClientBuilder, providers, qualifier @RestClient.
+
+[.lead]
+Cette page définit le vocabulaire du modèle MicroProfile Rest Client tel que Cyrano l'implémente. Les choix d'implémentation (génération de proxy, transport, BCE) sont décrits dans xref:internals.adoc[Fonctionnement interne].
+
+== Interface client typée
+
+Une **interface client** est une interface Java annotée des mêmes constructions JAX-RS que l'on utiliserait côté serveur — `@Path`, `@GET`, `@PathParam`, `@QueryParam`, `@Produces`, `@Consumes`. Elle décrit le contrat HTTP du service distant comme s'il était une méthode locale typée.
+
+Trois conditions suffisent pour qu'une interface devienne un client Cyrano :
+
+. L'interface est annotée `@RegisterRestClient` (déclenche la BCE Vauban).
+. L'interface est exportée par son `module-info.java` (au moins pour le module qui contient le code appelant).
+. Au moins une URL de base est résolvable (`baseUri` d'annotation, `<configKey>/mp-rest/url` ou `<fqn>/mp-rest/url` via MP Config).
+
+À la première utilisation, l'interface reçoit un artefact runtime : une classe `Cyrano$<SimpleName>` générée par la Class-File API, mémoïsée par `CyranoProxyCache`.
+
+== `RestClientBuilder`
+
+`org.eclipse.microprofile.rest.client.RestClientBuilder` est le point d'entrée standard de la spec. Cyrano fournit une implémentation `CyranoRestClientBuilder` chargée via le `ServiceLoader` (SPI `RestClientBuilderResolver`).
+
+[source,java]
+----
+UsersClient client = RestClientBuilder.newBuilder()
+    .baseUri(URI.create("https://api.example.com"))
+    .connectTimeout(2, TimeUnit.SECONDS)
+    .readTimeout(5, TimeUnit.SECONDS)
+    .register(MyExceptionMapper.class)
+    .build(UsersClient.class);
+----
+
+Le builder est utilisable en SE pur. En CDI, il sert de mécanisme bas niveau ; la BCE `cyrano-cdi-vauban` l'invoque dans le `SyntheticCreator` derrière `@Inject @RestClient`.
+
+== `@RegisterRestClient`
+
+L'annotation `@RegisterRestClient` (spec §6.1) marque une interface comme client REST à enregistrer dans CDI. Deux attributs :
+
+* `baseUri` — URL par défaut, priorité basse.
+* `configKey` — clé logique sous laquelle MP Config publie l'URL et les options runtime (`<configKey>/mp-rest/url`, etc.). Priorité haute.
+
+Sans `configKey`, c'est le FQN de l'interface qui fait office de clé (`<interface.fqn>/mp-rest/url`).
+
+== Qualifier `@RestClient`
+
+Le qualifier `org.eclipse.microprofile.rest.client.inject.RestClient` distingue les beans synthétisés par la BCE Cyrano des autres beans qui implémenteraient la même interface. Côté appelant :
+
+[source,java]
+----
+@Inject
+@RestClient
+UsersClient client;
+----
+
+Sans le qualifier, l'injection résoudrait un éventuel bean local implémentant `UsersClient` — ce qui n'est probablement pas l'intention.
+
+== Providers
+
+Un **provider** est une classe enregistrée sur le client qui intervient dans le pipeline d'envoi/réception. Cyrano supporte les types standard de la spec :
+
+[cols="2,3"]
+|===
+| Provider | Rôle
+
+| `jakarta.ws.rs.ext.MessageBodyReader<T>`
+| Désérialise un corps de réponse vers `T`.
+
+| `jakarta.ws.rs.ext.MessageBodyWriter<T>`
+| Sérialise un corps de requête depuis `T`.
+
+| `jakarta.ws.rs.client.ClientRequestFilter`
+| Modifie la requête avant envoi (headers, logging).
+
+| `jakarta.ws.rs.client.ClientResponseFilter`
+| Lit/modifie la réponse après réception.
+
+| `org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper<E>`
+| Convertit une réponse HTTP en exception typée (par défaut : tout statut ≥ 400 → `WebApplicationException`).
+
+| `jakarta.ws.rs.ext.ParamConverterProvider`
+| Convertit une valeur de paramètre Java vers/depuis sa forme textuelle HTTP.
+|===
+
+Enregistrement déclaratif : `@RegisterProvider(MyMapper.class)` ou `@RegisterProviders({A.class, B.class})` sur l'interface. Enregistrement programmatique : `RestClientBuilder.register(...)`.
+
+== Headers — statiques et dynamiques
+
+* `@HeaderParam("X-Foo")` — la valeur est un paramètre de méthode.
+* `@ClientHeaderParam(name = "X-Trace", value = "{computeTrace}")` — la valeur vient d'une **méthode `default`** de l'interface (statique si la chaîne est littérale, dynamique si elle est entre accolades).
+* `@RegisterClientHeaders` — branche un `ClientHeadersFactory` qui peut consulter la requête entrante (utile en propagation de contexte serveur → client).
+
+== Async via `CompletionStage<T>`
+
+Une méthode de retour `java.util.concurrent.CompletionStage<T>` déclenche un envoi non bloquant via `HttpClient.sendAsync`. Le résultat est complété sur un virtual thread.
+
+[source,java]
+----
+@GET
+CompletionStage<List<UserDto>> listAllAsync();
+----
+
+Pas de pool plateforme à gérer ; pas de callback hell. La méthode chaîne naturellement avec `thenApply`, `thenCompose`, `exceptionally`.
+
+== Build Compatible Extensions (BCE)
+
+CDI 4.1 a remplacé les Portable Extensions runtime par des hooks compile-time : `@Discovery`, `@Enhancement`, `@Registration`, `@Synthesis`, `@Validation`. Cyrano les exploite (via xref:vauban::index.adoc[Vauban]) pour :
+
+. **Découvrir** les interfaces `@RegisterRestClient` (`@Enhancement(types = Object.class, withAnnotations = RegisterRestClient.class)`).
+. **Synthétiser** un bean qualifié `@RestClient` pour chacune (`@Synthesis`).
+. **Valider** que chaque client a au moins une URL de base résolvable (`@Validation`).
+
+Tout est compile-time : pas d'`Extension` runtime, pas de scan classpath à chaud.
+
+== Différences avec Jakarta REST Client (côté serveur)
+
+Cyrano n'est **pas** un client JAX-RS générique (`jakarta.ws.rs.client.Client`). Il implémente le profil MicroProfile Rest Client qui spécialise le modèle :
+
+* **Interface typée obligatoire** — pas de fluent API `target/path/get` style JAX-RS.
+* **Annotations JAX-RS partagées** mais utilisées en lecture (sur l'interface) plutôt qu'en écriture (sur une méthode invoquée).
+* **Intégration CDI native** via qualifier `@RestClient`.
+* **Configuration MP Config** via clés `<configKey>/mp-rest/*`.
+
+Pour le côté serveur (publier l'interface), utilisez xref:cassini::index.adoc[Cassini].

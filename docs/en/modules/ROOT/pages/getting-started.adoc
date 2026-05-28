@@ -1,0 +1,173 @@
+= Getting started
+:description: First typed MicroProfile Rest Client interface wired with Cyrano in fewer than fifty lines.
+
+[.lead]
+This page shows how to declare a typed client interface, inject it through CDI, and invoke a remote HTTP service. No dynamic proxy, no hot reflection: the invocation class is generated on first use by the Class-File API.
+
+== Prerequisites
+
+* **Java 25** — Temurin recommended. Module path enabled.
+* **Maven 4.0.0-rc-5** — pinned via `.sdkmanrc` at the repo root (`sdk env`).
+* **JPMS-strict** — one `module-info.java` per Maven module.
+* A JSON-B implementation on the classpath/module-path at runtime — xref:champollion::index.adoc[Champollion] in the Vidocq ecosystem.
+* For CDI integration: xref:vauban::index.adoc[Vauban] as the container, xref:ravel::index.adoc[Ravel] for MP Config.
+
+== Maven coordinates
+
+[source,xml]
+----
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>io.vidocq.cyrano</groupId>
+      <artifactId>cyrano-parent</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+
+<dependencies>
+  <!-- Public API: RestClientBuilder, MP Rest Client annotations, Cyrano SPI -->
+  <dependency>
+    <groupId>io.vidocq.cyrano</groupId>
+    <artifactId>cyrano-api</artifactId>
+  </dependency>
+
+  <!-- Runtime implementation: scanning, Class-File API proxy, HttpClient transport -->
+  <dependency>
+    <groupId>io.vidocq.cyrano</groupId>
+    <artifactId>cyrano-core</artifactId>
+    <scope>runtime</scope>
+  </dependency>
+
+  <!-- Optional CDI integration: BCE @RegisterRestClient + @RestClient synthetic bean -->
+  <dependency>
+    <groupId>io.vidocq.cyrano</groupId>
+    <artifactId>cyrano-cdi-vauban</artifactId>
+    <scope>runtime</scope>
+  </dependency>
+</dependencies>
+----
+
+NOTE: `cyrano-mp-rest-client-api` is pulled in transitively. This module **repackages** the MicroProfile Rest Client spec (which ships with no `module-info` and no `Automatic-Module-Name` upstream) to produce an explicit JPMS module `io.vidocq.cyrano.mp.rest.client.api`. Without it, jlink fails.
+
+== `module-info.java`
+
+[source,java]
+----
+module com.example.client {
+    requires io.vidocq.cyrano.api;
+    requires io.vidocq.cyrano.mp.rest.client.api;
+    requires jakarta.ws.rs;
+    requires jakarta.cdi;
+
+    // So JSON-B can deserialise returned DTOs
+    opens com.example.client.dto to jakarta.json.bind;
+}
+----
+
+== Step 1 — Describe the remote service as an interface
+
+[source,java]
+----
+package com.example.client;
+
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+
+@RegisterRestClient(configKey = "users-api")
+@Path("/users")
+public interface UsersClient {
+
+    @GET
+    @Path("/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    UserDto findById(@PathParam("id") long id);
+}
+----
+
+`@RegisterRestClient(configKey = "users-api")` registers the interface with the Cyrano BCE and provides the MP Config key that drives the base URL.
+
+== Step 2 — Configure the base URL
+
+In `META-INF/microprofile-config.properties` (resolved by xref:ravel::index.adoc[Ravel]):
+
+[source,properties]
+----
+users-api/mp-rest/url=https://api.example.com
+users-api/mp-rest/scope=jakarta.enterprise.context.ApplicationScoped
+users-api/mp-rest/connectTimeout=2000
+users-api/mp-rest/readTimeout=5000
+----
+
+Resolution follows MP Rest Client priority: `<configKey>/mp-rest/uri` > `<configKey>/mp-rest/url` > `@RegisterRestClient(baseUri=...)`.
+
+== Step 3 — Inject and call
+
+[source,java]
+----
+package com.example.app;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+import com.example.client.UsersClient;
+import com.example.client.UserDto;
+
+@ApplicationScoped
+public class UserService {
+
+    @Inject
+    @RestClient
+    UsersClient users;
+
+    public String greet(long id) {
+        UserDto user = users.findById(id);
+        return "Hello " + user.name();
+    }
+}
+----
+
+At bootstrap, the `CyranoRestClientExtension` BCE detects `UsersClient` via `@Enhancement(withAnnotations = RegisterRestClient.class)`, synthesises a `@RestClient`-qualified bean, and delegates instantiation to `RestClientBuilder.newBuilder().baseUri(...).build(UsersClient.class)`. On the first invocation, `CyranoProxyGenerator` emits `Cyrano$UsersClient` via the Class-File API.
+
+== Variant without CDI — `RestClientBuilder`
+
+If the application runs in pure SE (no CDI), build the client by hand:
+
+[source,java]
+----
+import java.net.URI;
+import org.eclipse.microprofile.rest.client.RestClientBuilder;
+
+UsersClient users = RestClientBuilder.newBuilder()
+    .baseUri(URI.create("https://api.example.com"))
+    .build(UsersClient.class);
+
+UserDto user = users.findById(42L);
+----
+
+`cyrano-core` is sufficient for this mode — `cyrano-cdi-vauban` is not required.
+
+== Step 4 — Run
+
+[source,bash]
+----
+cd cyrano
+sdk env
+./mvnw -ntp install -DskipTests
+./mvnw test
+----
+
+To run the official MicroProfile Rest Client 4.0 TCK, see xref:tck.adoc[the TCK page] (`./run-official-tck-mp-rest-client-4.0.sh`).
+
+== What next?
+
+* xref:concepts.adoc[Concepts] — MP Rest Client vocabulary.
+* xref:usage.adoc[Usage] — async, dynamic headers, exception mappers, providers.
+* xref:reference.adoc[Reference] — every supported MP Config key.

@@ -1,66 +1,112 @@
 = Cyrano
-:description: MicroProfile Rest Client 4.0 pour Vidocq — clients REST typés, zéro dépendance tierce.
+:description: Implémentation MicroProfile Rest Client 4.0, client REST typé zéro dépendance externe, proxy généré au build via Class-File API, transport JDK HttpClient, Java 25.
+
+////
+[.text-center]
+image::cyrano-logo.png[Cyrano,300,role=module-logo]
+////
 
 [.lead]
-Cyrano est l'implémentation Vidocq de MicroProfile Rest Client 4.0 : vous déclarez une
-interface Java annotée avec les annotations JAX-RS, et Cyrano appelle le service distant
-en son nom. Il s'appuie sur xref:cassini::index.adoc[Cassini] (types JAX-RS) et s'intègre
-au runtime via xref:vidocq::index.adoc[Vidocq], sans aucune librairie tierce.
+Cyrano est l'implémentation MicroProfile Rest Client 4.0 de l'écosystème Vidocq. Elle transforme une simple interface Java annotée (`@Path`, `@GET`, `@RegisterRestClient`) en un proxy typé qui parle HTTP à votre place : la requête, les paramètres, les headers, la sérialisation JSON-B et la désérialisation typée sont assurés depuis l'ombre, sans réflexion dynamique, sans librairie tierce, et sur des virtual threads natifs du JDK 25.
 
 == Origine du nom
 
-Cyrano de Bergerac (1619–1655) parlait au nom des autres, leur prêtant son éloquence pour
-séduire qui ils ne pouvaient atteindre seuls. C'est exactement ce que fait un client REST
-typé : il parle au nom du code applicatif, lui prêtant ses proxies et ses annotations pour
-appeler les services distants sans que l'appelant ait à connaître le protocole ou le
-transport sous-jacent.
+Le personnage de **Cyrano de Bergerac** — du dramaturge Edmond Rostand (1897), inspiré du libre penseur français Savinien de Cyrano de Bergerac (1619-1655) — prête à Christian son éloquence, ses vers, ses sentiments, depuis l'ombre du balcon. Christian n'a qu'à articuler ; le verbe, la cadence, la métaphore viennent de Cyrano. Voir https://fr.wikipedia.org/wiki/Cyrano_de_Bergerac_(pi%C3%A8ce_de_th%C3%A9%C3%A2tre)[la pièce sur Wikipédia].
+
+Un client REST typé fait exactement le même geste : le code applicatif appelle `users.findById(42)` et Cyrano parle HTTP en son nom — construit la requête, sérialise le corps, dépose les headers, interprète la réponse, désérialise le type de retour. L'application n'entend que la voix typée ; tout le protocole reste dans l'ombre.
+
+[cols="1,2"]
+|===
+| Cyrano, l'éloquent | Cyrano, le runtime Rest Client
+
+| Discours pour Christian sous le balcon
+| Appel HTTP au nom du code applicatif
+
+| Vers en cadence (rythme, rime)
+| Requête HTTP formée (méthode, path, headers, body)
+
+| Voix portée mais visage caché
+| Interface typée — le service distant est invisible
+
+| Métaphore prêtée, image qui circule
+| Proxy généré au build-time qui circule via DI
+
+| Cadre du langage : alexandrin imposé
+| Cadre de la spec : `@Path`, `@GET`, `@RegisterRestClient`
+
+| Réponse de Roxane interprétée
+| Réponse HTTP désérialisée typée
+|===
 
 == En un coup d'œil
 
 [cols="1,3"]
 |===
-| Spec implémentée | {spec-mp-rest-client}
-| Repo | {repo-cyrano}
+| Spec implémentée | https://download.eclipse.org/microprofile/microprofile-rest-client-4.0/microprofile-rest-client-spec-4.0.html[MicroProfile Rest Client 4.0]
+| Repo | https://codeberg.org/Vidocq/cyrano[Vidocq/cyrano] (miroirs : GitHub, Forgejo)
 | Java | 25 (LTS)
-| Modules | `cyrano-api`, `cyrano-core`, `cyrano-cdi-vauban`, `cyrano-mp-rest-client-api`, `cyrano-tck` (hors reactor)
-| TCK | MicroProfile Rest Client 4.0 — en cours, voir ROADMAP / TCK.md
+| Modules JPMS | `io.vidocq.cyrano.mp.rest.client.api`, `io.vidocq.cyrano.api`, `io.vidocq.cyrano.core`, `io.vidocq.cyrano.cdi.vauban`
+| Dépendances runtime | `microprofile-rest-client-api` (repackagée), `jakarta.ws.rs-api`, `jakarta.json.bind-api` (impl runtime : xref:champollion::index.adoc[Champollion])
+| Transport HTTP | `java.net.http.HttpClient` (JDK pur, HTTP/1.1 + H/2, virtual threads)
+| Génération de proxy | Class-File API (JEP 484) à la première utilisation — classes nommées `Cyrano$<Interface>`, pas de `java.lang.reflect.Proxy`
+| Intégration CDI | `cyrano-cdi-vauban` — BCE `@Enhancement` sur `@RegisterRestClient`, `@Synthesis` produit le bean qualifié `@RestClient`
+| Prête pour jlink | ✅ (le repackage `cyrano-mp-rest-client-api` neutralise le module automatique upstream)
+| TCK MicroProfile Rest Client 4.0 | 140 / 168 (~83 %) hors SSL / timeouts / SSE — voir xref:tck.adoc[état TCK]
+| Licence | Apache License 2.0
 |===
 
-== Clients typés par interface
+== Trois traits identitaires
 
-Un client REST est une simple interface Java annotée `@RegisterRestClient` plus les
-annotations JAX-RS habituelles (`@Path`, `@GET`/`@POST`/`@PUT`/`@DELETE`/`@PATCH`,
-`@PathParam`, `@QueryParam`, `@HeaderParam`, `@CookieParam`, `@ClientHeaderParam`,
-`@FormParam`, `@BeanParam`, `@Consumes`, `@Produces`). Les méthodes peuvent retourner les
-types primitifs et leurs wrappers, `String`, `jakarta.ws.rs.core.Response`, des POJO
-désérialisés via JSON-B, `Optional<T>`, `List<T>`, `Set<T>`, `Map<K,V>`, ainsi que
-`CompletionStage<T>` pour les appels non-bloquants complétés sur un virtual thread. La
-sérialisation JSON passe par Champollion (Jakarta JSON-B) ; le transport HTTP est le
-`java.net.http.HttpClient` du JDK exécuté sur un executor de virtual threads.
+. **Zéro librairie tierce.** Aucune dépendance d'implémentation : pas de RESTEasy Client, pas de Jersey, pas de CXF, pas d'OkHttp, pas de Jackson, pas d'ASM, pas de Byte Buddy. Seules les specs Jakarta EE et MicroProfile sont en `compile`/`provided`. La couche transport est `java.net.http.HttpClient` du JDK ; la couche JSON est Jakarta JSON-B (l'implémentation xref:champollion::index.adoc[Champollion] est fournie au runtime).
 
-== Génération de proxy via Class-File API
+. **Transport JDK natif virtual threads.** `HttpClient` est construit avec `Executors.newVirtualThreadPerTaskExecutor()`. Chaque appel bloquant occupe un virtual thread, pas un thread plateforme. Aucun `synchronized`, aucun `ThreadLocal` dans le chemin chaud — virtual-thread-friendly de bout en bout. Le mode asynchrone (`CompletionStage<T>`) délègue à `HttpClient.sendAsync`.
 
-Au lieu de `java.lang.reflect.Proxy`, Cyrano génère à la première utilisation une vraie
-classe nommée `Cyrano$<NomInterface>` via la Class-File API du JDK 25 (JEP 484), chargée
-avec `MethodHandles.Lookup.defineClass` et mise en cache par `CyranoProxyCache`. Aucune
-dépendance ASM/Byte Buddy, pas de `setAccessible(true)`, ce qui garde le résultat
-compatible AOT (GraalVM `native-image`, Leyden CDS) et produit des stack traces lisibles.
+. **Proxy d'interface généré au build-time, pas à la réflexion.** Cyrano ne fait pas `java.lang.reflect.Proxy.newProxyInstance(...)`. À la première utilisation d'une interface client, le `CyranoProxyGenerator` émet une vraie classe nommée `Cyrano$<SimpleName>` via la **Class-File API** (JEP 484) et la charge avec `MethodHandles.Lookup.defineClass`. Avantages : stack traces lisibles, pas de `setAccessible(true)`, compatible AOT (GraalVM `native-image`, Leyden CDS). Le bytecode est mémoïsé par `CyranoProxyCache`.
 
-== Intégration
+== Positionnement dans l'écosystème
 
-`cyrano-core` est standalone et ne dépend que de `jakarta.ws.rs` et `jakarta.json.bind`
-(transport via le `HttpClient` du JDK). `cyrano-cdi-vauban` ajoute l'intégration CDI : une
-BuildCompatibleExtension Vauban découvre les interfaces `@RegisterRestClient` et les expose
-en tant que beans qualifiés `@RestClient` pour `@Inject`, la base URI étant résolue depuis
-l'annotation ou depuis MicroProfile Config (Ravel) via les clés `<configKey>/mp-rest/url`
-et `<interface.fqn>/mp-rest/url`.
+[mermaid]
+....
+flowchart LR
+  App["Code applicatif<br/>@Inject @RestClient MyService"]
+  Proxy["Cyrano$MyService<br/>(Class-File API)"]
+  Handler["CyranoInvocationHandler<br/>résout params, headers"]
+  HttpC["java.net.http.HttpClient<br/>virtual thread executor"]
+  Remote["Service HTTP distant"]
+  JSONB["Jakarta JSON-B<br/>(Champollion)"]
 
-== Décisions de conception
+  App -->|appel typé| Proxy
+  Proxy -->|delegate| Handler
+  Handler -->|HttpRequest| HttpC
+  HttpC -->|HTTP/1.1, H/2| Remote
+  Remote -->|réponse HTTP| HttpC
+  HttpC --> Handler
+  Handler -->|désérialise| JSONB
+  JSONB -->|valeur typée| App
 
-La stratégie de génération de proxy est documentée dans link:{repo-cyrano}/src/branch/main/docs/adr/ADR-001-classfile-proxy-strategy.md[ADR-001]. Notes d'intégration : link:{repo-cyrano}/src/branch/main/docs/integration-cassini.md[Cassini], link:{repo-cyrano}/src/branch/main/docs/integration-vidocq-runtime.md[Vidocq Runtime].
+  Handler -.@Inject.-> Ravel["Ravel<br/>MP Config"]
+  App -.découverte.-> Vauban["Vauban<br/>BCE @RegisterRestClient"]
 
-== Liens rapides
+  classDef rt fill:#fff3e0,stroke:#ef6c00
+  class Proxy,Handler rt
+....
 
-* xref:usage.adoc[Utilisation]
+Cyrano se branche en tant que **côté client** sur le même empilement que xref:cassini::index.adoc[Cassini] côté serveur : xref:vauban::index.adoc[Vauban] découvre les `@RegisterRestClient` et produit les beans synthétiques, xref:ravel::index.adoc[Ravel] résout les clés `<configKey>/mp-rest/url`, xref:champollion::index.adoc[Champollion] sérialise/désérialise les corps JSON. Le transport est `java.net.http.HttpClient` (JDK), pas xref:chappe::index.adoc[Chappe] — Chappe est un serveur, pas un client.
 
-Bugs et benchmarks consolidés : link:{repo-cyrano}/src/branch/main/BUG.md[BUG.md], link:{repo-cyrano}/src/branch/main/BENCH.md[BENCH.md].
+== Statut courant
+
+L'implémentation core (`cyrano-core`) et l'intégration CDI (`cyrano-cdi-vauban`) sont en place. Le TCK MicroProfile Rest Client 4.0 atteint **140 / 168** sur la suite officielle (hors SSL, timeouts longue durée et SSE), soit environ 83 %. L'intégration dans le runtime Vidocq passe par le wrapper `vidocq-mps-cyrano-extension` (en cours).
+
+== Ressources rapides
+
+* xref:getting-started.adoc[Démarrage rapide] — premier appel typé en moins de cinquante lignes.
+* xref:concepts.adoc[Concepts] — vocabulaire MP Rest Client (`@RegisterRestClient`, `RestClientBuilder`, qualifier `@RestClient`, providers).
+* xref:usage.adoc[Cas d'usage] — paramètres, headers, async, exception mappers, builder programmatique.
+* xref:reference.adoc[Référence] — coordonnées Maven, modules JPMS, clés MP Config supportées.
+* xref:internals.adoc[Fonctionnement interne] — scan d'interface, génération de proxy via Class-File API, transport, intégration BCE Vauban.
+* xref:tck.adoc[TCK] — score officiel, périmètre testé, challenges déclarés.
+* xref:migration.adoc[Migration] — depuis SmallRye Rest Client / RESTEasy Client.
+
+== Licence
+
+Apache License, Version 2.0 — voir https://codeberg.org/Vidocq/cyrano/src/branch/main/LICENSE[LICENSE].

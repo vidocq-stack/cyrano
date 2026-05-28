@@ -1,0 +1,186 @@
+= Internals
+:description: Cyrano pipeline — interface scanning, proxy generation through the Class-File API, JDK HttpClient transport, Vauban BCE integration.
+
+[.lead]
+This page describes the full pipeline of a Cyrano REST call, from the moment the interface is annotated to the moment the typed value is returned. Everything is build-time-friendly: no dynamic reflection, no hot classpath scan, no `synchronized` on the hot path.
+
+== Call pipeline
+
+[mermaid]
+....
+flowchart TD
+  Annotated["Annotated interface<br/>@RegisterRestClient<br/>@Path / @GET / @PathParam"]
+  BCE["CyranoRestClientExtension (Vauban BCE)<br/>@Enhancement(withAnnotations=RegisterRestClient.class)"]
+  Synth["@Synthesis<br/>@RestClient-qualified SyntheticBean<br/>creator = CyranoRestClientSyntheticCreator"]
+  Inject["@Inject @RestClient UsersClient"]
+  Resolver["CyranoBaseUriResolver<br/>annotation < MP Config <fqn>/mp-rest/url < <configKey>/mp-rest/url"]
+  Builder["CyranoRestClientBuilder<br/>.baseUri(...).build(UsersClient.class)"]
+  Scanner["CyranoInterfaceScanner<br/>RequestSpec[] (verb, path template, param bindings)"]
+  Gen["CyranoProxyGenerator (Class-File API, JEP 484)<br/>Cyrano$UsersClient extends iface"]
+  Cache["CyranoProxyCache<br/>ConcurrentHashMap<Class<?>, Entry>"]
+  Handler["CyranoInvocationHandler.invoke(methodIndex, args)<br/>RequestSpec[methodIndex] + args -> HttpRequest"]
+  HttpC["java.net.http.HttpClient<br/>virtual thread executor"]
+  Remote["Remote HTTP service"]
+  JSONB["Jakarta JSON-B (Champollion)"]
+  Result["Typed value"]
+
+  Annotated --> BCE
+  BCE --> Synth
+  Synth --> Inject
+  Inject --> Resolver
+  Resolver --> Builder
+  Builder --> Scanner
+  Scanner --> Gen
+  Gen --> Cache
+  Cache --> Handler
+  Handler --> HttpC
+  HttpC --> Remote
+  Remote --> HttpC
+  HttpC --> Handler
+  Handler --> JSONB
+  JSONB --> Result
+....
+
+== 1. Discovery: Vauban BCE
+
+Bootstrap starts at `process-classes` when xref:vauban::index.adoc[Vauban] runs the Build Compatible Extensions registered through `META-INF/services/jakarta.enterprise.inject.build.compatible.spi.BuildCompatibleExtension`.
+
+`CyranoRestClientExtension` (in `cyrano-cdi-vauban`) declares two hooks:
+
+[source,java]
+----
+@Enhancement(types = Object.class, withAnnotations = RegisterRestClient.class)
+public void enhanceClient(ClassConfig cfg, MessagerLogger log) {
+    log.info("Discovered REST client interface: " + cfg.info().name());
+    // memoise for @Synthesis
+}
+
+@Synthesis
+public void synthesize(SyntheticComponents syn) {
+    for (Class<?> iface : discoveredClients) {
+        syn.addBean(iface)
+           .type(iface)
+           .qualifier(RestClient.Literal.INSTANCE)
+           .scope(ApplicationScoped.class)
+           .createWith(CyranoRestClientSyntheticCreator.class);
+    }
+}
+----
+
+`@Validation` (optional) checks that a base URL is resolvable at build time if the spec requires it.
+
+== 2. Creation: `CyranoRestClientSyntheticCreator`
+
+On the first CDI resolution of `@Inject @RestClient UsersClient`, the synthetic creator is invoked:
+
+. The instantiation scope and optional parameters are retrieved via `SyntheticBeanCreator.create(Instance<Object> lookup, Parameters params)`.
+. `CyranoBaseUriResolver.resolve(iface)` aggregates URL sources (annotation `@RegisterRestClient(baseUri)`, MP Config `<configKey>/mp-rest/url`, MP Config `<fqn>/mp-rest/url`) and applies spec priority.
+. `RestClientBuilder.newBuilder().baseUri(uri).build(UsersClient.class)` is called. The builder is resolved through `ServiceLoader` on `RestClientBuilderResolver`; Cyrano publishes its own in the `io.vidocq.cyrano.core` module via `provides ... with ...`.
+
+NOTE: MP Config is consulted **reflectively** on `org.eclipse.microprofile.config.ConfigProvider`. `cyrano-cdi-vauban` declares no compile dependency on `microprofile-config-api` — if the API is not loadable at runtime, `defaultMpConfigLookup()` returns `key -> Optional.empty()` (graceful degradation documented in AGENTS.md).
+
+== 3. Interface scanning
+
+`CyranoInterfaceScanner` reads the JAX-RS annotations on the interface and its methods via `java.lang.reflect` (annotation-only — no reflection on the hot path).
+
+For each method, an immutable `RequestSpec` is built:
+
+[source,java]
+----
+public record RequestSpec(
+    String httpMethod,                    // "GET", "POST", ...
+    String pathTemplate,                  // "/users/{id}"
+    List<ParamBinding> params,            // order = method arguments
+    MediaType[] consumes,                 // @Consumes
+    MediaType[] produces,                 // @Produces
+    Map<String, String> staticHeaders,    // @ClientHeaderParam(value="...")
+    Map<String, String> dynamicHeaders,   // @ClientHeaderParam(value="{method}")
+    Class<?> declaredReturn,              // raw return type
+    Type genericReturn                    // generic type (for CompletionStage<List<X>>)
+) {}
+----
+
+`ParamBinding` is a `sealed interface`: `PathParamBinding`, `QueryParamBinding`, `HeaderParamBinding`, `CookieParamBinding`, `MatrixParamBinding`, `FormParamBinding`, `BeanParamBinding`, `BodyBinding`. The `switch` in `CyranoInvocationHandler` is exhaustive (sealed types — compiler-checked).
+
+== 4. Proxy generation through the Class-File API (JEP 484)
+
+`CyranoProxyGenerator` emits the bytecode of a class named `Cyrano$<SimpleName>` in the **interface's package** (via `MethodHandles.privateLookupIn(iface, MethodHandles.lookup())`). The generated skeleton is:
+
+[source,java]
+----
+package com.example.client;
+
+public final class Cyrano$UsersClient implements UsersClient {
+
+    private final io.vidocq.cyrano.runtime.CyranoInvocationHandler $handler;
+
+    public Cyrano$UsersClient(io.vidocq.cyrano.runtime.CyranoInvocationHandler handler) {
+        this.$handler = handler;
+    }
+
+    @Override
+    public UserDto findById(long id) {
+        return (UserDto) $handler.invoke(0, new Object[] { id });
+    }
+}
+----
+
+Emission uses `java.lang.classfile.ClassFile.build(...)`. No ASM dependency, no `setAccessible(true)`. The class is loaded with `lookup.defineClass(bytes)`; the `MethodHandles.Lookup` is obtained via `privateLookupIn` on the interface.
+
+`CyranoProxyCache` memoises the `Entry` (a `Class<?> proxyClass`, `MethodHandle constructor` pair) in a `ConcurrentHashMap`; `computeIfAbsent` guarantees that each interface is processed at most once, even under concurrent load.
+
+== 5. Invocation: `CyranoInvocationHandler`
+
+The constructor `MethodHandle` receives the `CyranoInvocationHandler` at proxy instantiation. On each call, `invoke(int methodIndex, Object[] args)`:
+
+. Retrieves the indexed `RequestSpec`.
+. Iterates over the `ParamBinding`s to build the URI (path + query + matrix), headers and body.
+. Evaluates dynamic `@ClientHeaderParam` by invoking the matching `default` method through a `MethodHandle`.
+. Serialises the body via Jakarta JSON-B (`Jsonb.toJson(body)`).
+. Builds the `java.net.http.HttpRequest` (`HttpRequest.newBuilder().uri(uri).method(verb, BodyPublishers.ofString(json)).headers(...)`).
+
+== 6. Transport: `CyranoHttpTransport`
+
+One `HttpClient` per REST client, built as:
+
+[source,java]
+----
+HttpClient.newBuilder()
+    .version(HttpClient.Version.HTTP_2)   // tries H/2, falls back to HTTP/1.1
+    .connectTimeout(connectTimeout)
+    .executor(Executors.newVirtualThreadPerTaskExecutor())
+    .followRedirects(redirect)
+    .proxy(proxySelector)
+    .sslContext(sslContext)               // if trust/keystore configured
+    .build();
+----
+
+Synchronous mode: `client.send(req, BodyHandlers.ofByteArray())` — blocking call on a virtual thread (without monopolising a platform thread).
+
+Async mode (`CompletionStage<T>`): `client.sendAsync(req, BodyHandlers.ofByteArray())` — the internal `CompletableFuture` is completed by `HttpClient`'s virtual-thread pool.
+
+== 7. Deserialisation and exception mapping
+
+After reception, `CyranoInvocationHandler`:
+
+. Applies the registered `ClientResponseFilter`s.
+. Checks whether a `ResponseExceptionMapper` that `handles(status, headers)` exists (ascending priority). If yes: `throw mapper.toThrowable(response)`.
+. If status ≥ 400 and no custom mapper applies: defaults to `throw new WebApplicationException(response)`.
+. Otherwise, deserialises the body via JSON-B according to the generic return type (`Jsonb.fromJson(body, genericReturn)`).
+. For `CompletionStage<T>`, wraps in either an already-resolved `CompletableFuture` or an async one, depending on the mode.
+
+== Memory cost and performance
+
+* **One generated class per client interface** (not per call). `CyranoProxyCache` guarantees memoisation.
+* **One `HttpClient` instance per REST client**, shared across all calls.
+* **No `ThreadLocal`**, no `synchronized` — no virtual-thread pinning.
+* **No buffer copy** on the hot path: `BodyHandlers.ofByteArray()` followed by JSON-B streaming deserialisation.
+
+== Design decisions
+
+* **`record` + `sealed interface`** for `RequestSpec` and `ParamBinding` — exhaustive pattern matching, immutability, readability.
+* **No `java.lang.reflect.Proxy`** — AOT-incompatible, obscure stack traces (`$Proxy0.invoke`).
+* **No platform pool** — `Executors.newVirtualThreadPerTaskExecutor()` is sufficient and more efficient for I/O.
+* **`cyrano-mp-rest-client-api` repackage module** — the upstream spec ships without `module-info` and without `Automatic-Module-Name`, which prevents jlink. The repackage makes it explicitly `io.vidocq.cyrano.mp.rest.client.api`.
+
+The proxy generation strategy is documented in link:https://codeberg.org/Vidocq/cyrano/src/branch/main/docs/adr/[the ADRs] (`ADR-001-classfile-proxy-strategy.md`).
