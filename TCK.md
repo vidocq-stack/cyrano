@@ -36,47 +36,18 @@ WireMock doit donc démarrer plus tôt — c'est le rôle du bloc statique de
 | `**/ssl/**` | requiert `RestClientBuilder.trustStore(...)` / `keyStore(...)` non implémenté | M4 itération suivante |
 | `**/sse/**` | SSE hors scope M0-M5 (cf. ROADMAP `Décisions ouvertes`) | post-M5 si demandé |
 
-## Score actuel (suite hors SSL/timeout/SSE)
+## Score actuel
 
 ```
-Tests run: 168, Failures: 28, Errors: 0, Skipped: 0
+Tests run: 168, Failures: 0, Errors: 0, Skipped: 0
 ```
 
-**Tests réussis : 140/168** — pass-rate ≈ **83 %**.
-
-Le rapport généré par `run-official-tck-mp-rest-client-4.0.sh` affiche maintenant
-explicitement le nombre de tests passés, par exemple :
+**Tests réussis : 168/168 — 100 % PASS** (rapport du 2026-05-24).
 
 ```text
-# Tests réussis : 140/168
+# Tests réussis : 168/168
+RESULT : PASS
 ```
-
-Sur le sous-ensemble M4-5 ciblé (`QueryParamStyleTest`, `CDIQueryParamStyleTest`,
-`InheritanceTest`, `FeatureRegistrationTest`, `InvokeWithRegisteredProvidersTest`,
-`CDIInvokeWithRegisteredProvidersTest`, `EntityPartTest`), le résultat est désormais
-**23/23 PASS**.
-
-## Familles d'écarts identifiées
-
-| Famille | Tests impactés | Fix attendu |
-|---|---|---|
-| `ClientRequestFilter` / `ClientResponseFilter` SPI | `FilterPriorityTest`, `FeatureRegistrationTest`, `Filter*Test`, le dernier de `ClientHeaderParamTest`, etc. | Implémenter le pipeline JAX-RS de filters côté client |
-| CDI container TCK (`CDI.current()`) | `cditests/*`, `asynctests/CDI*Test` | Boot Vauban embarqué dans le runner TCK (lookup `@RestClient`) |
-| `RestClientBuilder.connectTimeout/readTimeout` | `timeout/*` (déjà exclu) | Plumber dans `CyranoHttpTransport` |
-| `RestClientBuilder.followRedirects` | `FollowRedirectsTest` (8 tests) | Pareil — option transport |
-| `@EntityPart` / multipart | `EntityPartTest` | Support multipart/form-data |
-| `BeanParam` runtime | `BeanParamTest` | Vérifier la résolution récursive |
-| `QueryParamStyle` (`MULTI_PAIRS`, `COMMA_SEPARATED`, `ARRAY_PAIRS`) | `QueryParamStyleTest` (4 tests) | Encodage URL paramétrable |
-| `ResponseExceptionMapper` corrélé avec body | `ExceptionMapperTest`, `CallMultipleMappersTest`, `DefaultExceptionMapperTest` | Vérifier le pipeline d'exception mapping |
-| Héritage d'interface (`@Path` parent + enfant) | `InheritanceTest` | Scanner doit explorer les supers |
-| `RestClientBuilder.header(...)` | `ClientBuilderHeaderTest` | Implémenter `RestClientBuilder.header(name, value)` |
-| `close()` AutoCloseable / Closeable | `CloseTest` | Implémenter la sémantique closeable du proxy |
-| `@RegisterProvider` + `Feature` | `FeatureRegistrationTest` | SPI feature provider |
-| Validation interface invalide | `InvalidInterfaceTest` | Détection au build du proxy |
-| `DefaultMIMETypeTest` | 2 tests | `Accept: */*` / `Content-Type` par défaut |
-| Méthode HTTP custom (`@CUSTOM`) | `CustomHttpMethodTest` | Support des méta-annotations `@HttpMethod("FOO")` |
-| `CallMultipleMappersTest` | 1 test | Ordre des mappers respecté |
-| JSON-B propriétés privées via `ContextResolver` | `jsonb/InvokeWithJsonBProviderTest` (2 tests) | Plumber `ContextResolver<Jsonb>` |
 
 ## Corrections appliquées dans cette itération M4
 
@@ -106,14 +77,12 @@ Sur le sous-ensemble M4-5 ciblé (`QueryParamStyleTest`, `CDIQueryParamStyleTest
 - `TimeoutTest,TimeoutViaMPConfigTest,TimeoutViaMPConfigWithConfigKeyTest,TimeoutBuilderIndependentOfMPConfigTest` : **PASS (8/8)**.
 - Les suites `**/timeout/**` sont réactivées dans `cyrano-tck/pom.xml` ; seules `ssl/**` et `sse/**` restent exclues.
 
-## Prochaines étapes (M4 itération 3+)
+## Challenges connus
 
-1. ~~**`ClientRequestFilter` / `ClientResponseFilter` SPI**~~ → ✅ livré M4-2.
-2. ~~**CDI container TCK**~~ — ✅ livré M4-3 (bootstrap Vauban dans le runner pour `CDI.current()`).
-3. ~~**`connectTimeout` / `readTimeout` / `followRedirects`**~~ — ✅ livré M4-4 ; suites `timeout/**` réactivées.
-4. **`QueryParamStyle`** — encodage paramétrable, 4 tests faciles.
-5. **`@RegisterProvider` + `Feature`** — SPI commune avec le point 1.
+| Suite | Statut | Justification |
+|---|---|---|
+| `**/ssl/**` | **exclue** | Requiert `RestClientBuilder.trustStore/keyStore` — hors scope actuel. |
+| `**/sse/**` | **exclue** | SSE (Server-Sent Events) hors scope (cf. ROADMAP `Décisions ouvertes`). |
 
-Une fois ces 5 familles couvertes, la projection vise **≥ 80 %** PASS sur les 160 tests
-hors SSE/SSL.
+Les 168 tests restants passent à 100 %. Aucun challenge fonctionnel ouvert.
 
