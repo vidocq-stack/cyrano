@@ -7,7 +7,7 @@ Cette page montre comment déclarer une interface client typée, l'injecter via 
 == Pré-requis
 
 * **Java 25** — Temurin recommandé. Module path activé.
-* **Maven 4.0.0-rc-5** — épinglé via `.sdkmanrc` à la racine du repo (`sdk env`).
+* **Maven 3.9.16** — épinglé via `.sdkmanrc` à la racine du repo (`sdk env`).
 * **JPMS strict** — un `module-info.java` par module Maven.
 * Une implémentation JSON-B au classpath/module-path runtime — xref:champollion::index.adoc[Champollion] dans l'écosystème Vidocq.
 * Pour l'intégration CDI : xref:vauban::index.adoc[Vauban] côté container, xref:ravel::index.adoc[Ravel] pour MP Config.

@@ -7,7 +7,7 @@ This page shows how to declare a typed client interface, inject it through CDI, 
 == Prerequisites
 
 * **Java 25** — Temurin recommended. Module path enabled.
-* **Maven 4.0.0-rc-5** — pinned via `.sdkmanrc` at the repo root (`sdk env`).
+* **Maven 3.9.16** — pinned via `.sdkmanrc` at the repo root (`sdk env`).
 * **JPMS-strict** — one `module-info.java` per Maven module.
 * A JSON-B implementation on the classpath/module-path at runtime — xref:champollion::index.adoc[Champollion] in the Vidocq ecosystem.
 * For CDI integration: xref:vauban::index.adoc[Vauban] as the container, xref:ravel::index.adoc[Ravel] for MP Config.

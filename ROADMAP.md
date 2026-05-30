@@ -80,7 +80,7 @@ public interface UserService {
 
 ### M0 — Bootstrap
 
-- [x] `.sdkmanrc` (`java=25-tem`, `maven=4.0.0-rc-5`)
+- [x] `.sdkmanrc` (`java=25-tem`, `maven=3.9.16`)
 - [x] `.gitignore`, `.mvn/maven.config`
 - [x] `pom.xml` parent (Model 4.1.0, multi-module, dependency management Jakarta + MicroProfile Rest Client)
 - [x] `CLAUDE.md`, `AGENTS.md`, `ROADMAP.md` (ce fichier) ✅

@@ -22,7 +22,7 @@ CDI via Vauban, sérialisation JSON via Champollion (Jakarta JSON-B).
 ## Prérequis
 
 ```bash
-sdk env   # java=25-tem, maven=4.0.0-rc-5
+sdk env   # java=25-tem, maven=3.9.16
 ```
 
 ## Commandes
