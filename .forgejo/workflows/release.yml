@@ -30,19 +30,10 @@ on:
         type: string
         required: true
         default:     "0.1.1"
-      cassini_release:
-        description: "io.vidocq.cassini:* (all artifacts under io.vidocq.cassini) — stable version (must be released on Central first)"
-        type: string
-        required: true
       champollion_release:
         description: "io.vidocq.champollion:* (all artifacts under io.vidocq.champollion) — stable version (must be released on Central first)"
         type: string
         required: true
-      chappe_release:
-        description: "io.vidocq.chappe:* (all artifacts under io.vidocq.chappe) — stable version (must be released on Central first)"
-        type: string
-        required: true
-        default:     "0.1.0"
       vauban_release:
         description: "io.vidocq.vauban:* (all artifacts under io.vidocq.vauban) — stable version (must be released on Central first)"
         type: string
@@ -67,9 +58,7 @@ jobs:
           auto-publish:     ${{ inputs.auto_publish == 'auto' && 'true' || 'false' }}
           overrides: |
             io.vidocq=${{ inputs.vidocq_parent_release }}
-            io.vidocq.cassini=${{ inputs.cassini_release }}
             io.vidocq.champollion=${{ inputs.champollion_release }}
-            io.vidocq.chappe=${{ inputs.chappe_release }}
             io.vidocq.vauban=${{ inputs.vauban_release }}
           central-username: ${{ secrets.CENTRAL_USERNAME }}
           central-password: ${{ secrets.CENTRAL_PASSWORD }}
