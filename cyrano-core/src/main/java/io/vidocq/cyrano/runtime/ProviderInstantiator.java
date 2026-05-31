@@ -13,19 +13,19 @@ import java.util.ServiceLoader;
 import java.util.concurrent.Callable;
 
 /**
- * SPI d'instanciation de provider — permet à un adaptateur (ex. {@code cyrano-cdi-vauban})
- * de fournir des instances gérées par CDI au lieu d'une instanciation par réflexion.
+ * Provider instantiation SPI — allows an adapter (e.g. {@code cyrano-cdi-vauban})
+ * to supply CDI-managed instances instead of reflective ones.
  *
- * <p>Spec MP Rest Client 4.0 §4.2.4 : <em>« If using CDI, RestClient implementations must
+ * <p>Spec MP Rest Client 4.0 §4.2.4: <em>« If using CDI, RestClient implementations must
  * use the BeanManager to obtain providers if they are managed beans. »</em></p>
  *
- * <p>Découverte via {@link ServiceLoader} : un seul {@code ProviderInstantiator} actif
- * (le premier trouvé l'emporte). Si aucun n'est déclaré, {@link #defaultInstantiator()}
- * réfléchit sur le constructeur sans-arg.</p>
+ * <p>Discovered via {@link ServiceLoader}: one active {@code ProviderInstantiator}
+ * (the first found wins). If none is declared, {@link #defaultInstantiator()}
+ * falls back to reflection on the no-arg constructor.</p>
  *
- * <p>Le {@link #create(Class)} <strong>doit</strong> retourner {@code null} si la classe
- * n'est pas un bean managé connu — le {@code CyranoClientConfiguration} retombera alors
- * sur l'instanciation réflexive standard.</p>
+ * <p>{@link #create(Class)} <strong>must</strong> return {@code null} if the class
+ * is not a known managed bean — the {@code CyranoClientConfiguration} will then
+ * fall back to standard reflective instantiation.</p>
  *
  * @since 0.1.0 (M4-3)
  */
@@ -33,24 +33,24 @@ import java.util.concurrent.Callable;
 public interface ProviderInstantiator {
 
     /**
-     * Tente de créer une instance de {@code componentClass} via le container.
+     * Attempt to create an instance of {@code componentClass} via the container.
      *
-     * @param componentClass classe du provider à instancier (filter, interceptor, mapper...)
-     * @return instance gérée, ou {@code null} si le container n'a pas de bean pour cette classe
+     * @param componentClass class of provider to instantiate (filter, interceptor, mapper...)
+     * @return managed instance, or {@code null} if the container has no bean for this class
      */
     Object create(Class<?> componentClass);
 
     /**
-     * Hook optionnel pour entourer une invocation de méthode client (ex. interception CDI).
-     * L'implémentation par défaut est transparente.
+     * Optional hook to surround a client method invocation (e.g. CDI interception).
+     * The default implementation is transparent.
      */
     default Object aroundInvoke(Object target, Method method, Object[] args, Callable<Object> invocation) throws Exception {
         return invocation.call();
     }
 
     /**
-     * Instantiator « plain Java » — invoque {@link Class#getDeclaredConstructor()}.
-     * Utilisé en mode SE pur (sans CDI).
+     * Instantiator " plain Java" — invokes {@link Class#getDeclaredConstructor()}.
+     * Used in pure SE mode (without CDI).
      */
     static ProviderInstantiator defaultInstantiator() {
         return cls -> {
@@ -59,14 +59,14 @@ public interface ProviderInstantiator {
                 ctor.setAccessible(true);
                 return ctor.newInstance();
             } catch (ReflectiveOperationException e) {
-                throw new IllegalArgumentException("Provider non instanciable : " + cls, e);
+                throw new IllegalArgumentException("Provider is not instantiable: " + cls, e);
             }
         };
     }
 
     /**
-     * Charge l'instantiator courant via {@link ServiceLoader}, ou retourne le default
-     * réflexif. Résultat mémoïsable à l'appel ; pas de cache thread-safe imposé ici.
+     * Loads the current implementation via {@link ServiceLoader}, or returns the default
+     * reflective one. Result is recomputed per call; no thread-safe cache is imposed here.
      */
     static ProviderInstantiator current() {
         for (ProviderInstantiator pi : ServiceLoader.load(ProviderInstantiator.class)) {

@@ -29,9 +29,9 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Contexte {@link ClientResponseContext} (JAX-RS §6.3) exposé aux
- * {@link jakarta.ws.rs.client.ClientResponseFilter} après réception (ou après abort
- * via {@code abortWith}). État mutable — un filtre peut changer le statut ou les headers.
+ * Background {@link ClientResponseContext} (JAX-RS §6.3)
+ * {@link jakarta.ws.rs.client.ClientResponseFilter} after receipt (or after abort)
+ * via {@code abortWith}). Mutable status — a filter can change status or headers.
  */
 final class CyranoClientResponseContext implements ClientResponseContext {
 
@@ -40,7 +40,7 @@ final class CyranoClientResponseContext implements ClientResponseContext {
     private final MultivaluedMap<String, String> headers;
     private InputStream entityStream;
 
-    /** Construit le contexte depuis une réponse HTTP réelle. */
+    /** Builds the context from an actual HTTP response. */
     static CyranoClientResponseContext of(java.net.http.HttpResponse<String> resp) {
         MultivaluedMap<String, String> h = new MultivaluedHashMap<>();
         resp.headers().map().forEach((k, vs) -> {
@@ -50,7 +50,7 @@ final class CyranoClientResponseContext implements ClientResponseContext {
         return new CyranoClientResponseContext(resp.statusCode(), h, new ByteArrayInputStream(body));
     }
 
-    /** Construit le contexte depuis une réponse abortée par un filtre. */
+    /** Builds the context from a response aborted by a filter. */
     static CyranoClientResponseContext fromAbort(Response r) {
         MultivaluedMap<String, String> h = new MultivaluedHashMap<>();
         r.getStringHeaders().forEach(h::addAll);
@@ -148,7 +148,7 @@ final class CyranoClientResponseContext implements ClientResponseContext {
     @Override public InputStream getEntityStream() { return entityStream; }
     @Override public void setEntityStream(InputStream input) { this.entityStream = input; }
 
-    /** Lit la totalité du body — utilisé par le moteur pour reconstruire la chaîne de réponse. */
+    /** Reads the entire body — used by the engine to rebuild the response chain. */
     String readBodyAsString() {
         try {
             return new String(entityStream.readAllBytes(), StandardCharsets.UTF_8);

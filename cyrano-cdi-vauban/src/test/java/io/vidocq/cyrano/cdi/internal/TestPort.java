@@ -4,18 +4,18 @@
 package io.vidocq.cyrano.cdi.internal;
 
 /**
- * Port HTTP fixe utilisé conjointement par le serveur JDK inline et par
- * {@code @RegisterRestClient(baseUri=...)} dans
+ * Fixed HTTP port used jointly by the JDK inline server and by
+ * {@code @RegisterRestClient(baseUri=...)} in
  * {@link CyranoRestClientCdiIntegrationTest}.
  *
- * <p>Une {@code @Retention(RUNTIME)} d'annotation Java exige que les valeurs
- * de ses membres soient des <em>compile-time constants</em>. On choisit donc
- * un port haut (hors plage éphémère/utilisateur courante) au lieu d'allouer
+ * <p>A Java annotation {@code @Retention(RUNTIME)} requires that values
+ * of its members be <em>compile-time constants</em>. We therefore choose
+ * a high port (excluding ephemeral/current user) instead of allocating
  * dynamiquement via {@code new ServerSocket(0)}.</p>
  */
 final class TestPort {
 
-    /** Port de test — doit être libre sur la machine cible. */
+    /** Test port — must be free on the target machine. */
     static final int SERVER_PORT = 18857;
 
     private TestPort() {}

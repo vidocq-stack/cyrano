@@ -1,188 +1,187 @@
 # Cyrano - Claude Code Guidelines
 
-> Cyrano de Bergerac (1619–1655) parlait au nom des autres, leur prêtant son éloquence
-> pour séduire qui ils ne pouvaient atteindre seuls.
-> C'est exactement ce que fait un client REST typé : il parle au nom du code applicatif,
-> lui prêtant ses proxies et ses annotations pour appeler les services distants sans que
-> l'appelant ait à connaître le protocole ou le transport sous-jacent.
+> Cyrano de Bergerac (1619–1655) spoke on behalf of others, lending them his eloquence
+> to woo those they could not reach alone.
+> This is exactly what a typed REST client does: it speaks on behalf of the application code,
+> lending it proxies and annotations to call remote services without the caller
+> needing to know the underlying protocol or transport.
 
-## Prérequis
+## Prerequisites
 
-- **Java 25** + **Maven 3.9.16** (`.sdkmanrc` fourni — utiliser `sdk env`)
-- Le TCK MicroProfile Rest Client 4.0 est un artefact **public Maven Central** :
+- **Java 25** + **Maven 3.9.16** (`.sdkmanrc` provided — use `sdk env`)
+- The MicroProfile Rest Client 4.0 TCK is a **public Maven Central** artifact:
   `org.eclipse.microprofile.rest.client:microprofile-rest-client-tck:4.0`
-  (contrairement aux TCK Jakarta, pas besoin de l'installer manuellement).
-- **Note JPMS :** vérifier à M0 si `microprofile-rest-client-api` dispose d'un
-  `Automatic-Module-Name` ou d'un `module-info.class`. Si non, créer un module
-  `cyrano-mp-rest-client-api` de repackage (même patron que `ravel-mp-config-api`).
+  (unlike Jakarta TCKs, no need to install manually).
+- **JPMS note:** verify at M0 whether `microprofile-rest-client-api` has an
+  `Automatic-Module-Name` or a `module-info.class`. If not, create a
+  `cyrano-mp-rest-client-api` repackage module (same pattern as `ravel-mp-config-api`).
 
-## Commandes essentielles
+## Essential Commands
 
 ```bash
-# Build du reactor (sans TCK)
+# Build reactor (without TCK)
 ./mvnw -ntp install -DskipTests
 
-# Tests unitaires
+# Unit tests
 ./mvnw test
 
-# TCK — smoke test seulement
+# TCK — smoke test only
 ./run-official-tck-mp-rest-client-4.0.sh
 
-# TCK — suite complète
+# TCK — full suite
 ./run-official-tck-mp-rest-client-4.0.sh all
 
-# TCK — test ciblé
-./run-official-tck-mp-rest-client-4.0.sh -Dtest=NomDuTest
+# TCK — targeted test
+./run-official-tck-mp-rest-client-4.0.sh -Dtest=TestName
 ```
 
-> `cyrano-tck` est **hors reactor** (POM Model 4.0.0 standalone) pour contourner
-> ShrinkWrap Maven Resolver 3.3 vs Model 4.1.0 — même contrainte que `cassini-tck`,
-> `foy-tck`, `champollion-tck`, `ravel-tck` et `knock-tck`. Ne pas changer ce modèle.
+> `cyrano-tck` is **out-of-reactor** (standalone POM Model 4.0.0) to work around
+> ShrinkWrap Maven Resolver 3.3 vs Model 4.1.0 — same constraint as `cassini-tck`,
+> `foy-tck`, `champollion-tck`, `ravel-tck`, and `knock-tck`. Do not change this model.
 
 ## Architecture
 
-Cyrano est une implémentation MicroProfile Rest Client 4.0, **zéro librairie tierce**
-(pas de RESTEasy Client, CXF, Jersey Client, OkHttp), uniquement des specs Jakarta EE /
-MicroProfile en dépendances, virtual threads, JPMS strict.
+Cyrano is a MicroProfile Rest Client 4.0 implementation with **zero third-party libraries**
+(no RESTEasy Client, CXF, Jersey Client, OkHttp), only Jakarta EE / MicroProfile specs as
+dependencies, virtual threads, strict JPMS.
 
 ```
-cyrano-api          ← Re-expose la spec org.eclipse.microprofile.rest.client
+cyrano-api          ← Re-exposes the org.eclipse.microprofile.rest.client spec
                      (RestClientBuilder, @RegisterRestClient, ClientHeaderParam, etc.)
-cyrano-core         ← Implémentation : scanning d'interfaces, génération de proxy via
-                     Class-File API (JEP 484), transport JDK HttpClient, param binding,
+cyrano-core         ← Implementation: interface scanning, proxy generation via
+                     Class-File API (JEP 484), JDK HttpClient transport, param binding,
                      MessageBodyReader/Writer via Jakarta JSON-B (champollion)
-cyrano-cdi-vauban   ← Intégration CDI Vauban : BCE @RegisterRestClient, @Inject @RestClient,
-                     config de base URL via MicroProfile Config (Ravel)
-cyrano-tck          ← Runner TCK officiel MicroProfile Rest Client 4.0 (HORS reactor)
+cyrano-cdi-vauban   ← CDI Vauban integration: BCE @RegisterRestClient, @Inject @RestClient,
+                     base URL config via MicroProfile Config (Ravel)
+cyrano-tck          ← Official MicroProfile Rest Client 4.0 TCK runner (OUT OF REACTOR)
 ```
 
-**Flux d'un appel client :**
-`@Inject @RestClient MyService client` → proxy `Cyrano$MyService` (généré par Class-File API)
-→ `CyranoInvocationHandler` → construction `HttpRequest` (JDK `java.net.http`)
-→ `CyranoHttpTransport` (virtual thread) → désérialisation réponse (Jakarta JSON-B / champollion)
-→ valeur de retour typée.
+**Client call flow:**
+`@Inject @RestClient MyService client` → proxy `Cyrano$MyService` (generated by Class-File API)
+→ `CyranoInvocationHandler` → `HttpRequest` construction (JDK `java.net.http`)
+→ `CyranoHttpTransport` (virtual thread) → response deserialization (Jakarta JSON-B / champollion)
+→ typed return value.
 
-**Génération de proxy — Class-File API (JEP 484) :**
-Au lieu de `java.lang.reflect.Proxy` (réflexion dynamique), Cyrano génère à la première
-utilisation une vraie classe nommée `Cyrano$<InterfaceName>` via l'API `ClassFile` du JDK 25.
-Le bytecode est mis en cache par `CyranoProxyCache` (concurrent, lazy-init) et chargé dans
-un `MethodHandles.Lookup.defineClass`. Aucune dépendance ASM/Byte Buddy.
+**Proxy generation — Class-File API (JEP 484):**
+Instead of `java.lang.reflect.Proxy` (dynamic reflection), Cyrano generates on first use
+a real named class `Cyrano$<InterfaceName>` via the JDK 25 `ClassFile` API.
+The bytecode is cached by `CyranoProxyCache` (concurrent, lazy-init) and loaded into
+a `MethodHandles.Lookup.defineClass`. No ASM/Byte Buddy dependency.
 
-**Annotations JAX-RS supportées (sur les interfaces client) :**
-- HTTP methods : `@GET`, `@POST`, `@PUT`, `@DELETE`, `@PATCH`, `@HEAD`, `@OPTIONS`
-- Path : `@Path`, `@PathParam`, `@QueryParam`, `@MatrixParam`
-- Headers : `@HeaderParam`, `@CookieParam`, `@ClientHeaderParam`
-- Body : `@Consumes`, `@Produces`, `@FormParam`, `@BeanParam`
-- Context : `@Context` (limité)
+**Supported JAX-RS annotations (on client interfaces):**
+- HTTP methods: `@GET`, `@POST`, `@PUT`, `@DELETE`, `@PATCH`, `@HEAD`, `@OPTIONS`
+- Path: `@Path`, `@PathParam`, `@QueryParam`, `@MatrixParam`
+- Headers: `@HeaderParam`, `@CookieParam`, `@ClientHeaderParam`
+- Body: `@Consumes`, `@Produces`, `@FormParam`, `@BeanParam`
+- Context: `@Context` (limited)
 
-**Types de retour supportés :**
-- Types primitifs et leurs wrappers
+**Supported return types:**
+- Primitives and their wrappers
 - `String`, `jakarta.ws.rs.core.Response`
-- POJO désérialisé via Jakarta JSON-B (champollion)
+- POJO deserialized via Jakarta JSON-B (champollion)
 - `Optional<T>`, `List<T>`, `Set<T>`, `Map<K,V>`
 - `CompletionStage<T>` (async, via virtual threads)
 
-## Contraintes d'architecture à ne pas violer
+## Architecture Constraints Not to Violate
 
-1. **`cyrano-core` ne dépend que de `jakarta.ws.rs` + `jakarta.json.bind`** (API spec) —
-   pas de CDI, pas d'implémentation JAX-RS serveur (Cassini). Transport = `java.net.http.HttpClient`
-   (JDK pur). Champollion est l'implémentation JSON-B fournie à l'exécution.
-2. **`cyrano-cdi-vauban` dépend de `cyrano-core` + `jakarta.cdi`** mais jamais l'inverse —
-   l'intégration CDI est un module optionnel invisible depuis le cœur.
-3. **Pas de `java.lang.reflect.Proxy`** — générer de vraies classes nommées via Class-File API
-   (JEP 484). Avantage : compatible AOT (GraalVM `native-image`, Leyden CDS), stack traces
-   lisibles, pas de `setAccessible(true)`.
-4. **Transport via `java.net.http.HttpClient`** — zero-dep, virtual thread executor natif
+1. **`cyrano-core` only depends on `jakarta.ws.rs` + `jakarta.json.bind`** (spec API) —
+   no CDI, no JAX-RS server implementation (Cassini). Transport = `java.net.http.HttpClient`
+   (pure JDK). Champollion is the JSON-B implementation provided at runtime.
+2. **`cyrano-cdi-vauban` depends on `cyrano-core` + `jakarta.cdi`** but never the reverse —
+   CDI integration is an optional module invisible from the core.
+3. **No `java.lang.reflect.Proxy`** — generate real named classes via Class-File API
+   (JEP 484). Advantage: AOT-compatible (GraalVM `native-image`, Leyden CDS), readable
+   stack traces, no `setAccessible(true)`.
+4. **Transport via `java.net.http.HttpClient`** — zero-dep, native virtual thread executor
    (`HttpClient.newBuilder().executor(Executors.newVirtualThreadPerTaskExecutor())`).
-5. **JPMS strict** : tous les modules ont un `module-info.java`, packages `internal.*`
-   non exportés, SPI exposée uniquement via `provides ... with`.
-6. **Pas de `synchronized`, pas de `ThreadLocal`** — virtual-thread-friendly. `ScopedValue`
-   si propagation de contexte nécessaire (ex. traçage de requête).
-7. **Pas de `setAccessible(true)` en production** — utiliser `MethodHandles.privateLookupIn`
-   pour l'instanciation interne si nécessaire. Documenter toute ouverture JPMS.
-8. **Champollion = seule lib JSON** — pas de Jackson, Gson, Jsonb standalone tierce.
-   `cyrano-core` déclare `requires jakarta.json.bind` (spec) ; champollion est fourni runtime.
-9. **TCK MicroProfile Rest Client 4.0 PASS à 100 %** est un contrat avant tout merge structurel.
+5. **Strict JPMS**: all modules have a `module-info.java`, `internal.*` packages
+   not exported, SPI exposed only via `provides ... with`.
+6. **No `synchronized`, no `ThreadLocal`** — virtual-thread-friendly. `ScopedValue`
+   if context propagation is needed (e.g. request tracing).
+7. **No `setAccessible(true)` in production** — use `MethodHandles.privateLookupIn`
+   if internal access is needed. Document any JPMS opening.
+8. **Champollion = only JSON lib** — no Jackson, Gson, standalone third-party Jsonb.
+   `cyrano-core` declares `requires jakarta.json.bind` (spec); champollion provided at runtime.
+9. **MicroProfile Rest Client 4.0 TCK PASS at 100%** is a hard contract before any structural merge.
 
 ## Conventions
 
-- **Java modules explicites** : tous les modules ont un `module-info.java`.
-- **Packages** :
-  - `io.vidocq.cyrano.spi.*` = SPI public stable (TransportAdapter, ExceptionMapper, intercepteurs)
-  - `io.vidocq.cyrano.internal.*` = code interne (peut casser entre versions)
-- **Maven groupId** : `io.vidocq.cyrano`.
-- **Records** pour les objets immuables (`RequestSpec`, `ResponseSpec`, `ParamBinding`) ;
-  **sealed interfaces** pour les hiérarchies fermées (types de paramètre, résultats de dispatch).
-- **Pattern matching** exhaustif sur switch — pas de chaîne `if/else if`.
-- **JUnit 6** uniquement pour les tests (BOM `org.junit:junit-bom` 6.x).
+- **Explicit Java modules**: all modules have a `module-info.java`.
+- **Packages**:
+  - `io.vidocq.cyrano.spi.*` = stable public SPI (TransportAdapter, ExceptionMapper, interceptors)
+  - `io.vidocq.cyrano.internal.*` = internal code (may break between versions)
+- **Maven groupId**: `io.vidocq.cyrano`.
+- **Records** for immutable objects (`RequestSpec`, `ResponseSpec`, `ParamBinding`);
+  **sealed interfaces** for closed hierarchies (parameter types, dispatch results).
+- **Exhaustive pattern matching** on switch — no `if/else if` chains.
+- **JUnit 6** only for tests (BOM `org.junit:junit-bom` 6.x).
+- **Language** — commit messages, Javadoc, and all `.md` file content must be written in **English**.
 
-## TDD — Test-Driven Development (obligatoire)
+Cyrano is developed with **strict TDD**, in this order:
 
-Cyrano est développé en **TDD strict**, dans cet ordre :
+1. **Red** — write the test describing the expected behavior (cite the MicroProfile Rest Client 4.0
+   spec section in JavaDoc comments). The test must fail for the right reason
+   (compilation OK, assertion KO).
+2. **Green** — write the minimum code to make the test pass.
+3. **Refactor** — clean up while keeping tests green. Run the full module suite
+   before any commit.
 
-1. **Red** — écrire le test qui décrit le comportement attendu (citation section spec
-   MicroProfile Rest Client 4.0 en commentaire JavaDoc). Le test doit échouer pour la
-   bonne raison (compilation OK, assertion KO).
-2. **Green** — écrire le minimum de code pour faire passer le test.
-3. **Refactor** — nettoyer en gardant les tests verts. Lancer la suite complète du
-   module avant tout commit.
+Concrete rules:
 
-Règles concrètes :
-
-- **Un test par classe publique**, nommé `<Classe>Test`, dans le même package (`src/test/java`).
-- **Pas de Mockito** — doubles écrits à la main ou serveurs de test `HttpServer` JDK inline.
-- **Tests par fixture spec** : pour chaque section de la spec MicroProfile Rest Client 4.0
-  référencée, un test nommé `<methode>_spec_section<X>_<Y>()`.
-- **Serveur mock léger** pour les tests d'intégration de `cyrano-core` : `HttpServer` JDK
-  (`com.sun.net.httpserver.HttpServer`) ou port Chappe minimal — aucune lib tierce.
+- **One test per public class**, named `<Class>Test`, in the same package (`src/test/java`).
+- **No Mockito** — hand-written doubles or inline JDK `HttpServer` test servers.
+- **Spec fixture tests**: for each referenced MicroProfile Rest Client 4.0 spec section,
+  a test named `<method>_spec_section<X>_<Y>()`.
+- **Lightweight mock server** for `cyrano-core` integration tests: JDK `HttpServer`
+  (`com.sun.net.httpserver.HttpServer`) or minimal Chappe port — no third-party library.
 
 ## TCK — Technology Compatibility Kit
 
-MicroProfile Rest Client TCK — exécuté dans un module hors reactor (`cyrano-tck`,
-POM Model 4.0.0) pour contourner ShrinkWrap Maven Resolver 3.3 :
+MicroProfile Rest Client TCK — run in an out-of-reactor module (`cyrano-tck`,
+POM Model 4.0.0) to work around ShrinkWrap Maven Resolver 3.3:
 
-| TCK | Artifact | Cible |
+| TCK | Artifact | Target |
 |---|---|---|
-| MicroProfile Rest Client 4.0 | `org.eclipse.microprofile.rest.client:microprofile-rest-client-tck:4.0` | 100 % PASS (contrat) |
+| MicroProfile Rest Client 4.0 | `org.eclipse.microprofile.rest.client:microprofile-rest-client-tck:4.0` | 100% PASS (hard contract) |
 
-Le script `run-official-tck-mp-rest-client-4.0.sh` :
+The `run-official-tck-mp-rest-client-4.0.sh` script:
 
-- supporte `smoke` (par défaut), `all`, et `-Dtest=NomDuTest` ciblé ;
-- installe le reactor en local (`mvn install -DskipTests`) avant invocation ;
-- produit un rapport `target/tck-report.txt` avec le score PASS/FAIL/SKIP.
+- supports `smoke` (default), `all`, and targeted `-Dtest=TestName`;
+- installs the reactor locally (`mvn install -DskipTests`) before invocation;
+- produces a `target/tck-report.txt` report with the PASS/FAIL/SKIP score.
 
-**Architecture du runner TCK :**
+**TCK runner architecture:**
 
-Le TCK MicroProfile Rest Client exige un backend HTTP qui joue le rôle de serveur cible.
-Le `CyranoDeployableContainer` (custom Arquillian, ~300 LOC, test-scope only) :
-- Démarre une instance Cassini+Chappe embedded sur un port aléatoire pour servir les
-  ressources JAX-RS du TCK (côté serveur).
-- Configure le `RestClientBuilder` de Cyrano pour pointer sur ce serveur (côté client).
-- Réutilise `CassiniTestHarness` (cassini-tck) comme composant de test partagé.
-- Aucune dépendance à Weld, Undertow, ou tout container tiers.
+The MicroProfile Rest Client TCK requires an HTTP backend serving as the target server.
+The `CyranoDeployableContainer` (custom Arquillian, ~300 LOC, test-scope only):
+- Starts an embedded Cassini+Chappe instance on a random port to serve TCK JAX-RS resources
+  (server side).
+- Configures Cyrano's `RestClientBuilder` to point to this server (client side).
+- Reuses `CassiniTestHarness` (cassini-tck) as a shared test component.
+- No dependency on Weld, Undertow, or any third-party container.
 
-**Discipline de release :**
+**Release discipline:**
 
-- **Aucun merge structurel** sur `cyrano-core`/`cyrano-cdi-vauban` sans TCK PASS.
-- Les éventuels challenges (tests désactivés pour interprétation spec ou bug TCK) sont
-  documentés dans `TCK.md` avec citation spec, hash du test, et plan de réactivation.
+- **No structural merge** on `cyrano-core`/`cyrano-cdi-vauban` without TCK PASS.
+- Any challenges (disabled tests for spec interpretation or TCK bug) are
+  documented in `TCK.md` with spec citation, test hash, and reactivation plan.
 
-## Principes IA — collaboration sur ce dépôt
+## AI Principles — Collaboration on This Repository
 
-- **Plan mode par défaut** sur tout changement structurel (nouveau module, nouvelle SPI,
-  modification du générateur de proxy ou du transport HTTP).
-- **Class-File API d'abord** : pour tout ce qui ressemble à de la génération dynamique,
-  préférer JEP 484 + `MethodHandles.Lookup.defineClass` à `java.lang.reflect.Proxy`.
-  Utiliser l'agent `classfile-codegen` pour revue de tout nouveau générateur de bytecode.
-- **Élégance équilibrée** : préférer un design simple qui passe le TCK à un design parfait
-  qui ne le passe pas. Documenter les arbitrages dans des ADR (`docs/adr/`).
-- **Pas de paresse sur les specs** : citer la section MicroProfile Rest Client 4.0 dans les
-  commentaires de code quand l'implémentation y répond directement.
-- **Zéro librairie tierce** : les specs Jakarta EE et MicroProfile sont les seules
-  dépendances autorisées en scope `provided`/`compile`. Si une lib d'implémentation semble
-  nécessaire, c'est qu'on s'est trompé de découpe.
-- Utiliser les agents **`jpms-guardian`**, **`virtual-threads-reviewer`**,
-  **`dependency-gatekeeper`**, **`classfile-codegen`** proactivement sur toute modification
-  de `module-info.java`, code concurrent, `pom.xml`, ou générateur de bytecode.
-- Si les règles de ce fichier doivent être mises à jour, penser à aligner `AGENTS.md` de la
-  même façon, pour que Copilot Code puisse s'y référer facilement.
+- **Plan mode by default** on any structural change (new module, new SPI,
+  modification of proxy generator or HTTP transport).
+- **Class-File API first**: for anything resembling dynamic generation,
+  prefer JEP 484 + `MethodHandles.Lookup.defineClass` over `java.lang.reflect.Proxy`.
+  Use the `classfile-codegen` agent to review any new bytecode generator.
+- **Balanced elegance**: prefer a simple design that passes the TCK over a perfect design
+  that does not. Document trade-offs in ADRs (`docs/adr/`).
+- **No laziness on specs**: cite the MicroProfile Rest Client 4.0 section in code
+  comments when the implementation directly responds to it.
+- **Zero third-party libraries**: Jakarta EE and MicroProfile specs are the only
+  dependencies allowed in `provided`/`compile` scope. If an implementation library
+  seems necessary, the decomposition is wrong.
+- Use agents **`jpms-guardian`**, **`virtual-threads-reviewer`**,
+  **`dependency-gatekeeper`**, **`classfile-codegen`** proactively on any `module-info.java`
+  modification, concurrent code, `pom.xml`, or bytecode generator.
+- If the rules in this file need updating, remember to align `AGENTS.md` accordingly
+  so Copilot Code can reference it easily.

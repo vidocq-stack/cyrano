@@ -8,11 +8,11 @@
  *     https://www.apache.org/licenses/LICENSE-2.0
  */
 /**
- * Implémentation interne de Cyrano — composants non exportés.
+ * Internal implementation of Cyrano — components not exported.
  *
- * <p>Toute classe ici est susceptible de changer sans préavis entre versions ;
- * les consommateurs externes doivent passer par la SPI publique
- * {@code io.vidocq.cyrano.spi} et par {@code io.vidocq.cyrano.runtime}.</p>
+ * <p>Any class here may change without notice between versions;
+ * external consumers must go through the public SPI
+ * {@code io.vidocq.cyrano.spi} and through {@code io.vidocq.cyrano.runtime}.</p>
  */
 package io.vidocq.cyrano.internal;
 

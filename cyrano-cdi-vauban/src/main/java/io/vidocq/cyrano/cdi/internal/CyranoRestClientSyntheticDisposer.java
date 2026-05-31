@@ -17,9 +17,9 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Disposer CDI pour les beans REST Client synthétiques — spec MP Rest Client 4.0 §8.1 :
- * tous les proxies sont {@link Closeable}. Appelle {@code close()} sur le proxy
- * lorsque le scope CDI se termine.
+ * CDI disposer for synthetic REST clients — spec MP Rest Client 4.0 §8.1:
+ * all proxies are {@link Closeable}. Calls {@code close()} on the proxy
+ * when the CDI scope ends.
  */
 public class CyranoRestClientSyntheticDisposer implements SyntheticBeanDisposer<Object> {
 

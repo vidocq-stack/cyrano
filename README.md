@@ -1,47 +1,47 @@
 # Cyrano
 
-> Cyrano de Bergerac (1619–1655) parlait au nom des autres, leur prêtant son éloquence
-> pour séduire qui ils ne pouvaient atteindre seuls. C'est exactement ce que fait un
-> client REST typé : il parle au nom du code applicatif, lui prêtant ses proxies et
-> ses annotations pour appeler les services distants.
+> Cyrano de Bergerac (1619–1655) spoke on behalf of others, lending them his eloquence
+> to woo those they could not reach alone. That is exactly what a typed REST client does:
+> it speaks on behalf of application code, lending its proxies and annotations to call
+> remote services.
 
-Implémentation **MicroProfile Rest Client 4.0** dans le style Vidocq :
-zéro librairie tierce, JDK 25, virtual threads, JPMS strict, génération de proxy
-via Class-File API (JEP 484), transport JDK `java.net.http.HttpClient`, intégration
-CDI via Vauban, sérialisation JSON via Champollion (Jakarta JSON-B).
+**MicroProfile Rest Client 4.0** implementation in the Vidocq style:
+zero third-party libraries, JDK 25, virtual threads, strict JPMS, proxy generation
+via the Class-File API (JEP 484), JDK `java.net.http.HttpClient` transport, CDI integration
+via Vauban, JSON serialisation via Champollion (Jakarta JSON-B).
 
 ## Modules
 
-| Module | Rôle |
+| Module | Role |
 |---|---|
-| `cyrano-api` | Re-expose la spec `org.eclipse.microprofile.rest.client` + SPI publique |
-| `cyrano-core` | Implémentation standalone : scanning d'interfaces, génération de proxy Class-File API, transport JDK HttpClient, mapping JSON-B |
-| `cyrano-cdi-vauban` | BCE Vauban découvrant les interfaces `@RegisterRestClient` |
-| `cyrano-tck` | Runner TCK officiel MicroProfile Rest Client 4.0 (hors reactor) |
+| `cyrano-api` | Re-exports the `org.eclipse.microprofile.rest.client` spec + public SPI |
+| `cyrano-core` | Standalone implementation: interface scanning, Class-File API proxy generation, JDK HttpClient transport, JSON-B mapping |
+| `cyrano-cdi-vauban` | Vauban BCE discovering `@RegisterRestClient` interfaces |
+| `cyrano-tck` | Official MicroProfile Rest Client 4.0 TCK runner (out-of-reactor) |
 
-## Prérequis
+## Prerequisites
 
 ```bash
 sdk env   # java=25-tem, maven=3.9.16
 ```
 
-## Commandes
+## Commands
 
 ```bash
-# Build complet (sans tests)
+# Full build (skip tests)
 ./mvnw -ntp install -DskipTests
 
-# Tests unitaires
+# Unit tests
 ./mvnw test
 
-# Smoke test TCK
+# TCK smoke test
 ./run-official-tck-mp-rest-client-4.0.sh
 
-# Suite TCK complète
+# Full TCK suite
 ./run-official-tck-mp-rest-client-4.0.sh all
 
-# Test TCK ciblé
-./run-official-tck-mp-rest-client-4.0.sh -Dtest=NomDuTest
+# Targeted TCK test
+./run-official-tck-mp-rest-client-4.0.sh -Dtest=TestName
 ```
 
 ## Architecture
@@ -53,9 +53,8 @@ sdk env   # java=25-tem, maven=3.9.16
   → HttpRequest (java.net.http)
   → CyranoHttpTransport (virtual thread)
   → Jakarta JSON-B (champollion)
-  → valeur de retour typée
+  → typed return value
 ```
 
-Voir [`ROADMAP.md`](ROADMAP.md) pour l'état des milestones et [`CLAUDE.md`](CLAUDE.md)
-/ [`AGENTS.md`](AGENTS.md) pour les conventions de contribution.
-
+See [`ROADMAP.md`](ROADMAP.md) for milestone status and [`CLAUDE.md`](CLAUDE.md)
+/ [`AGENTS.md`](AGENTS.md) for contribution conventions.

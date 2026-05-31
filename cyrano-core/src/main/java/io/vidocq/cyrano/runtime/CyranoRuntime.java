@@ -10,18 +10,17 @@
 package io.vidocq.cyrano.runtime;
 
 /**
- * Métadonnées runtime exposées par {@code cyrano-core}. Placeholder à M0 — sera
- * étoffé au fil des milestones (CyranoRestClientBuilder à M1, etc.).
+ * Runtime metadata exposed by {@code cyrano-core}. Placeholder at M0 — will be
+ * expanded along milestones (CyranoRestClientBuilder to M1, etc.).
  */
 public final class CyranoRuntime {
 
     private CyranoRuntime() {
-        // utility — pas d'instanciation
+        //utility — no detailing
     }
 
-    /** Identifiant de l'implémentation runtime. */
+    /** Runtime implementation identifier. */
     public static String implementationName() {
         return "cyrano-core";
     }
 }
-

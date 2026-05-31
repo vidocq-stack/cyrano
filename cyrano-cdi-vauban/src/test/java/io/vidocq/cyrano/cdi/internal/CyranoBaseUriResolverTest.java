@@ -20,9 +20,9 @@ import java.util.function.Function;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests TDD pour {@link CyranoBaseUriResolver}.
+ * TDD tests for {@link CyranoBaseUriResolver}.
  *
- * <p>Spec MicroProfile Rest Client 4.0 §5 « Configuration » — ordre de priorité :
+ * <p>Spec MicroProfile Rest Client 4.0 §5 "Configuration" — order of priority:
  * {@code <fqn>/mp-rest/url} > {@code <configKey>/mp-rest/url} > {@code @RegisterRestClient(baseUri)}.</p>
  */
 class CyranoBaseUriResolverTest {
@@ -34,7 +34,7 @@ class CyranoBaseUriResolverTest {
     }
 
     @Test
-    @DisplayName("§5 priorité 3 : @RegisterRestClient(baseUri=...) — sans MP Config")
+    @DisplayName("§5 priority 3: @RegisterRestClient(baseUri=...) — without MP Config")
     void resolves_baseUri_from_annotation_when_no_mp_config() {
         URI uri = CyranoBaseUriResolver.resolve(
                 FQN, "https://api.example.com", "", staticLookup(Map.of()));
@@ -42,7 +42,7 @@ class CyranoBaseUriResolverTest {
     }
 
     @Test
-    @DisplayName("§5 priorité 2 : <configKey>/mp-rest/url override @RegisterRestClient(baseUri)")
+    @DisplayName("§5 priority 2: <configKey>/mp-rest/url overrides @RegisterRestClient(baseUri)")
     void mp_config_configKey_overrides_annotation_baseUri() {
         URI uri = CyranoBaseUriResolver.resolve(
                 FQN, "https://annotation.example", "users",
@@ -51,7 +51,7 @@ class CyranoBaseUriResolverTest {
     }
 
     @Test
-    @DisplayName("§5 priorité 1 : <fqn>/mp-rest/url override tout le reste")
+    @DisplayName("§5 priority 1: <fqn>/mp-rest/url overrides everything else")
     void mp_config_fqn_overrides_configKey_and_annotation() {
         URI uri = CyranoBaseUriResolver.resolve(
                 FQN, "https://annotation.example", "users",
@@ -62,7 +62,7 @@ class CyranoBaseUriResolverTest {
     }
 
     @Test
-    @DisplayName("§5 : valeur MP Config blank ignorée, fallback sur l'annotation")
+    @DisplayName("§5: blank MP Config value is ignored, fallback to annotation")
     void blank_mp_config_value_is_ignored() {
         URI uri = CyranoBaseUriResolver.resolve(
                 FQN, "https://annotation.example", "users",
@@ -71,7 +71,7 @@ class CyranoBaseUriResolverTest {
     }
 
     @Test
-    @DisplayName("§5 : aucune source disponible → IllegalStateException")
+    @DisplayName("§5: no source available -> IllegalStateException")
     void throws_when_no_baseUri_source_available() {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> CyranoBaseUriResolver.resolve(FQN, "", "", staticLookup(Map.of())));
@@ -80,7 +80,7 @@ class CyranoBaseUriResolverTest {
     }
 
     @Test
-    @DisplayName("configKey vide ⇒ lookup configKey ignoré")
+    @DisplayName("empty configKey -> configKey lookup is skipped")
     void empty_configKey_skips_configKey_lookup() {
         URI uri = CyranoBaseUriResolver.resolve(
                 FQN, "https://annotation.example", "",
@@ -89,11 +89,11 @@ class CyranoBaseUriResolverTest {
     }
 
     @Test
-    @DisplayName("defaultMpConfigLookup() : pas de NPE si MP Config absent")
+    @DisplayName("defaultMpConfigLookup(): no NPE when MP Config is absent")
     void default_lookup_degrades_gracefully_when_mp_config_absent() {
-        // Dans l'environnement de test cyrano-cdi-vauban, microprofile-config-api
-        // n'est pas sur le classpath → la fonction doit retourner Optional.empty()
-        // sans NPE ni ClassNotFoundException.
+        // In the cyrano-cdi-vauban test environment, microprofile-config-api
+        // is not on the classpath -> function must return Optional.empty()
+        // with no NPE or ClassNotFoundException.
         Function<String, Optional<String>> lookup = CyranoBaseUriResolver.defaultMpConfigLookup();
         assertNotNull(lookup);
         assertEquals(Optional.empty(), lookup.apply("anything/mp-rest/url"));

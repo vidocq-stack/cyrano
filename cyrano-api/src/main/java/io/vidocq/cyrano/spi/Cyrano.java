@@ -10,25 +10,24 @@
 package io.vidocq.cyrano.spi;
 
 /**
- * Métadonnées d'implémentation Cyrano — constantes accessibles depuis les tests TCK
- * et l'intégration runtime.
+ * Cyrano implementation metadata — constants accessible from TCK tests
+ * and runtime integration.
  *
- * <p>Pour la spec MicroProfile Rest Client 4.0, l'implémentation s'identifie auprès
- * du TCK et des consommateurs via ces constantes.</p>
+ * <p>For the MicroProfile Rest Client 4.0 spec, the implementation identifies itself to
+ * the TCK and consumers through these constants.</p>
  */
 public final class Cyrano {
 
-    /** Identifiant court de l'implémentation. */
+    /** Short implementation identifier. */
     public static final String IMPLEMENTATION_NAME = "cyrano";
 
-    /** Version de la spec MicroProfile Rest Client implémentée. */
+    /** MicroProfile Rest Client spec version implemented. */
     public static final String SPEC_VERSION = "4.0";
 
-    /** Version courante de l'implémentation Cyrano. */
+    /** Current Cyrano implementation version. */
     public static final String IMPLEMENTATION_VERSION = "0.1.0-SNAPSHOT";
 
     private Cyrano() {
-        // utility — pas d'instanciation
+        // utility — no instantiation
     }
 }
-

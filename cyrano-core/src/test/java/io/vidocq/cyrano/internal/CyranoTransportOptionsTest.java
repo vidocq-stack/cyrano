@@ -29,10 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests M4-4 — options transport du builder ({@code followRedirects},
- * {@code readTimeout}) propagées au transport JDK et au {@link Response} retourné.
+ * M4-4 tests — transport options for the builder ({@code followRedirects},
+ * {@code readTimeout}) propagated to JDK transport and {@link Response} returned.
  *
- * <p>Spec MicroProfile Rest Client 4.0 §5 « Configuration ».</p>
+ * <p>Spec MicroProfile Rest Client 4.0 §5 "Configuration".</p>
  */
 class CyranoTransportOptionsTest {
 

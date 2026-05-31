@@ -13,19 +13,19 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 /**
- * Liaison d'un paramètre Java à un emplacement HTTP — sealed pour exhaustivité dans
- * le {@code switch} de résolution.
+ * Links a Java parameter to an HTTP location — sealed for completeness in
+ * the {@code switch} resolution.
  *
- * <p>Couvre la spec MicroProfile Rest Client 4.0 §3.1 (types de paramètre de base) :
+ * <p>Covers MicroProfile Rest Client 4.0 §3.1 (Basic Parameter Types):
  * {@code @PathParam}, {@code @QueryParam}, {@code @HeaderParam}, {@code @CookieParam},
- * {@code @FormParam}, {@code @MatrixParam}, body implicite (paramètre non annoté), et
- * {@code @BeanParam} (agrégation).</p>
+ * {@code @FormParam}, {@code @MatrixParam}, implicit body (unannotated parameter), and
+ * {@code @BeanParam} (aggregation).</p>
  */
 public sealed interface ParamBinding {
 
     int paramIndex();
 
-    /** Valeur par défaut appliquée si l'argument est {@code null} ({@code @DefaultValue}). */
+    /** Default value applied if the argument is {@code null} ({@code @DefaultValue}). */
     String defaultValue();
 
     record Path(int paramIndex, String name, String defaultValue) implements ParamBinding {}
@@ -35,12 +35,12 @@ public sealed interface ParamBinding {
     record Form(int paramIndex, String name, String defaultValue) implements ParamBinding {}
     record Matrix(int paramIndex, String name, String defaultValue) implements ParamBinding {}
 
-    /** Paramètre non annoté — corps de la requête (sérialisé via JSON-B selon {@code @Consumes}). */
+    /** Unannotated parameter — request body (serialized via JSON-B according to {@code @Consumes}). */
     record Body(int paramIndex) implements ParamBinding {
         @Override public String defaultValue() { return null; }
     }
 
-    /** Agrégat {@code @BeanParam} — éclate ses sous-bindings en {@link FieldBinding}. */
+    /** {@code @BeanParam} aggregate — expands its sub-bindings into {@link FieldBinding}. */
     record Bean(int paramIndex, List<FieldBinding> fields) implements ParamBinding {
         public Bean {
             fields = List.copyOf(fields);
@@ -48,7 +48,7 @@ public sealed interface ParamBinding {
         @Override public String defaultValue() { return null; }
     }
 
-    /** Liaison d'un champ {@code @BeanParam} vers un emplacement HTTP. */
+    /** Binding of a {@code @BeanParam} field to an HTTP location. */
     record FieldBinding(Field field, Kind kind, String name, String defaultValue) {
         public enum Kind { PATH, QUERY, HEADER, COOKIE, FORM, MATRIX }
     }

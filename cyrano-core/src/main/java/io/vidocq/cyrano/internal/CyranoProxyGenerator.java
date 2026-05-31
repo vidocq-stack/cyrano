@@ -23,17 +23,17 @@ import static java.lang.constant.ConstantDescs.CD_int;
 import static java.lang.constant.ConstantDescs.MTD_void;
 
 /**
- * Générateur de proxy via la Class-File API du JDK 25 (JEP 484) — produit une classe
- * concrète nommée {@code Cyrano$<SimpleName>} qui implémente l'interface client.
+ * Proxy generator via JDK 25 Class-File API (JEP 484) — produces a class
+ * concrete name {@code Cyrano$<SimpleName>} which implements the client interface.
  *
- * <p>Pas de {@link java.lang.reflect.Proxy} dynamique, pas d'ASM ni de Byte Buddy.
- * La classe générée est chargée via {@link MethodHandles.Lookup#defineClass(byte[])}
- * dans le module {@code cyrano-core}. Avantages : compatible AOT (GraalVM, Leyden CDS),
- * stack traces lisibles, pas de {@code setAccessible(true)}.</p>
+ * <p>No {@link java.lang.reflect.Proxy} dynamic proxy, no ASM or Byte Buddy.
+ * The generated class is loaded via {@link MethodHandles.Lookup#defineClass(byte[])}
+ * in the {@code cyrano-core} module. Benefits: AOT compatible (GraalVM, Leyden CDS),
+ * readable stack traces, no {@code setAccessible(true)}.</p>
  *
- * <p>Anatomie d'un proxy généré pour une interface {@code com.acme.UserService} :</p>
+ * <p>Anatomy of a proxy generated for a {@code com.acme.UserService} interface:</p>
  * <pre>
- *   package io.vidocq.cyrano.internal;            // package du Lookup (interne)
+ *   package io.vidocq.cyrano.internal;            // package of the Lookup (internal)
  *   final class Cyrano$UserService implements com.acme.UserService {
  *       private final CyranoInvocationHandler handler;
  *       Cyrano$UserService(CyranoInvocationHandler h) { this.handler = h; }
@@ -44,13 +44,13 @@ import static java.lang.constant.ConstantDescs.MTD_void;
  *           } catch (RuntimeException | Error e) { throw e; }
  *             catch (Exception e) { throw new RuntimeException(e); }
  *       }
- *       // … une méthode par entrée du Map&lt;Method, RequestSpec&gt;
+ * //... an input method from Map&lt;Method, RequestSpec&gt;
  *   }
  * </pre>
  *
- * <p>L'index passé à {@link CyranoInvocationHandler#invoke(int, Object[])} correspond à
- * l'ordre d'itération de {@code Map<Method, RequestSpec>} (qui est un {@link
- * java.util.LinkedHashMap LinkedHashMap} — ordre d'insertion stable).</p>
+ * <p>The index passed to {@link CyranoInvocationHandler#invoke(int, Object[])} corresponds to
+ * the iteration order of {@code Map<Method, RequestSpec>} (which is a {@link
+ * java.util.LinkedHashMap LinkedHashMap} — stable insertion order.</p>
  */
 public final class CyranoProxyGenerator {
 
@@ -69,40 +69,40 @@ public final class CyranoProxyGenerator {
     }
 
     /**
-     * Génère une classe proxy implémentant {@code iface}, l'enregistre dans le ClassLoader
-     * via {@link MethodHandles.Lookup#defineClass(byte[])} et la renvoie.
+     * Generates a proxy class implementing {@code iface}, registers it in the ClassLoader
+     * via {@link MethodHandles.Lookup#defineClass(byte[])} and returns it.
      *
-     * <p>Idempotent au niveau du contenu — l'appelant doit cacher le résultat
-     * (voir {@code CyranoProxyCache}).</p>
+     * <p>Idempotent at content level — caller must hide the result
+     * (see {@code CyranoProxyCache}).</p>
      */
     public static Class<?> generate(Class<?> iface, Map<Method, RequestSpec> specs) {
         List<Method> methods = new ArrayList<>(specs.keySet());
-        // Pour les interfaces inner, inclure la chaîne des classes englobantes dans le
-        // nom du proxy — sinon trois interfaces nommées `SpanResourceClient` dans trois
-        // outer classes différentes (cas TCK MP Telemetry) génèrent le même proxy
-        // `Cyrano$SpanResourceClient` et collisionnent (LinkageError + ClassCastException
-        // entre tests). On remplace les `$` du nom binaire par `_` dans le suffixe pour
-        // garder une seule séparation `Cyrano$` lisible.
+        //For inner interfaces, include the chain of enclosing classes in the
+        //proxy name — otherwise three interfaces named `SpanResourceClient` in three
+        //different outer classes (MP Telemetry TCK case) generate the same proxy
+        // `Cyrano$SpanResourceClient` and collide (LinkageError + ClassCastException
+        //between tests). `$` in the binary name is replaced by `_` in the suffix to
+        //keep a single legible `Cyrano$` separator.
         String pkg = iface.getPackageName();
         String binaryWithoutPkg = pkg.isEmpty() ? iface.getName() : iface.getName().substring(pkg.length() + 1);
         String simpleName = "Cyrano$" + binaryWithoutPkg.replace('$', '_');
-        // Le proxy est généré dans le même package que l'interface cible afin de pouvoir
-        // l'implémenter même quand elle est package-private, et pour éviter les soucis
-        // de visibilité entre modules nommés (chaque module reste responsable de ses
-        // proxies). Nécessite que le module utilisateur ouvre son package à cyrano-core
-        // (ou que les deux soient dans le module unnamed, cas test/classpath).
+        //The proxy is generated in the same package as the target interface in order to be able to
+        //implement it even when it is package-private, and to avoid visibility issues
+        //between named modules (each module remains responsible for its own
+        //proxies). Requires the user module to open its package to cyrano-core
+        //(or both are in the unnamed module, test/classpath case).
         String binaryName = pkg.isEmpty() ? simpleName : pkg + "." + simpleName;
         ClassDesc thisClass = ClassDesc.of(binaryName);
         ClassDesc ifaceDesc = iface.describeConstable().orElseThrow();
 
         byte[] bytes = ClassFile.of().build(thisClass, cb -> {
             cb.withFlags(ClassFile.ACC_PUBLIC | ClassFile.ACC_FINAL | ClassFile.ACC_SUPER);
-            // Always implement Closeable — spec MP Rest Client §8.1: all proxies must be Closeable
+            //Always implements Closeable — spec MP Rest Client §8.1: all proxies must be Closeable
             cb.withInterfaceSymbols(ifaceDesc, CD_Closeable);
             cb.withSuperclass(CD_Object);
             cb.withField("handler", CD_HANDLER, ClassFile.ACC_PRIVATE | ClassFile.ACC_FINAL);
 
-            // Constructeur : Cyrano$X(CyranoInvocationHandler h)
+            // Constructor: Cyrano$X(CyranoInvocationHandler h)
             cb.withMethodBody("<init>",
                     MethodTypeDesc.of(java.lang.constant.ConstantDescs.CD_void, CD_HANDLER),
                     ClassFile.ACC_PUBLIC,
@@ -114,14 +114,14 @@ public final class CyranoProxyGenerator {
                             .putfield(thisClass, "handler", CD_HANDLER)
                             .return_());
 
-            // Une méthode par entrée du scan, dans l'ordre d'insertion.
+            //One method per scan entry, in insertion order.
             for (int i = 0; i < methods.size(); i++) {
                 Method m = methods.get(i);
                 emitMethod(cb, thisClass, m, i);
             }
 
-            // close() — spec §8.1 : tous les proxies sont Closeable.
-            // Appelle handler.markClosed() ; après fermeture, invoke() lève IllegalStateException.
+            //close() — spec §8.1: all proxies are Closeable.
+            //Call handler.markClosed(); after closing, invoke() throws IllegalStateException.
             cb.withMethodBody("close",
                     MethodTypeDesc.of(java.lang.constant.ConstantDescs.CD_void),
                     ClassFile.ACC_PUBLIC | ClassFile.ACC_FINAL,
@@ -133,40 +133,39 @@ public final class CyranoProxyGenerator {
         });
 
         try {
-            // privateLookupIn donne accès au package de l'interface — permet de définir
-            // la classe proxy dans ce package, qu'il soit public ou non. Pour les
-            // interfaces de modules nommés, le module utilisateur doit ouvrir son
-            // package à cyrano-core via `opens` (sera documenté pour M3 CDI).
+            //privateLookupIn gives access to the interface package — lets you define
+            //the proxy class in this package, whether public or not. For
+            //interfaces of named modules, the user module must open its
+            //package to cyrano-core via `opens` (will be documented for M3 CDI).
             MethodHandles.Lookup target = MethodHandles.privateLookupIn(iface, MethodHandles.lookup());
             try {
                 return target.defineClass(bytes);
             } catch (LinkageError dup) {
-                // Le proxy a déjà été défini dans ce classloader (typiquement parce
-                // que le cache CyranoProxyCache n'a pas hit — peut arriver dans des
-                // contextes Arquillian/ShrinkWrap où plusieurs Class<?> représentent
-                // la même interface entre déploiements successifs partageant le même
-                // ClassLoader applicatif). Récupérer la classe déjà définie au lieu
-                // d'échouer — idempotence du proxy garantie par la signature stable
-                // de l'interface.
+                //The proxy has already been defined in this classloader (typically because
+                //the CyranoProxyCache cache missed — can happen in
+                //Arquillian/ShrinkWrap contexts where several Class<?> objects represent
+                //the same interface between successive deployments sharing the same
+                //application ClassLoader). Recover the already defined class instead of
+                //failing — proxy idempotence is guaranteed by the stable interface signature.
                 ClassLoader cl = iface.getClassLoader();
                 if (cl == null) cl = ClassLoader.getSystemClassLoader();
                 return Class.forName(binaryName, false, cl);
             }
         } catch (IllegalAccessException e) {
             throw new IllegalStateException(
-                    "Impossible de définir le proxy " + binaryName
-                            + " — assurez-vous que le module hôte ouvre son package à "
+                    "Cannot define the proxy " + binaryName
+                            + " — ensure that the host module opens its package to "
                             + "'io.vidocq.cyrano.core' (opens "
                             + iface.getPackageName() + " to io.vidocq.cyrano.core).", e);
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(
-                    "LinkageError sur " + binaryName + " mais classe introuvable via Class.forName — "
-                            + "incohérence ClassLoader.", e);
+                    "LinkageError on " + binaryName + " but class not found via Class.forName — "
+                            + "ClassLoader inconsistency.", e);
         }
     }
 
     /**
-     * Instancie un proxy déjà généré via le constructeur {@code (CyranoInvocationHandler)}.
+     * Instantiates a proxy already generated via the producer {@code (CyranoInvocationHandler)}.
      */
     @SuppressWarnings("unchecked")
     public static <T> T instantiate(Class<?> proxyClass, CyranoInvocationHandler handler) {
@@ -174,7 +173,7 @@ public final class CyranoProxyGenerator {
             var ctor = proxyClass.getDeclaredConstructor(CyranoInvocationHandler.class);
             return (T) ctor.newInstance(handler);
         } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Échec d'instanciation du proxy " + proxyClass, e);
+            throw new IllegalStateException("Failed to instantiate proxy " + proxyClass, e);
         }
     }
 
@@ -192,7 +191,7 @@ public final class CyranoProxyGenerator {
                 ClassFile.ACC_PUBLIC | ClassFile.ACC_FINAL,
                 code -> {
                     // Compute slot of the Object[] local variable.
-                    // Local slots : 0 = this, puis chaque paramètre selon sa taille.
+                    //Local slots: 0 = this, then each parameter according to its size.
                     int argsSlot = 1;
                     for (Class<?> p : paramTypes) {
                         argsSlot += (p == long.class || p == double.class) ? 2 : 1;
@@ -254,8 +253,8 @@ public final class CyranoProxyGenerator {
     }
 
     /**
-     * Charge le paramètre de slot {@code slot} sur la pile et le box si primitif,
-     * pour pouvoir le stocker dans {@code Object[]}.
+     * Loads the {@code slot} parameter on the stack and boxes it if primitive,
+     * to store it in {@code Object[]}.
      */
     private static void loadAndBox(java.lang.classfile.CodeBuilder code, Class<?> type, int slot) {
         if (!type.isPrimitive()) {
@@ -279,7 +278,7 @@ public final class CyranoProxyGenerator {
             code.invokestatic(ClassDesc.of("java.lang.Boolean"), "valueOf",
                     MethodTypeDesc.of(ClassDesc.of("java.lang.Boolean"), java.lang.constant.ConstantDescs.CD_boolean));
         } else {
-            // int, short, byte, char — chargés via iload puis boxés
+            //int, short, byte, char — loaded via iload then boxed
             code.iload(slot);
             ClassDesc wrapper;
             ClassDesc prim;
@@ -296,15 +295,15 @@ public final class CyranoProxyGenerator {
                 wrapper = ClassDesc.of("java.lang.Character");
                 prim = java.lang.constant.ConstantDescs.CD_char;
             } else {
-                throw new IllegalStateException("Type primitif inconnu : " + type);
+                throw new IllegalStateException("Unknown primitive type: " + type);
             }
             code.invokestatic(wrapper, "valueOf", MethodTypeDesc.of(wrapper, prim));
         }
     }
 
     /**
-     * Émet le code de retour selon le type Java de la méthode :
-     * cast (si nécessaire) puis areturn/ireturn/lreturn/dreturn/freturn/return.
+     * Emits the return code according to the Java type of the method:
+     * cast (if necessary) then return/ireturn/lreturn/dreturn/freturn/return.
      */
     private static void emitReturn(java.lang.classfile.CodeBuilder code, Class<?> retType, ClassDesc retDesc) {
         if (retType == void.class) {
@@ -313,7 +312,7 @@ public final class CyranoProxyGenerator {
             return;
         }
         if (retType.isPrimitive()) {
-            // Unbox depuis Object retourné par handler.invoke
+            //Unbox from Object returned by handler.invoke
             ClassDesc wrapper;
             String unboxName;
             ClassDesc prim;
@@ -334,7 +333,7 @@ public final class CyranoProxyGenerator {
             } else if (retType == boolean.class) {
                 wrapper = ClassDesc.of("java.lang.Boolean"); unboxName = "booleanValue"; prim = java.lang.constant.ConstantDescs.CD_boolean;
             } else {
-                throw new IllegalStateException("Type retour primitif inconnu : " + retType);
+                throw new IllegalStateException("Unknown primitive return type: " + retType);
             }
             code.checkcast(wrapper);
             code.invokevirtual(wrapper, unboxName, MethodTypeDesc.of(prim));
@@ -344,12 +343,11 @@ public final class CyranoProxyGenerator {
             else code.ireturn(); // int, short, byte, char, boolean
             return;
         }
-        // Référence
+        //Reference
         code.checkcast(retDesc);
         code.areturn();
     }
 }
-
 
 
 

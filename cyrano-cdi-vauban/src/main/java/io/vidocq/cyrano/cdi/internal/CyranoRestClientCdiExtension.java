@@ -33,45 +33,45 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Build Compatible Extension Cyrano — découverte automatique des interfaces
- * annotées {@link RegisterRestClient} et synthèse d'un bean CDI par interface.
+ * Build Compatible Extension Cyrano — automatic discovery of interfaces
+ * annotated with {@link RegisterRestClient} and synthesis of a CDI bean per interface.
  *
- * <p>Phases :</p>
+ * <p>Phases:</p>
  * <ul>
- *   <li><strong>{@link Enhancement}</strong> avec
- *       {@code withAnnotations = RegisterRestClient.class} : collecte chaque
- *       interface {@code @RegisterRestClient} rencontrée pendant le scan du
- *       container. Validation immédiate : doit être une interface, doit avoir
- *       au moins une source de base URI (annotation ou {@code configKey}).</li>
- *   <li><strong>{@link Synthesis}</strong> : pour chaque interface collectée,
- *       enregistre un {@code SyntheticBean} qualifié
- *       {@link RestClient @RestClient}, dans le scope déduit de l'annotation
- *       de portée portée par l'interface (ou {@link Dependent} par défaut, spec §6.3).</li>
+ *   <li><strong>{@link Enhancement}</strong> with
+ *       {@code withAnnotations = RegisterRestClient.class}: collects each
+ * {@code @RegisterRestClient} interface encountered during the container scan.
+ *       Immediate validation: must be an interface, and must have at least one
+ *       base URI source (annotation or {@code configKey}).</li>
+ *   <li><strong>{@link Synthesis}</strong>: for each collected interface,
+ *       registers a qualified {@code SyntheticBean}
+ * {@link RestClient @RestClient}, in the scope deduced from the scope annotation
+ * carried by the interface (or {@link Dependent} by default, spec §6.3).</li>
  * </ul>
  *
- * <p>Spec MP Rest Client 4.0 :</p>
+ * <p>Spec MP Rest Client 4.0:</p>
  * <ul>
- *   <li>§6.1 — « CDI implementations must search for interfaces annotated
- *       with @RegisterRestClient and create a CDI bean for each one ».</li>
- *   <li>§6.2 — l'injection {@code @Inject @RestClient X x} doit recevoir un
- *       proxy fonctionnellement équivalent à
+ * <li>§6.1 — « CDI implementations must search for interfaces annotated
+ * with @RegisterRestClient and create a CDI bean for each one".</li>
+ * <li>§6.2 — injection {@code @Inject @RestClient X x} should be given
+ * a proxy functionally equivalent to
  *       {@code RestClientBuilder.newBuilder().build(X.class)}.</li>
- *   <li>§6.3 — scope par défaut {@link Dependent} ; surchargeable par une
- *       annotation de scope portée par l'interface.</li>
+ * <li>§6.3 — default scope {@link Dependent}; overridable by a
+ * scope annotation carried by the interface.</li>
  * </ul>
  *
- * <p>Découverte : {@code META-INF/services/...BuildCompatibleExtension} +
- * {@code provides ... with} dans {@code module-info.java}.</p>
+ * <p>Discovery: {@code META-INF/services/...BuildCompatibleExtension} +
+ * {@code provides ... with} in {@code module-info.java}.</p>
  */
 public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
 
-    /** Interfaces collectées en phase {@code @Enhancement}, dédupliquées par FQN. */
+    /** Interfaces collected in the {@code @Enhancement} phase, deduplicated by FQN. */
     private final Map<String, DiscoveredInterface> discovered = new LinkedHashMap<>();
 
     /**
-     * Phase {@code @Enhancement} (CDI Lite §3.8) — fires sur chaque classe
-     * portant {@link RegisterRestClient}. On vérifie que la cible est une
-     * interface et qu'au moins une base URI sera résolvable au runtime.
+     * Phase {@code @Enhancement} (CDI Lite §3.8) — Fires on each class
+     * carrying {@link RegisterRestClient}. We check that the target is an
+     * interface and that at least one URI base will be resolvable at runtime.
      */
     @Enhancement(types = Object.class, withAnnotations = RegisterRestClient.class, withSubtypes = true)
     public void discoverRegisterRestClient(ClassConfig classConfig, Messages messages) {
@@ -79,8 +79,8 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
         if (!info.isInterface()) {
             if (messages != null) {
                 messages.error(
-                        "Cyrano CDI : @RegisterRestClient n'est applicable qu'à une interface, "
-                                + "or '" + info.name() + "' n'en est pas une (spec MP Rest Client 4.0 §3.1)",
+                        "Cyrano CDI: @RegisterRestClient is only applicable to an interface, "
+                                + "but '" + info.name() + "' is not one (MP Rest Client 4.0 spec §3.1)",
                         info);
             }
             return;
@@ -92,7 +92,7 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
         String baseUri = stringMember(anno, "baseUri");
         String configKey = stringMember(anno, "configKey");
         String annotationScope = detectScopeAnnotation(info);
-        // §5 / §6.3 — scope peut être surchargé par MP Config : <fqn>/mp-rest/scope ou <configKey>/mp-rest/scope
+        //§5 / §6.3 — scope can be overridden by MP Config: <fqn>/mp-rest/scope or <configKey>/mp-rest/scope
         String configScope = resolveConfigScope(info.name(), configKey);
         String scope = configScope != null ? configScope : annotationScope;
 
@@ -100,8 +100,8 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
     }
 
     /**
-     * Phase {@code @Synthesis} — produit un {@code SyntheticBean} par interface
-     * collectée. Qualifieur {@link RestClient}, scope déduit de l'interface,
+     * {@code @Synthesis} phase — produces a {@code SyntheticBean} per collected
+     * interface. {@link RestClient} qualifier, scope deduced from the interface,
      * creator {@link CyranoRestClientSyntheticCreator}.
      */
     @Synthesis
@@ -110,8 +110,8 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
         for (DiscoveredInterface d : discovered.values()) {
             Class<?> iface = loadOrNull(d.fqn());
             if (iface == null) {
-                // Si l'interface n'est pas chargeable côté container, on ignore
-                // silencieusement — Vauban a déjà signalé l'erreur classpath.
+                //If the interface is not loadable on the container side, we do nothing
+                // silently — Vauban has already reported the classpath error.
                 continue;
             }
             Class<? extends Annotation> scopeClass = resolveScopeClass(d.scope());
@@ -146,8 +146,8 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
     }
 
     /**
-     * Détecte une annotation de scope CDI sur l'interface (spec §6.3).
-     * Retourne le FQN du scope, ou {@code null} si aucun (→ {@link Dependent}).
+     * Detects a CDI scope annotation on the interface (spec §6.3).
+     * Returns the FQN of the scope, or {@code null} if none (→ {@link Dependent}).
      */
     private static String detectScopeAnnotation(ClassInfo info) {
         for (AnnotationInfo ai : info.annotations()) {
@@ -165,9 +165,9 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
     }
 
     /**
-     * Résout le scope depuis MP Config (spec §5 / §6.3) :
-     * {@code <fqn>/mp-rest/scope} puis {@code <configKey>/mp-rest/scope}.
-     * Retourne le FQN du scope si trouvé, {@code null} sinon.
+     * Resolves the scope from MP Config (spec §5 / §6.3):
+     * {@code <fqn>/mp-rest/scope} then {@code <configKey>/mp-rest/scope}.
+     * Returns the scope FQN if found, {@code null} otherwise.
      */
     private static String resolveConfigScope(String fqn, String configKey) {
         Function<String, Optional<String>> lookup = CyranoBaseUriResolver.defaultMpConfigLookup();
@@ -201,12 +201,12 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
                 return Class.forName(fqn, false, tccl);
             }
         } catch (ClassNotFoundException ignored) {
-            // fallback suivant
+            // next fallback
         }
         try {
             return Class.forName(fqn, false, self);
         } catch (ClassNotFoundException ignored) {
-            // fallback final
+            // final fallback
         }
         try {
             return Class.forName(fqn);
@@ -215,7 +215,6 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
         }
     }
 
-    /** Métadonnées d'interface collectées en phase Enhancement. */
+    /** Interface metadata collected in the Enhancement phase. */
     private record DiscoveredInterface(String fqn, String baseUri, String configKey, String scope) {}
 }
-

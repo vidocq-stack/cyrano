@@ -13,16 +13,16 @@ import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Pont de configuration statique entre le ShrinkWrap deployment TCK et
- * CyranoBaseUriResolver. Les propriétés extraites de META-INF/microprofile-config.properties
- * sont stockées ici et exportées comme propriétés système pour que
- * CyranoBaseUriResolver.defaultMpConfigLookup() les retrouve via son fallback
- * system-property.
+ * Static configuration bridge between the TCK ShrinkWrap deployment and
+ * {@code CyranoBaseUriResolver}. Properties extracted from
+ * {@code META-INF/microprofile-config.properties} are stored here and exported
+ * as system properties so that {@code CyranoBaseUriResolver.defaultMpConfigLookup()}
+ * finds them again through its system-property fallback.
  *
- * <p>Cycle de vie : {@link VaubanTckBootstrap#deploy(org.jboss.shrinkwrap.api.Archive)}
- * appelle {@link #setProperties(Properties, String)} avant de démarrer le container Vauban.
- * {@link VaubanTckBootstrap#undeploy()} appelle {@link #clear()} pour nettoyer les
- * system properties entre deux déploiements Arquillian.</p>
+ * <p>Lifecycle: {@link VaubanTckBootstrap#deploy(org.jboss.shrinkwrap.api.Archive)}
+ * calls {@link #setProperties(Properties, String)} before starting the Vauban container.
+ * {@link VaubanTckBootstrap#undeploy()} calls {@link #clear()} to clean up the
+ * system properties between two Arquillian deployments.</p>
  */
 final class TckConfigBridge {
 
@@ -31,20 +31,20 @@ final class TckConfigBridge {
     private TckConfigBridge() {}
 
     /**
-     * Stocke les propriétés extraites de l'archive ShrinkWrap telles quelles.
+     * Stores the properties extracted from the ShrinkWrap archive as is.
      *
-     * <p><strong>Pas de réécriture d'URL :</strong> les fixtures TCK construisent
-     * dynamiquement leurs valeurs {@code mp-rest/url} via
-     * {@code WiremockArquillianTest.getStringURL()} (système de propriétés
-     * {@code wiremock.server.host}/{@code wiremock.server.port}, défaut
-     * {@code localhost:8765}) qui pointent déjà sur notre {@link WireMockTestBackend}.
-     * Réécrire systématiquement vers WireMock casserait les tests
+     * <p><strong>No URL rewrite:</strong> the TCK fixtures build their
+     * {@code mp-rest/url} values dynamically via
+     * {@code WiremockArquillianTest.getStringURL()} (system properties
+     * {@code wiremock.server.host}/{@code wiremock.server.port}, defaulting to
+     * {@code localhost:8765}) which already point to our {@link WireMockTestBackend}.
+     * Rewriting systematically to WireMock would break the tests
      * (ConfigKeyTest, CDIURIvsURLConfigTest, ConfigKeyForMultipleInterfacesTest)
-     * qui vérifient explicitement la valeur configurée via un filtre
-     * {@code ReturnWithURLRequestFilter}.</p>
+     * which explicitly check the value configured via a
+     * {@code ReturnWithURLRequestFilter} filter.</p>
      *
-     * @param props          propriétés extraites de {@code META-INF/microprofile-config.properties}
-     * @param wireMockBaseUrl URL de base WireMock — conservé pour compatibilité (ignoré)
+     * @param props properties extracted from {@code META-INF/microprofile-config.properties}
+     * @param wireMockBaseUrl WireMock base URL — kept for compatibility (ignored)
      */
     static void setProperties(Properties props, String wireMockBaseUrl) {
         current.clear();
@@ -52,8 +52,8 @@ final class TckConfigBridge {
     }
 
     /**
-     * Supprime toutes les system properties posées par {@link #exportToSystemProperties()}
-     * et vide le cache interne.
+     * Removes all system properties set by {@link #exportToSystemProperties()}
+     * and clears the internal cache.
      */
     static void clear() {
         current.forEach((k, v) -> System.clearProperty(k));
@@ -61,16 +61,16 @@ final class TckConfigBridge {
     }
 
     /**
-     * Exporte toutes les propriétés stockées comme system properties, de sorte
-     * que {@code CyranoBaseUriResolver.defaultMpConfigLookup()} les retrouve via
-     * son fallback {@link System#getProperty(String)}.
+     * Exports all properties stored as system properties, so
+     * that {@code CyranoBaseUriResolver.defaultMpConfigLookup()} finds them via
+     * its {@link System#getProperty(String)} fallback.
      */
     static void exportToSystemProperties() {
         current.forEach(System::setProperty);
     }
 
     /**
-     * Retourne la valeur d'une clé de configuration, ou {@link Optional#empty()} si absente.
+     * Returns the value of a configuration key, or {@link Optional#empty()} if absent.
      */
     static Optional<String> get(String key) {
         return Optional.ofNullable(current.get(key));

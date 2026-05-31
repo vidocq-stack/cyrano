@@ -1,19 +1,19 @@
-# Integration Cyrano <-> Cassini
+# Cyrano <-> Cassini Integration
 
-## But
+## Goal
 
-Documenter un chemin simple pour utiliser Cyrano comme client REST vers des services
-exposes par Cassini, sans dependance cliente tierce.
+Document a simple path to use Cyrano as a REST client against services
+exposed by Cassini, with no third-party client dependency.
 
-## Prerequis
+## Prerequisites
 
 - Java 25
-- Cyrano present dans l'application cliente
-- Service HTTP deja expose par Cassini
+- Cyrano present in the client application
+- HTTP service already exposed by Cassini
 
-## Dependances
+## Dependencies
 
-Ajouter le module API et l'implementation core.
+Add the API module and the core implementation.
 
 ```xml
 <dependency>
@@ -28,7 +28,7 @@ Ajouter le module API et l'implementation core.
 </dependency>
 ```
 
-Option CDI (Vauban) :
+CDI option (Vauban):
 
 ```xml
 <dependency>
@@ -38,7 +38,7 @@ Option CDI (Vauban) :
 </dependency>
 ```
 
-## Exemple d'interface client
+## Client interface example
 
 ```java
 import jakarta.ws.rs.GET;
@@ -58,7 +58,7 @@ public interface UsersClient {
 }
 ```
 
-## Utilisation programmatique
+## Programmatic usage
 
 ```java
 import java.net.URI;
@@ -71,7 +71,7 @@ UsersClient client = RestClientBuilder.newBuilder()
 UserDto dto = client.findById(1L);
 ```
 
-## Utilisation CDI
+## CDI usage
 
 ```java
 import jakarta.inject.Inject;
@@ -86,20 +86,20 @@ class UserService {
 
 ## Base URL via MP Config (Ravel)
 
-Configurer la base URL avec le `configKey` :
+Configure the base URL using the `configKey`:
 
 ```properties
 users-api/mp-rest/url=http://127.0.0.1:8080
 ```
 
-Ou via FQN de l'interface :
+Or via the interface FQN:
 
 ```properties
 com.acme.UsersClient/mp-rest/url=http://127.0.0.1:8080
 ```
 
-## Notes JPMS
+## JPMS notes
 
-- `cyrano-core` reste standalone, sans dependance CDI.
-- `cyrano-cdi-vauban` est optionnel.
-- Les proxies sont generes via Class-File API JDK 25, pas via `java.lang.reflect.Proxy`.
+- `cyrano-core` stays standalone, with no CDI dependency.
+- `cyrano-cdi-vauban` is optional.
+- Proxies are generated via the Class-File API (JDK 25), not via `java.lang.reflect.Proxy`.

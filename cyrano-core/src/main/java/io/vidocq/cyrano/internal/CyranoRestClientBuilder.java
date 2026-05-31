@@ -39,16 +39,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Implémentation Cyrano de {@link RestClientBuilder} — spec MicroProfile Rest Client 4.0 §5.
+ * Cyrano implementation of {@link RestClientBuilder} — MicroProfile Rest Client 4.0 §5.
  *
- * <p>M1 : seuls {@link #baseUri(URI)} / {@link #baseUrl(URL)} et {@link #build(Class)} sont
- * réellement câblés au pipeline. Les autres setters acceptent leurs valeurs (stockées dans
- * {@link CyranoClientConfiguration}) mais ne sont pas encore appliqués au transport.
- * Le câblage complet (timeouts, SSL, providers) suit en M2 / M3.</p>
+ * <p>M1: only {@link #baseUri(URI)} / {@link #baseUrl(URL)} and {@link #build(Class)} are
+ * actually wired into the pipeline. The other setters accept their values (stored in
+ * {@link CyranoClientConfiguration}) but are not yet applied to transport.
+ * Full wiring (timeouts, SSL, providers) follows in M2 / M3.</p>
  *
- * <p>Le builder est <strong>non thread-safe</strong> (créé à la volée par
- * {@code RestClientBuilder.newBuilder()}), mais le proxy produit l'est : la classe générée
- * et le handler {@link CyranoInvocationHandler} sont immuables.</p>
+ * <p>The builder is <strong>non thread-safe</strong> (created on the fly by
+ * {@code RestClientBuilder.newBuilder()}), but the proxy it produces is: the generated class
+ * and the {@link CyranoInvocationHandler} are immutable.</p>
  */
 public final class CyranoRestClientBuilder implements RestClientBuilder {
 
@@ -132,11 +132,11 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     }
 
     /**
-     * Détecte les contrats JAX-RS / MP Rest Client implémentés par {@code componentClass}
-     * et retourne une map {@code contractType -> priority}. Le {@code @Priority} de
-     * {@code componentClass} (s'il existe) prime sur {@code defaultPriority}.
+     * Detects JAX-RS / MP Rest Client contracts implemented by {@code componentClass}
+     * and returns a map {@code contractType -> priority}. The {@code @Priority} on
+     * {@code componentClass} (if present) takes precedence over {@code defaultPriority}.
      *
-     * <p>Spec MP Rest Client 4.0 §4.2.4 et JAX-RS §10.2.1.</p>
+     * <p>Spec MP Rest Client 4.0 §4.2.4 and JAX-RS §10.2.1.Z</p>
      */
     private static Map<Class<?>, Integer> detectContracts(Class<?> componentClass, int defaultPriority) {
         int prio = readPriorityAnnotation(componentClass, defaultPriority);
@@ -149,7 +149,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         return m;
     }
 
-    /** Lit {@code jakarta.annotation.Priority} sans dépendance compile-time. */
+    /** Reads {@code jakarta.annotation.Priority} without a compile-time dependency. */
     private static int readPriorityAnnotation(Class<?> componentClass, int fallback) {
         try {
             @SuppressWarnings("unchecked")
@@ -161,7 +161,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                 if (v instanceof Integer i) return i;
             }
         } catch (ReflectiveOperationException ignored) {
-            // pas d'annotation Priority ou non instropectable — on garde fallback
+            //no @Priority annotation or not introspectable — we keep the fallback
         }
         return fallback;
     }
@@ -194,7 +194,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         try {
             this.baseUri = url.toURI();
         } catch (java.net.URISyntaxException e) {
-            throw new IllegalArgumentException("URL invalide : " + url, e);
+            throw new IllegalArgumentException("Invalid URL: " + url, e);
         }
         return this;
     }
@@ -220,7 +220,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     @Override
     public RestClientBuilder executorService(ExecutorService executor) {
         if (executor == null) {
-            throw new IllegalArgumentException("executorService ne doit pas être null");
+            throw new IllegalArgumentException("executorService must not be null");
         }
         this.executorService = executor;
         configuration.setExecutorService(executor);
@@ -261,10 +261,10 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     @Override
     public RestClientBuilder proxyAddress(String proxyHost, int proxyPort) {
         if (proxyHost == null || proxyHost.isBlank()) {
-            throw new IllegalArgumentException("proxyHost ne doit pas être null/vide");
+            throw new IllegalArgumentException("proxyHost must not be null/blank");
         }
         if (proxyPort < 1 || proxyPort > 65535) {
-            throw new IllegalArgumentException("proxyPort invalide: " + proxyPort + " (attendu 1..65535)");
+            throw new IllegalArgumentException("Invalid proxyPort: " + proxyPort + " (expected 1..65535)");
         }
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
@@ -290,16 +290,16 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     public <T> T build(Class<T> clazz) throws IllegalStateException, RestClientDefinitionException {
         if (baseUri == null) {
             throw new IllegalStateException(
-                    "baseUri/baseUrl est obligatoire avant build() — spec MP Rest Client 4.0 §5");
+                    "baseUri/baseUrl is required before build() — spec MP Rest Client 4.0 §5");
         }
         if (!clazz.isInterface()) {
             throw new RestClientDefinitionException(
-                    "Le type passé à build() doit être une interface : " + clazz.getName());
+                    "The type passed to build() must be an interface: " + clazz.getName());
         }
         applyBuilderListeners(clazz.getClassLoader());
-        // Spec §5.2 — @RegisterProvider annotations on the interface are auto-registered
+        //Spec §5.2 — @RegisterProvider annotations on the interface are self-registered
         applyRegisterProviders(clazz);
-        // Spec §10.2 — RestClientListener.onNewClient() est invoqué via ServiceLoader avant build
+        //Spec §10.2 — RestClientListener.onNewClient() is invoked via ServiceLoader before build
         var restClientListeners = loadServices(org.eclipse.microprofile.rest.client.spi.RestClientListener.class, clazz.getClassLoader());
         if (Boolean.getBoolean("cyrano.debug.listeners")) {
             System.err.println("[CyranoDebug] RestClientListener count=" + restClientListeners.size()
@@ -308,7 +308,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         for (var listener : restClientListeners) {
             try {
                 listener.onNewClient(clazz, this);
-            } catch (RuntimeException ignored) { /* listener défaillant — ignoré */ }
+            } catch (RuntimeException ignored) { /* failed listener — ignored */ }
         }
         applyTckListenerFallback(clazz, restClientListeners.isEmpty());
         applyFeatures();
@@ -317,7 +317,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             entry = CyranoProxyCache.getOrGenerate(clazz);
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new RestClientDefinitionException(
-                    "Interface client invalide: " + clazz.getName() + " — " + e.getMessage(), e);
+                    "Invalid client interface: " + clazz.getName() + " — " + e.getMessage(), e);
         }
         var transport = new CyranoHttpTransport(configuration);
         var handler = new CyranoInvocationHandler(baseUri, entry.specs(), transport, configuration);
@@ -334,7 +334,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             try {
                 listener.onNewBuilder(this);
             } catch (RuntimeException ignored) {
-                // un listener défaillant ne doit pas bloquer build()
+                //a failed listener should not block build()
             }
         }
         builderListenersApplied = true;
@@ -389,7 +389,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                 listenerClass.getMethod("onNewClient", Class.class, org.eclipse.microprofile.rest.client.RestClientBuilder.class)
                         .invoke(listener, serviceInterface, this);
             } catch (ReflectiveOperationException ignored) {
-                // fallback best-effort uniquement
+                //best-effort fallback only
             }
         }
     }
@@ -408,7 +408,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                 register(provider, priority);
             }
         } catch (ClassNotFoundException ignored) {
-            // provider absent du classpath de test
+            // provider absent from the test classpath
         }
     }
 
@@ -424,7 +424,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                 if (seen.add(service.getClass().getName())) out.add(service);
             }
         } catch (RuntimeException ignored) {
-            // layer indisponible/inaccessible
+            // layer unavailable/inaccessible
         }
     }
 
@@ -454,23 +454,23 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                                 S service = (S) impl.getDeclaredConstructor().newInstance();
                                 out.add(service);
                             } catch (ReflectiveOperationException ignored) {
-                                // impl invalide ignorée
+                                //invalid impl ignored
                             }
                         }
                     }
                 }
             }
         } catch (IOException ignored) {
-            // aucun fichier service pour ce classloader
+            //no service file for this classloader
         }
     }
 
-    /** Spec §5.2 — applique les @RegisterProvider déclarés sur l'interface client. */
+    /** Spec §5.2 — applies the @RegisterProvider declarations found on the client interface. */
     private void applyRegisterProviders(Class<?> clazz) {
         RegisterProvider[] providers = clazz.getAnnotationsByType(RegisterProvider.class);
         for (RegisterProvider rp : providers) {
-            // Évite la double-registration : si le provider est déjà enregistré
-            // (ex. via MP Config /mp-rest/providers), on ne le ré-enregistre pas.
+            //Avoid double registration: if the provider is already registered
+            //(e.g. via MP Config /mp-rest/providers), it is not registered again.
             if (configuration.isRegistered(rp.value())) continue;
             configuration.registerProvider(rp.value(), detectContracts(rp.value(), rp.priority()));
         }
@@ -562,4 +562,3 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         }
     }
 }
-

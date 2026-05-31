@@ -1,34 +1,34 @@
-# Integration Cyrano dans vidocq
+# Integrating Cyrano in vidocq
 
-## Objectif
+## Objective
 
-Activer Cyrano comme client REST par defaut dans un deploiement `vidocq`
-avec une seule dependance d'extension.
+Enable Cyrano as the default REST client in a `vidocq` deployment
+with a single extension dependency.
 
-## Strategie d'integration
+## Integration Strategy
 
-1. Conserver `cyrano-core` comme moteur client runtime.
-2. Ajouter `cyrano-cdi-vauban` pour l'injection `@Inject @RestClient`.
-3. Exposer une extension agregee cote `vidocq` pour simplifier l'adoption.
+1. Keep `cyrano-core` as the runtime client engine.
+2. Add `cyrano-cdi-vauban` for `@Inject @RestClient` injection.
+3. Expose an aggregate extension on the `vidocq` side to simplify adoption.
 
-## Configuration recommandee
+## Recommended Configuration
 
-Configurer les clients via MP Config (Ravel) :
+Configure clients via MP Config (Ravel):
 
 ```properties
-# Variante FQN
+# FQN variant
 com.acme.api.UsersClient/mp-rest/url=http://users-service:8080
 
-# Variante configKey
+# configKey variant
 users-api/mp-rest/url=http://users-service:8080
 users-api/mp-rest/connectTimeout=500
 users-api/mp-rest/readTimeout=2000
 users-api/mp-rest/followRedirects=true
 ```
 
-## Contrat d'utilisation
+## Usage Contract
 
-Les interfaces clientes doivent etre annotees :
+Client interfaces must be annotated:
 
 ```java
 @RegisterRestClient(configKey = "users-api")
@@ -40,7 +40,7 @@ public interface UsersClient {
 }
 ```
 
-Puis injectees via CDI :
+Then injected via CDI:
 
 ```java
 @Inject
@@ -48,18 +48,17 @@ Puis injectees via CDI :
 UsersClient usersClient;
 ```
 
-## Mapping M5 -> implementation
+## M5 → Implementation Mapping
 
-- Documentation operationnelle: ce document + `docs/integration-cassini.md`.
-- ADR architecture: `docs/adr/ADR-001-classfile-proxy-strategy.md`.
-- Cote Cyrano, la BCE `CyranoRestClientCdiExtension` est deja publiee via
-  `META-INF/services/...BuildCompatibleExtension` et `module-info.java provides ... with`.
-- Module wrapper `vidocq-runtime-cyrano-extension`: a implementer dans le depot `vidocq`.
+- Operational documentation: this document + `docs/integration-cassini.md`.
+- Architecture ADR: `docs/adr/ADR-001-classfile-proxy-strategy.md`.
+- On the Cyrano side, the BCE `CyranoRestClientCdiExtension` is already published via
+  `META-INF/services/...BuildCompatibleExtension` and `module-info.java provides ... with`.
+- Wrapper module `vidocq-runtime-cyrano-extension`: to be implemented in the `vidocq` repo.
 
-## Checklist de rollout
+## Rollout Checklist
 
-- Ajouter l'extension Cyrano dans le BOM/packaging `vidocq`.
-- Verifier que `microprofile-config.properties` est charge en execution.
-- Verifier l'injection `@RestClient` sur au moins un client metier.
-- Executer la suite TCK Cyrano avant publication de l'extension.
-
+- Add the Cyrano extension to the vidocq BOM/packaging.
+- Verify that `microprofile-config.properties` is loaded at runtime.
+- Verify `@RestClient` injection on at least one business client.
+- Run the Cyrano TCK suite before publishing the extension.

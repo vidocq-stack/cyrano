@@ -14,11 +14,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Cache de proxies générés — un seul {@code Cyrano$<Interface>} par interface client,
- * partagé entre toutes les invocations de {@code RestClientBuilder.build()}.
+ * Cache of generated proxies — one {@code Cyrano$<Interface>} per client interface,
+ * shared between all invocations of {@code RestClientBuilder.build()}.
  *
  * <p>Thread-safe via {@link ConcurrentHashMap#computeIfAbsent} — virtual-thread-friendly,
- * pas de {@code synchronized}.</p>
+ * with no {@code synchronized}.</p>
  */
 public final class CyranoProxyCache {
 
@@ -29,9 +29,9 @@ public final class CyranoProxyCache {
     }
 
     /**
-     * Récupère (ou génère à la demande) la classe proxy + les specs associées pour {@code iface}.
+     * Recovers (or generates on demand) the proxy class + specs associated with {@code iface}.
      *
-     * @param iface interface client annotée selon MicroProfile Rest Client 4.0 §3
+     * @param iface client interface annotated according to MicroProfile Rest Client 4.0 §3
      */
     public static Entry getOrGenerate(Class<?> iface) {
         return CACHE.computeIfAbsent(iface, CyranoProxyCache::build);
@@ -44,9 +44,9 @@ public final class CyranoProxyCache {
     }
 
     /**
-     * Paire {@code (proxyClass, requestSpecs)} — la liste des specs est dans le même ordre
-     * d'itération que celui utilisé par {@link CyranoProxyGenerator} pour indexer les
-     * méthodes (ordre d'insertion {@link java.util.LinkedHashMap LinkedHashMap}).
+     * Pair {@code (proxyClass, requestSpecs)} — the list of specs is in the same order
+     * the one used by {@link CyranoProxyGenerator} to index the
+     * methods (insertion order {@link java.util.LinkedHashMap LinkedHashMap}).
      */
     public record Entry(Class<?> proxyClass, java.util.List<RequestSpec> specs) {}
 }

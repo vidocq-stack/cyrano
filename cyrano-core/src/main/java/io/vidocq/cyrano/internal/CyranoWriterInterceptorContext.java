@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Contexte pour la chaîne d'intercepteurs {@link WriterInterceptor} (spec JAX-RS §6.5).
- * Wraps un {@link MessageBodyWriter} terminal et une liste d'intercepteurs ordonnés.
+ * Context for the {@link WriterInterceptor} interceptor chain (spec JAX-RS §6.5).
+ * Wraps a terminal {@link MessageBodyWriter} and a list of ordered interceptors.
  */
 final class CyranoWriterInterceptorContext implements WriterInterceptorContext {
 

@@ -1,88 +1,87 @@
-# Cyrano — État du TCK MicroProfile Rest Client 4.0
+# Cyrano — MicroProfile Rest Client 4.0 TCK Status
 
-> Snapshot établi à la fin de M4 (itération initiale). Le contrat M4 final reste **100 % PASS**
-> ; ce document trace les écarts en cours pour piloter les itérations suivantes.
+> Snapshot established at the end of M4 (initial iteration). The final M4 contract remains **100% PASS**;
+> this document tracks in-progress gaps to drive subsequent iterations.
 
-## Exécution
+## Execution
 
 ```bash
-./run-official-tck-mp-rest-client-4.0.sh        # smoke (CyranoTckSmokeTest, hors Arquillian)
-./run-official-tck-mp-rest-client-4.0.sh all    # suite officielle (profil tck-official)
-./run-official-tck-mp-rest-client-4.0.sh -Dtest=NomDuTest
+./run-official-tck-mp-rest-client-4.0.sh        # smoke (CyranoTckSmokeTest, outside Arquillian)
+./run-official-tck-mp-rest-client-4.0.sh all    # official suite (tck-official profile)
+./run-official-tck-mp-rest-client-4.0.sh -Dtest=TestName
 ```
 
-Le rapport est généré dans `cyrano-tck/target/tck-report.txt` ; le brut Maven est dans
+The report is generated in `cyrano-tck/target/tck-report.txt`; the raw Maven output is in
 `cyrano-tck/target/tck-report.txt.raw`.
 
-## Architecture du runner
+## Runner Architecture
 
-| Composant | Rôle |
+| Component | Role |
 |---|---|
-| `CyranoDeployableContainer` | Container Arquillian *Local* (no-op deploy/undeploy) |
-| `CyranoArquillianExtension` | SPI `LoadableExtension` — enregistre le container |
-| `VaubanTckBootstrap` | Boot/stop Vauban CDI par archive TCK + bridge MP Config (`TckConfigBridge`) |
-| `WireMockProbeListener` | Listener TestNG (`ITestNGListener`) qui **démarre WireMock dès le boot** via un bloc statique, *avant* tout `@BeforeMethod` TCK |
-| `WireMockTestBackend` | Singleton JVM-static — port 8765, bind 127.0.0.1, shutdown hook JVM |
+| `CyranoDeployableContainer` | Arquillian *Local* container (no-op deploy/undeploy) |
+| `CyranoArquillianExtension` | SPI `LoadableExtension` — registers the container |
+| `VaubanTckBootstrap` | Boot/stop Vauban CDI per TCK archive + MP Config bridge (`TckConfigBridge`) |
+| `WireMockProbeListener` | TestNG listener (`ITestNGListener`) that **starts WireMock at boot** via a static block, *before* any TCK `@BeforeMethod` |
+| `WireMockTestBackend` | JVM-static singleton — port 8765, bind 127.0.0.1, JVM shutdown hook |
 
-**Note critique** : Arquillian appelle `LoadableExtension.register()` et
-`DeployableContainer.start()` **après** `@AfterSuite` quand le protocole est *Local* ;
-WireMock doit donc démarrer plus tôt — c'est le rôle du bloc statique de
-`WireMockProbeListener` (chargé via `META-INF/services/org.testng.ITestNGListener`).
+**Critical note**: Arquillian calls `LoadableExtension.register()` and
+`DeployableContainer.start()` **after** `@AfterSuite` when the protocol is *Local*;
+WireMock must therefore start earlier — that is the role of the static block in
+`WireMockProbeListener` (loaded via `META-INF/services/org.testng.ITestNGListener`).
 
-## Suites exclues à M4 (initial)
+## Suites Excluded at M4 (initial)
 
-| Pattern | Raison | Réactivation |
+| Pattern | Reason | Re-activation |
 |---|---|---|
-| `**/ssl/**` | requiert `RestClientBuilder.trustStore(...)` / `keyStore(...)` non implémenté | M4 itération suivante |
-| `**/sse/**` | SSE hors scope M0-M5 (cf. ROADMAP `Décisions ouvertes`) | post-M5 si demandé |
+| `**/ssl/**` | Requires `RestClientBuilder.trustStore(...)` / `keyStore(...)` — not yet implemented | Next M4 iteration |
+| `**/sse/**` | SSE out of scope M0-M5 (see ROADMAP `Open Decisions`) | Post-M5 if requested |
 
-## Score actuel
+## Current Score
 
 ```
 Tests run: 168, Failures: 0, Errors: 0, Skipped: 0
 ```
 
-**Tests réussis : 168/168 — 100 % PASS** (rapport du 2026-05-24).
+**Tests passed: 168/168 — 100% PASS** (report from 2026-05-24).
 
 ```text
-# Tests réussis : 168/168
-RESULT : PASS
+# Tests passed: 168/168
+RESULT: PASS
 ```
 
-## Corrections appliquées dans cette itération M4
+## Fixes Applied in this M4 Iteration
 
-| Symptôme | Fix |
+| Symptom | Fix |
 |---|---|
-| WireMock démarré **après** `@AfterSuite` (tous les `@BeforeMethod` échouent) | Démarrage via bloc statique de `WireMockProbeListener` |
-| `WireMock.reset()` admin URL pointait sur `localhost:8080` par défaut | `WireMock.configureFor("127.0.0.1", 8765)` après `start()` |
-| `@ClientHeaderParam(required=false)` propageait l'exception du compute method | Ignore silencieusement l'en-tête si `required=false` (spec §6.5) |
-| `@ClientHeaderParam(required=true)` wrappait dans `IllegalStateException` | Propage la `RuntimeException` originale (spec §6.5) |
-| `@ClientHeaderParam(value="{com.foo.Util.method}")` non résolu (FQN statique) | `findHeaderMethod` détecte le dernier `.` et résout via `Class.forName` + méthode statique |
-| Header méthode-level + interface-level même nom : doublé | `collectClientHeaders` retire l'entrée de signe opposé (static/dynamic) au même nom |
-| `@HeaderParam` runtime n'écrasait pas `@ClientHeaderParam` de même nom | `applyHeaders` skippe statiques/dynamiques si runtime override présent |
-| **M4-2** — `ClientRequestFilter` / `ClientResponseFilter` non câblés | Pipeline JAX-RS §6.3 / MP Rest Client §4.2 ajouté : `CyranoClientRequestContext` + `CyranoClientResponseContext` ; tri par priorité (ascendant requête, descendant réponse) ; `abortWith(Response)` court-circuite le transport ; propriété standard `org.eclipse.microprofile.rest.client.invokedMethod` exposée |
-| **M4-3** — `CDI.current()` indisponible dans le runner TCK | Bootstrap Vauban par archive via `VaubanTckBootstrap` appelé depuis `CyranoDeployableContainer.deploy/undeploy` ; extraction de `microprofile-config.properties` (WAR/JAR + libs imbriquées) et projection vers `TckConfigBridge` |
-| **M4-4** — `followRedirects` / `connectTimeout` / `readTimeout` non propagés | `connectTimeout` câblé au `HttpClient.Builder`, `readTimeout` au `HttpRequest.Builder.timeout(...)`, `followRedirects(true)` au `HttpClient.Redirect.NORMAL` ; lecture MP Config ajoutée dans `CyranoRestClientSyntheticCreator` (`/mp-rest/followRedirects`, `/connectTimeout`, `/readTimeout`) |
+| WireMock started **after** `@AfterSuite` (all `@BeforeMethod` fail) | Start via static block in `WireMockProbeListener` |
+| `WireMock.reset()` admin URL pointed to `localhost:8080` by default | `WireMock.configureFor("127.0.0.1", 8765)` after `start()` |
+| `@ClientHeaderParam(required=false)` propagated the compute method exception | Silently ignore the header if `required=false` (spec §6.5) |
+| `@ClientHeaderParam(required=true)` wrapped in `IllegalStateException` | Propagates the original `RuntimeException` (spec §6.5) |
+| `@ClientHeaderParam(value="{com.foo.Util.method}")` unresolved (FQN static) | `findHeaderMethod` detects the last `.` and resolves via `Class.forName` + static method |
+| Method-level + interface-level header with same name: duplicated | `collectClientHeaders` removes the opposite-sign entry (static/dynamic) with the same name |
+| Runtime `@HeaderParam` did not override `@ClientHeaderParam` with same name | `applyHeaders` skips static/dynamic if a runtime override is present |
+| **M4-2** — `ClientRequestFilter` / `ClientResponseFilter` not wired | JAX-RS §6.3 / MP Rest Client §4.2 pipeline added: `CyranoClientRequestContext` + `CyranoClientResponseContext`; sorted by priority (ascending for request, descending for response); `abortWith(Response)` short-circuits the transport; standard property `org.eclipse.microprofile.rest.client.invokedMethod` exposed |
+| **M4-3** — `CDI.current()` unavailable in the TCK runner | Vauban bootstrap per archive via `VaubanTckBootstrap` called from `CyranoDeployableContainer.deploy/undeploy`; extraction of `microprofile-config.properties` (WAR/JAR + nested libs) and projection to `TckConfigBridge` |
+| **M4-4** — `followRedirects` / `connectTimeout` / `readTimeout` not propagated | `connectTimeout` wired to `HttpClient.Builder`, `readTimeout` to `HttpRequest.Builder.timeout(...)`, `followRedirects(true)` to `HttpClient.Redirect.NORMAL`; MP Config read added in `CyranoRestClientSyntheticCreator` (`/mp-rest/followRedirects`, `/connectTimeout`, `/readTimeout`) |
 
-## Validation ciblée M4-3
+## Targeted M4-3 Validation
 
-- Run ciblé `ConfigKeyTest` : **PASS (2/2)** via `./run-official-tck-mp-rest-client-4.0.sh -Dtest=ConfigKeyTest`.
-- Run ciblé famille `cditests/*` : **52 tests exécutés** ; les échecs restants sont
-  désormais fonctionnels (redirects, providers CDI, proxy, priorité URI/URL), sans
-  erreur de bootstrap CDI/Arquillian.
+- Targeted run `ConfigKeyTest`: **PASS (2/2)** via `./run-official-tck-mp-rest-client-4.0.sh -Dtest=ConfigKeyTest`.
+- Targeted run `cditests/*` family: **52 tests executed**; remaining failures are
+  now functional (redirects, CDI providers, proxy, URI/URL priority), without
+  CDI/Arquillian bootstrap errors.
 
-## Validation ciblée M4-4
+## Targeted M4-4 Validation
 
-- `FollowRedirectsTest,CDIFollowRedirectsTest` : **PASS (16/16)**.
-- `TimeoutTest,TimeoutViaMPConfigTest,TimeoutViaMPConfigWithConfigKeyTest,TimeoutBuilderIndependentOfMPConfigTest` : **PASS (8/8)**.
-- Les suites `**/timeout/**` sont réactivées dans `cyrano-tck/pom.xml` ; seules `ssl/**` et `sse/**` restent exclues.
+- `FollowRedirectsTest,CDIFollowRedirectsTest`: **PASS (16/16)**.
+- `TimeoutTest,TimeoutViaMPConfigTest,TimeoutViaMPConfigWithConfigKeyTest,TimeoutBuilderIndependentOfMPConfigTest`: **PASS (8/8)**.
+- The `**/timeout/**` suites are re-enabled in `cyrano-tck/pom.xml`; only `ssl/**` and `sse/**` remain excluded.
 
-## Challenges connus
+## Known Challenges
 
-| Suite | Statut | Justification |
+| Suite | Status | Justification |
 |---|---|---|
-| `**/ssl/**` | **exclue** | Requiert `RestClientBuilder.trustStore/keyStore` — hors scope actuel. |
-| `**/sse/**` | **exclue** | SSE (Server-Sent Events) hors scope (cf. ROADMAP `Décisions ouvertes`). |
+| `**/ssl/**` | **excluded** | Requires `RestClientBuilder.trustStore/keyStore` — out of current scope. |
+| `**/sse/**` | **excluded** | SSE (Server-Sent Events) out of scope (see ROADMAP `Open Decisions`). |
 
-Les 168 tests restants passent à 100 %. Aucun challenge fonctionnel ouvert.
-
+The remaining 168 tests pass at 100%. No open functional challenges.

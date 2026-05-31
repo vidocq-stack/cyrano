@@ -15,22 +15,22 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Description immuable d'une requête HTTP dérivée d'une méthode d'interface client.
+ * Unchangeable description of an HTTP request derived from a client interface method.
  *
- * <p>Construit une seule fois par {@link CyranoInterfaceScanner} et partagé entre toutes
- * les invocations de la méthode (thread-safe car immuable).</p>
+ * <p>Built once by {@link CyranoInterfaceScanner} and shared among all
+ * the invocations of the method (thread-safe car immutable).</p>
  *
  * @param httpMethod      verbe HTTP en majuscules
- * @param pathTemplate    template de path, peut contenir des variables {@code {name}}
- * @param bindings        liaisons des paramètres Java vers les emplacements HTTP
+ * @param pathTemplate    path template, may contain {@code {name}} variables
+ * @param bindings from Java settings to HTTP locations
  * @param returnType      type de retour Java (raw)
- * @param genericReturnType type générique complet pour la désérialisation JSON-B
+ * @param genericReturnComplete generic type type for JSON-B deserialization
  * @param consumes        valeurs {@code @Consumes} (Content-Type d'envoi)
- * @param produces        valeurs {@code @Produces} (Accept en réception)
- * @param staticHeaders   headers fixes via {@code @ClientHeaderParam(value="literal")} (spec §6.5)
- * @param dynamicHeaders  headers calculés via {@code @ClientHeaderParam(value="{methodName}")} —
- *                        chaque valeur capture le nom de méthode et le flag {@code required}
- * @param method          référence vers la méthode source (utilisée par les headers dynamiques)
+ * @param produced values {@code @Produces} (Accept on receipt)
+ * @param staticHeaders fixed via {@code @ClientHeaderParam(value="literal")} (spec §6.5)
+ * @param dynamicHeaders calculated via {@code @ClientHeaderParam(value="{methodName}")} —
+ * each value captures the method name and flag {@code required}
+ * @param method reference to the source method (used by dynamic headers)
  */
 public record RequestSpec(
         String httpMethod,
@@ -53,13 +53,13 @@ public record RequestSpec(
     }
 
     /**
-     * En-tête dynamique {@code @ClientHeaderParam(value="{methodName}")} — capture
-     * le nom de la méthode {@code default}/{@code static} qui calcule la valeur
-     * ainsi que le flag {@code required} (spec §6.5).
+     * Dynamic header {@code @ClientHeaderParam(value="{methodName}")} — capture
+     * the name of the {@code default}/{@code static} method which calculates the value
+     * and flag {@code required} (spec §6.5).
      *
-     * @param methodName nom de la méthode {@code default}/{@code static} d'invocation
-     * @param required   {@code true} (défaut) — toute exception est propagée ;
-     *                   {@code false} — l'en-tête est silencieusement omis si l'invocation échoue
+     * @param methodName of the {@code default}/{@code static} method of invocation
+     * @param required {@code true} (default) — any exception is spread;
+     * {@code false} — the header is silently omitted if the invocation fails
      */
     public record DynamicHeader(String methodName, boolean required) {
     }

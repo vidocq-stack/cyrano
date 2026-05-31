@@ -41,13 +41,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Scanner d'interface client — extrait les {@link RequestSpec} à partir des annotations
- * JAX-RS d'une interface annotée selon la spec MicroProfile Rest Client 4.0 §3.
+ * Client interface scan — extracts {@link RequestSpec} from JAX-RS annotations
+ * on an annotated interface according to MicroProfile Rest Client 4.0 §3.
  *
- * <p>Couverture M2 : verbes HTTP standard, {@link Path}, {@link PathParam},
+ * <p>M2 coverage: standard HTTP verbs, {@link Path}, {@link PathParam},
  * {@link QueryParam}, {@link HeaderParam}, {@link CookieParam}, {@link FormParam},
  * {@link MatrixParam}, {@link BeanParam}, {@link DefaultValue}, {@link Consumes},
- * {@link Produces}, {@link ClientHeaderParam} (statique et dynamique), corps implicite.</p>
+ * {@link Produces}, {@link ClientHeaderParam} (static and dynamic), implicit body.</p>
  */
 public final class CyranoInterfaceScanner {
 
@@ -59,10 +59,10 @@ public final class CyranoInterfaceScanner {
 
     public static Map<Method, RequestSpec> scan(Class<?> iface) {
         if (!iface.isInterface()) {
-            throw new IllegalArgumentException("Cyrano ne sait gérer que des interfaces : " + iface);
+            throw new IllegalArgumentException("Cyrano only handles interfaces: " + iface);
         }
         String basePath = normalize(extractPath(iface));
-        // Headers @ClientHeaderParam déclarés au niveau de l'interface — appliqués à toutes les méthodes
+        //Headers @ClientHeaderParam declared at interface level — applied to all methods
         Map<String, List<String>> typeStatic = new LinkedHashMap<>();
         Map<String, RequestSpec.DynamicHeader> typeDynamic = new LinkedHashMap<>();
         validateClientHeaderParams(iface, iface, iface.getAnnotationsByType(ClientHeaderParam.class));
@@ -71,7 +71,7 @@ public final class CyranoInterfaceScanner {
             validateClientHeaderParams(iface, iface, cs.value());
             collectClientHeaders(cs.value(), typeStatic, typeDynamic);
         }
-        // Consumes/Produces au niveau du type
+        // Consumes/Produces at the type level
         List<String> typeConsumes = extractMediaTypes(iface.getAnnotation(Consumes.class));
         List<String> typeProduces = extractMediaTypes(iface.getAnnotation(Produces.class));
 
@@ -99,7 +99,7 @@ public final class CyranoInterfaceScanner {
 
             if (httpMethod == null) {
                 // Sub-resource locator: @Path but no HTTP verb, returning an interface.
-                // Represented with httpMethod=null — handler dispatches by building a sub-proxy.
+                //Represented with httpMethod=null — handler dispatches by building a sub-proxy.
                 if (m.isAnnotationPresent(Path.class) && m.getReturnType().isInterface()) {
                     specs.put(m, new RequestSpec(
                             null, template, bindings,
@@ -122,7 +122,7 @@ public final class CyranoInterfaceScanner {
         }
         if (specs.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Aucune méthode annotée par un verbe HTTP sur " + iface.getName()
+                    "No method annotated with an HTTP verb on " + iface.getName()
                             + " — spec MicroProfile Rest Client 4.0 §3 exige au moins une.");
         }
         return Map.copyOf(specs);
@@ -135,7 +135,7 @@ public final class CyranoInterfaceScanner {
             if (http != null) {
                 if (value != null) {
                     throw definitionError(iface, m,
-                            "Une méthode client ne peut pas déclarer plusieurs annotations HTTP");
+                            "A client method cannot declare multiple HTTP annotations");
                 }
                 value = http.value();
             }
@@ -154,14 +154,14 @@ public final class CyranoInterfaceScanner {
         for (String bound : boundPathParams) {
             if (!placeholders.contains(bound)) {
                 throw definitionError(iface, method,
-                        "@PathParam('" + bound + "') n'a pas de placeholder correspondant dans le template '"
+                        "@PathParam('" + bound + "') has no matching placeholder in template '"
                                 + template + "'");
             }
         }
         for (String placeholder : placeholders) {
             if (!boundPathParams.contains(placeholder)) {
                 throw definitionError(iface, method,
-                        "Le placeholder '{" + placeholder + "}' n'a pas de @PathParam correspondant");
+                        "Placeholder '{" + placeholder + "}' has no matching @PathParam");
             }
         }
     }
@@ -195,7 +195,7 @@ public final class CyranoInterfaceScanner {
             String headerName = ann.name();
             if (!seenHeaders.add(headerName)) {
                 throw definitionError(iface, target,
-                        "Le header '" + headerName + "' est déclaré plusieurs fois via @ClientHeaderParam");
+                        "Header '" + headerName + "' is declared multiple times via @ClientHeaderParam");
             }
             validateClientHeaderValue(iface, target, ann);
         }
@@ -216,11 +216,11 @@ public final class CyranoInterfaceScanner {
         }
         if (values.length != 1) {
             throw definitionError(iface, target,
-                    "@ClientHeaderParam('" + ann.name() + "') ne peut pas mélanger une compute method avec d'autres valeurs");
+                    "@ClientHeaderParam('" + ann.name() + "') cannot mix a compute method with other values");
         }
         if (!hasValidComputeMethod(iface, computeRef)) {
             throw definitionError(iface, target,
-                    "Compute method invalide ou introuvable pour @ClientHeaderParam('" + ann.name() + "'): " + computeRef);
+                    "Invalid or missing compute method for @ClientHeaderParam('" + ann.name() + "'): " + computeRef);
         }
     }
 
@@ -293,7 +293,7 @@ public final class CyranoInterfaceScanner {
     private static String joinPath(String base, String sub) {
         if (sub.isEmpty()) return base.isEmpty() ? "/" : base;
         if (base.isEmpty()) return sub;
-        // normalize() keeps "/" as-is; sub always starts with "/" — avoid double slash
+        //normalize() keeps "/" as-is; sub always starts with "/" — near double slash
         if (base.equals("/")) return sub;
         return base + sub;
     }
@@ -311,9 +311,9 @@ public final class CyranoInterfaceScanner {
                                              Map<String, RequestSpec.DynamicHeader> dynamicOut) {
         for (ClientHeaderParam h : anns) {
             String[] values = h.value();
-            // Si UNE valeur de la forme "{methodName}" → dynamique ; sinon statique.
-            // Spec §6.5 : un header au même nom remplace une déclaration précédente
-            // (et bascule statique↔dynamique selon le cas).
+            //If A value of the form "{methodName}" → dynamic; If not static.
+            //Spec §6.5: a header with the same name replaces a previous statement
+            //(and static rocking as appropriate).
             if (values.length == 1 && values[0].startsWith("{") && values[0].endsWith("}")) {
                 String methodName = values[0].substring(1, values[0].length() - 1);
                 dynamicOut.put(h.name(), new RequestSpec.DynamicHeader(methodName, h.required()));
@@ -345,7 +345,7 @@ public final class CyranoInterfaceScanner {
             if (matrix != null) { out.add(new ParamBinding.Matrix(i, matrix.value(), dflt)); continue; }
             BeanParam bean = p.getAnnotation(BeanParam.class);
             if (bean != null) { out.add(new ParamBinding.Bean(i, extractFieldBindings(p.getType()))); continue; }
-            // Aucune annotation reconnue → corps de requête (spec §3.1 — un seul body par méthode)
+            //No recognized annotation → request body (spec §3.1 — one body per method)
             out.add(new ParamBinding.Body(i));
         }
         return out;
@@ -359,7 +359,7 @@ public final class CyranoInterfaceScanner {
     private static List<ParamBinding.FieldBinding> extractFieldBindings(Class<?> beanType) {
         List<ParamBinding.FieldBinding> out = new ArrayList<>();
         Class<?> c = beanType;
-        // remonter la hiérarchie pour récupérer les champs annotés
+        //up the hierarchy to recover the annotated fields
         var seen = new LinkedHashSet<String>();
         while (c != null && c != Object.class) {
             for (Field f : c.getDeclaredFields()) {
@@ -387,13 +387,13 @@ public final class CyranoInterfaceScanner {
     }
 
     private static ParamBinding.FieldBinding fb(Field f, ParamBinding.FieldBinding.Kind kind, String name, String dflt) {
-        // setAccessible: cyrano-core requires user beans to be accessible — pour M2 on accepte
-        // le coût (les beans sont en général des POJOs publics ouverts au framework JAX-RS).
-        try { f.setAccessible(true); } catch (RuntimeException ignored) { /* champ déjà accessible */ }
+        //setAccessible: cyrano-core requires user beans to be accessible — for M2 we accept
+        //the cost (beans are usually public POJOs open to the JAX-RS framework).
+        try { f.setAccessible(true); } catch (RuntimeException ignored) { /* field already accessible */ }
         return new ParamBinding.FieldBinding(f, kind, name, dflt);
     }
 
-    /** Utilitaire test : noms canoniques des annotations de paramètre supportées. */
+    /** Test utility: canonical names of the supported parameter annotations. */
     static List<String> supportedAnnotationsForDocs() {
         return Arrays.asList(PathParam.class.getName(), QueryParam.class.getName(),
                 HeaderParam.class.getName(), CookieParam.class.getName(),

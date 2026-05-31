@@ -1,57 +1,58 @@
 # AGENTS.md
 
-## Mission du dépôt
+## Repository Mission
 
-- Cyrano implémente **MicroProfile Rest Client 4.0** en Java 25, avec **zéro librairie tierce
-  d'implémentation** : seulement la spec MP Rest Client + Jakarta APIs en dépendances
+- Cyrano implements **MicroProfile Rest Client 4.0** in Java 25 with **zero third-party
+  implementation libraries**: only the MP Rest Client spec + Jakarta APIs as dependencies
   (`README.md`, `pom.xml`, `CLAUDE.md`).
-- Architecture JPMS stricte : `cyrano-api` ré-exporte la spec, `cyrano-core` reste standalone SE
-  (dépend de `jakarta.ws.rs` / `jakarta.json.bind` pour les annotations et la sérialisation),
-  `cyrano-cdi-vauban` est un adaptateur CDI optionnel, `cyrano-tck` reste hors reactor.
-- **Génération de proxy via Class-File API (JEP 484)** : pas de `java.lang.reflect.Proxy`,
-  pas d'ASM/Byte Buddy. Cyrano génère des classes nommées (`Cyrano$<Interface>`) via
-  `ClassFile` + `MethodHandles.Lookup.defineClass` — compatible AOT, stack traces lisibles.
-- **Transport via JDK `java.net.http.HttpClient`** avec `VirtualThreadPerTaskExecutor` —
-  aucune dépendance réseau externe.
-- Utiliser de préférence `ROADMAP.md` pour suivre l'avancement du projet plutôt que de mettre
-  à jour ce fichier, qui est destiné à être un guide de contribution pour les agents.
-- Si les règles de ce fichier doivent être mises à jour, penser à aligner `CLAUDE.md` de la
-  même façon, pour que Claude Code puisse s'y référer facilement.
+- Strict JPMS architecture: `cyrano-api` re-exports the spec, `cyrano-core` stays standalone SE
+  (depends on `jakarta.ws.rs` / `jakarta.json.bind` for annotations and serialization),
+  `cyrano-cdi-vauban` is an optional CDI adapter, `cyrano-tck` remains out-of-reactor.
+- **Proxy generation via Class-File API (JEP 484)**: no `java.lang.reflect.Proxy`,
+  no ASM/Byte Buddy. Cyrano generates named classes (`Cyrano$<Interface>`) via
+  `ClassFile` + `MethodHandles.Lookup.defineClass` — AOT-compatible, readable stack traces.
+- **Transport via JDK `java.net.http.HttpClient`** with `VirtualThreadPerTaskExecutor` —
+  no external network dependency.
+- Prefer `ROADMAP.md` to track project progress rather than updating this file,
+  which is intended as a contribution guide for agents.
+- If the rules in this file need updating, remember to align `CLAUDE.md` accordingly
+  so Claude Code can reference it easily.
 
-## État réel du code à connaître avant de modifier
+## Actual Code State to Know Before Modifying
 
-- Consulter `ROADMAP.md` pour l'état détaillé de chaque milestone (M0..M5).
-- Les milestones marqués ✅ sont terminés ; les autres sont en attente ou en cours.
-- Le flux cible dans `cyrano-core` :
+- See `ROADMAP.md` for the detailed status of each milestone (M0..M5).
+- Milestones marked ✅ are complete; others are pending or in progress.
+- The target flow in `cyrano-core`:
   `RestClientBuilder.newBuilder().baseUri(uri).build(MyService.class)` →
-  `CyranoProxyCache.getOrGenerate(MyService.class)` (Class-File API, lazy, threadsafe) →
-  instance proxy `Cyrano$MyService` →
-  appels de méthode interceptés via `CyranoInvocationHandler` →
+  `CyranoProxyCache.getOrGenerate(MyService.class)` (Class-File API, lazy, thread-safe) →
+  proxy instance `Cyrano$MyService` →
+  method calls intercepted via `CyranoInvocationHandler` →
   `CyranoHttpTransport` (JDK HttpClient, virtual thread) →
-  réponse désérialisée via Jakarta JSON-B (champollion).
-- La SPI runtime exportée est `io.vidocq.cyrano.spi.*` :
-  `TransportAdapter`, `ResponseExceptionMapper`, intercepteurs client.
-  Les adaptateurs (`cyrano-cdi-vauban`) ne doivent jamais dépendre de `io.vidocq.cyrano.internal.*`.
+  response deserialized via Jakarta JSON-B (champollion).
+- The exported runtime SPI is `io.vidocq.cyrano.spi.*`:
+  `TransportAdapter`, `ResponseExceptionMapper`, client interceptors.
+  Adapters (`cyrano-cdi-vauban`) must never depend on `io.vidocq.cyrano.internal.*`.
 
-## Frontières à ne pas casser
+## Boundaries Not to Break
 
-- Ne jamais remettre `cyrano-tck` dans le reactor : le parent `pom.xml` l'exclut
-  volontairement à cause de ShrinkWrap Maven Resolver / Model 4.0.0 vs 4.1.0.
-- `cyrano-core` dépend uniquement de `jakarta.ws.rs` (annotations JAX-RS, API spec) et de
-  `jakarta.json.bind` (API JSON-B spec) ; CDI reste dans `cyrano-cdi-vauban`. Le transport
-  est `java.net.http` (JDK). Champollion est l'implémentation runtime de JSON-B.
-- **Pas de `java.lang.reflect.Proxy`** : tout proxy doit passer par Class-File API JEP 484.
-  Utiliser l'agent `classfile-codegen` pour toute revue du générateur de bytecode.
-- Garder `io.vidocq.cyrano.internal.*` non exporté ; toute extension passe par la SPI.
-- Pas de `synchronized`, pas de `ThreadLocal` — virtual-thread-friendly.
-  `CyranoProxyCache` utilise `ConcurrentHashMap.computeIfAbsent`.
-- Pas de `setAccessible(true)` en production — utiliser `MethodHandles.privateLookupIn`
-  si un accès interne est nécessaire. Documenter dans le `module-info` toute ouverture.
-- **JUnit 6 minimum** (`org.junit:junit-bom` ≥ 6.0.3) pour tous les tests.
-- JSON via Jakarta JSON-B (`jakarta.json.bind.Jsonb`) uniquement — champollion en est
-  l'implémentation. Jamais Jackson, Gson, ni Yasson standalone.
+- Never put `cyrano-tck` back in the reactor: the parent `pom.xml` intentionally excludes it
+  due to ShrinkWrap Maven Resolver / Model 4.0.0 vs 4.1.0.
+- `cyrano-core` depends only on `jakarta.ws.rs` (JAX-RS annotations, spec API) and
+  `jakarta.json.bind` (JSON-B spec API); CDI stays in `cyrano-cdi-vauban`. Transport
+  is `java.net.http` (JDK). Champollion is the runtime JSON-B implementation.
+- **No `java.lang.reflect.Proxy`**: all proxies must go through Class-File API JEP 484.
+  Use the `classfile-codegen` agent for any review of the bytecode generator.
+- Keep `io.vidocq.cyrano.internal.*` unexported; all extensions go through the SPI.
+- No `synchronized`, no `ThreadLocal` — virtual-thread-friendly.
+  `CyranoProxyCache` uses `ConcurrentHashMap.computeIfAbsent`.
+- No `setAccessible(true)` in production — use `MethodHandles.privateLookupIn`
+  if internal access is needed. Document any opening in `module-info`.
+- **JUnit 6 minimum** (`org.junit:junit-bom` ≥ 6.0.3) for all tests.
+- JSON via Jakarta JSON-B (`jakarta.json.bind.Jsonb`) only — champollion is its implementation.
+  Never Jackson, Gson, or standalone Yasson.
+- **Language** — commit messages, Javadoc, and all `.md` file content must be written in **English**.
 
-## Workflows utiles
+## Useful Workflows
 
 ```bash
 sdk env
@@ -59,37 +60,38 @@ sdk env
 ./mvnw test
 ./run-official-tck-mp-rest-client-4.0.sh
 ./run-official-tck-mp-rest-client-4.0.sh all
-./run-official-tck-mp-rest-client-4.0.sh -Dtest=NomDuTest
+./run-official-tck-mp-rest-client-4.0.sh -Dtest=TestName
 ```
 
-- Le TCK passe toujours par le script racine, qui installe d'abord le reactor puis invoque
+- The TCK always goes through the root script, which first installs the reactor then invokes
   `mvn -f cyrano-tck/pom.xml -Ptck-official test`.
-- Le script TCK installe explicitement `cyrano-api,cyrano-core,cyrano-cdi-vauban` via
-  `./mvnw -pl ... -am install -DskipTests` avant d'exécuter `cyrano-tck`.
-- Le TCK exige un serveur backend (ressources JAX-RS du TCK) : le `CyranoDeployableContainer`
-  démarre Cassini+Chappe embedded en test-scope. Voir `ROADMAP.md#M4` pour les détails.
+- The TCK script explicitly installs `cyrano-api,cyrano-core,cyrano-cdi-vauban` via
+  `./mvnw -pl ... -am install -DskipTests` before executing `cyrano-tck`.
+- The TCK requires a backend server (TCK JAX-RS resources): the `CyranoDeployableContainer`
+  starts embedded Cassini+Chappe in test-scope. See `ROADMAP.md#M4` for details.
 
-## Conventions de contribution observées
+## Observed Contribution Conventions
 
-- TDD strict : Red → Green → Refactor, avec citation de la section MicroProfile Rest Client
-  visée dans les tests (`CLAUDE.md`, `ROADMAP.md`).
-- Tests dans le même package, nommés `<Classe>Test` ; pas de Mockito — doubles manuels ou
-  `HttpServer` JDK inline pour simuler le backend.
-- La génération de bytecode est testée en vérifiant le comportement observable (appels HTTP,
-  paramètres, retours), pas l'inspection du bytecode généré.
-- La perf est une contrainte de conception : le chemin chaud (proxy déjà généré, réponse 200)
-  ne doit pas allouer plus que nécessaire.
+- Strict TDD: Red → Green → Refactor, with citation of the targeted MicroProfile Rest Client
+  section in tests (`CLAUDE.md`, `ROADMAP.md`).
+- Tests in the same package, named `<Class>Test`; no Mockito — manual doubles or
+  inline JDK `HttpServer` to simulate the backend.
+- Bytecode generation tested by verifying observable behavior (HTTP calls,
+  parameters, returns), not by inspecting the generated bytecode.
+- Performance is a design constraint: the hot path (proxy already generated, 200 response)
+  must not allocate more than necessary.
+- **Language** — commit messages, Javadoc, and all `.md` file content must be written in **English**.
 
-## Ce qu'un agent doit supposer pour les prochaines tâches
+## What an Agent Should Assume for Upcoming Tasks
 
-- `cyrano-core` est la brique fondatrice : `CyranoRestClientBuilder`, `CyranoProxyGenerator`
+- `cyrano-core` is the foundation: `CyranoRestClientBuilder`, `CyranoProxyGenerator`
   (Class-File API), `CyranoHttpTransport` (JDK HttpClient), `CyranoInvocationHandler`.
-  Aucun de ces composants ne doit importer de classes CDI, de classes Cassini internes,
-  ou de librairies tierces.
-- `cyrano-cdi-vauban` est un adaptateur optionnel : BCE `CyranoRestClientExtension` qui
-  découvre les interfaces `@RegisterRestClient` et produit les beans CDI correspondants.
-  La configuration de base URL passe par MicroProfile Config (Ravel) si disponible.
-- Le TCK exige un `RestClientBuilder.newBuilder()` programmatique et une injection CDI
-  `@Inject @RestClient`. Les deux chemins doivent aboutir au même proxy Class-File API.
-- Avant toute modification structurelle de `cyrano-core` ou `cyrano-cdi-vauban`, raisonner
-  avec le contrat final : **TCK MicroProfile Rest Client 4.0 à 100 % PASS**.
+  None of these components should import CDI classes, internal Cassini classes,
+  or third-party libraries.
+- `cyrano-cdi-vauban` is an optional adapter: BCE `CyranoRestClientExtension` that
+  discovers `@RegisterRestClient` interfaces and produces the corresponding CDI beans.
+  Base URL configuration goes through MicroProfile Config (Ravel) when available.
+- The TCK requires both a programmatic `RestClientBuilder.newBuilder()` and CDI injection
+  `@Inject @RestClient`. Both paths must lead to the same Class-File API proxy.
+- Before any structural modification to `cyrano-core` or `cyrano-cdi-vauban`, reason
+  against the final contract: **MicroProfile Rest Client 4.0 TCK at 100% PASS**.

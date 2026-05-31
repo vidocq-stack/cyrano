@@ -33,30 +33,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * Tests d'intégration CDI Vauban — démontre le bout-en-bout
- * {@code @Inject @RestClient} avec un serveur JDK {@link HttpServer} inline.
+ * CDI Vauban integration tests — demonstrates end-to-end
+ * {@code @Inject @RestClient} with JDK {@link HttpServer} inline server.
  *
- * <p>Spec MicroProfile Rest Client 4.0 §6.1/§6.2 : « Implementations of this API
+ * <p>Spec MicroProfile Rest Client 4.0 §6.1/§6.2: "Implements of this API
  * must support the @Inject and @RestClient annotations as a means to inject a
  * proxy of the rest client interface into a CDI bean. »</p>
  *
- * <p>Bootstrap : {@code VaubanContainer.builder().addBeanClass(...)}, exécution
- * sur classpath ({@code useModulePath=false}). La BCE
- * {@link CyranoRestClientCdiExtension} est découverte via
- * {@code META-INF/services/...BuildCompatibleExtension} sur le classpath de
- * test (target/classes/META-INF/services/...).</p>
+ * <p>Bootstrap: {@code VaubanContainer.builder().addBeanClass(...)}, executed
+ * on the classpath ({@code useModulePath=false}). The BCE
+ * {@link CyranoRestClientCdiExtension} is discovered via
+ * {@code META-INF/services/...BuildCompatibleExtension} on the test classpath
+ * (target/classes/META-INF/services/...).</p>
  */
 class CyranoRestClientCdiIntegrationTest {
 
     // -----------------------------------------------------------------------
-    // Beans / interface client de test
+    //Beans / test client interface
     // -----------------------------------------------------------------------
 
     /**
-     * Interface de test annotée {@link RegisterRestClient}. La {@code baseUri}
-     * pointe sur le {@link TestPort#SERVER_PORT} fixe — l'annotation Java
-     * exige des valeurs de membre constantes en compile-time. Le serveur
-     * JDK {@link HttpServer} est lié à ce même port dans
+     * Annotated test interface {@link RegisterRestClient}. {@code baseUri}
+     * tip on fixed {@link TestPort#SERVER_PORT} — Java annotation
+     * requires constant compile-time member values. The server
+     * JDK {@link HttpServer} is linked to this same port in
      * {@link #startServer()}.
      */
     @RegisterRestClient(baseUri = "http://127.0.0.1:" + TestPort.SERVER_PORT)
@@ -69,7 +69,7 @@ class CyranoRestClientCdiIntegrationTest {
         String greet(@PathParam("name") String name);
     }
 
-    /** Consommateur CDI standard — l'injection {@code @Inject @RestClient} est ce que la BCE doit câbler. */
+    /** Standard CDI consumer — {@code @Inject @RestClient} injection is what the BCE must wire. */
     @Dependent
     public static class PingConsumer {
 
@@ -79,9 +79,9 @@ class CyranoRestClientCdiIntegrationTest {
     }
 
     /**
-     * Second consommateur — démontre l'isolation entre instances injectées :
-     * deux beans {@code @Dependent} reçoivent chacun leur proxy (mais
-     * fonctionnellement équivalents puisque la base URI est identique).
+     * Second consumer — demonstrates insulation between injected instances:
+     * two {@code @Dependent} beans each receive their proxy (but
+     * functionally equivalent since the URI base is identical).
      */
     @Dependent
     public static class AnotherPingConsumer {
@@ -92,7 +92,7 @@ class CyranoRestClientCdiIntegrationTest {
     }
 
     // -----------------------------------------------------------------------
-    // Fixture : serveur HTTP JDK sur le port fixe TestPort.SERVER_PORT
+    // Fixture: JDK HTTP server on fixed port TestPort.SERVER_PORT
     // -----------------------------------------------------------------------
 
     private HttpServer server;
@@ -123,12 +123,12 @@ class CyranoRestClientCdiIntegrationTest {
     // -----------------------------------------------------------------------
 
     @Test
-    @DisplayName("§6.1+§6.2 — @Inject @RestClient PingApi : la BCE synthétise un bean appelant le serveur réel")
+    @DisplayName("§6.1+§6.2 — @Inject @RestClient PingApi: BCE synthesizes a bean calling the real server")
     void inject_rest_client_invokes_real_http_server_spec_section6_1() {
         try (VaubanContainer container = buildContainer(PingApi.class, PingConsumer.class)) {
             PingConsumer consumer = container.select(PingConsumer.class);
-            assertNotNull(consumer, "Le bean PingConsumer doit être résolu par Vauban");
-            assertNotNull(consumer.pingApi, "@Inject @RestClient PingApi doit être câblé par la BCE Cyrano");
+            assertNotNull(consumer, "PingConsumer bean must be resolved by Vauban");
+            assertNotNull(consumer.pingApi, "@Inject @RestClient PingApi must be wired by Cyrano BCE");
 
             String response = consumer.pingApi.greet("Antoine");
             assertEquals("hello Antoine", response);
@@ -136,13 +136,13 @@ class CyranoRestClientCdiIntegrationTest {
     }
 
     @Test
-    @DisplayName("§6.2 — chaque @Inject @RestClient reçoit un proxy fonctionnel (même URL)")
+    @DisplayName("§6.2 — each @Inject @RestClient receives a working proxy (same URL)")
     void second_consumer_also_receives_a_working_proxy_spec_section6_2() {
         try (VaubanContainer container = buildContainer(
                 PingApi.class, PingConsumer.class, AnotherPingConsumer.class)) {
             AnotherPingConsumer second = container.select(AnotherPingConsumer.class);
             assertNotNull(second);
-            assertNotNull(second.pingApi, "Deuxième consommateur : @Inject @RestClient doit aussi être câblé");
+            assertNotNull(second.pingApi, "Second consumer: @Inject @RestClient must also be wired");
             assertEquals("hello Vauban", second.pingApi.greet("Vauban"));
         }
     }

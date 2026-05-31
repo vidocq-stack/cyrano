@@ -58,14 +58,14 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 
 /**
- * Cœur de l'invocation runtime — appelé par le proxy généré (Class-File API) pour
- * chaque méthode de l'interface client.
+ * Heart of runtime invocation — called by the generated proxy (Class-File API) for
+ * each method of the client interface.
  *
- * <p>Public car référencé par le bytecode généré dans un autre package. La signature
- * {@link #invoke(Object, int, Object[])} forme le seul contrat appelé depuis les
- * proxies — ne pas casser sans aligner {@link CyranoProxyGenerator}.</p>
+ * <p>Public contract referenced by the bytecode generated in another package. The
+ * {@link #invoke(Object, int, Object[])} signature is the only contract called by proxies —
+ * do not break it without aligning {@code CyranoProxyGenerator} accordingly.</p>
  *
- * <p>Spec MicroProfile Rest Client 4.0 §3 (invocation), §3.1 (param binding),
+ * <p>Spec MicroProfile Rest Client 4.0 §3 (invocation), §3.1 (parameter binding),
  * §4.2 (MessageBody), §5 (providers), §6.5 ({@code @ClientHeaderParam}),
  * §8 (default exception mapping).</p>
  */
@@ -91,14 +91,14 @@ public class CyranoInvocationHandler {
     }
 
     /**
-     * Point d'entrée unique appelé par chaque méthode du proxy généré.
+     * Single entry point called by each method of the generated proxy.
      *
-     * @param proxy       l'instance proxy elle-même — utilisée pour invoquer les méthodes
-     *                    {@code default} référencées par {@code @ClientHeaderParam}
-     * @param methodIndex index de la méthode dans la liste {@code specs}
-     * @param args        arguments passés par l'appelant
+     * @param proxy the proxy instance itself — used to invoke the
+     * {@code default} methods referenced by {@code @ClientHeaderParam}
+     * @param methodIndex method index in the {@code specs} list
+     * @param args arguments passed by the caller
      */
-    /** Spec §8.1 — appelé par le close() synthétique du proxy. */
+    /** Spec §8.1 — called by the synthetic close() of the proxy. */
     public void markClosed() {
         this.closed = true;
     }
@@ -115,32 +115,32 @@ public class CyranoInvocationHandler {
     private Object invokeInternal(Object proxy, int methodIndex, Object[] args, RequestSpec spec) throws Exception {
         if (closed) {
             throw new IllegalStateException(
-                    "Ce client REST a été fermé — spec MP Rest Client 4.0 §8.1");
+                    "This REST client has been closed — MP Rest Client 4.0 spec §8.1");
         }
         boolean asyncReturn = CompletionStage.class.isAssignableFrom(spec.returnType());
 
-        // Sub-resource locator: httpMethod == null → return a new proxy for the sub-interface
+        //Sub-resource locator: httpMethod == null → return a new proxy for the sub-interface
         if (spec.httpMethod() == null) {
             return buildSubResourceProxy(spec, args);
         }
 
-        // 1. Résoudre les valeurs des bindings (en expansant @BeanParam)
+        //1. Resolve binding values (by expanding @BeanParam)
         ResolvedBindings r = resolveBindings(spec, args);
 
-        // 2. Construire URI (path templates + query + matrix)
+        // 2. Build URI (path templates + query + matrix)
         URI uri = buildUri(spec, r);
 
-        // 3. Construire le body initial (form-encoded prioritaire si @FormParam, sinon JSON-B)
+        // 3. Build the initial body (form-encoded takes precedence if @FormParam, otherwise JSON-B)
         BodyPayload body = buildBody(spec, r);
 
-        // 4. Préparer le contexte filtré (MP Rest Client §4.2 + JAX-RS §6.3, itération M4-2)
+        //4. Prepare filtered context (MP Rest Client §4.2 + JAX-RS §6.3, iteration M4-2)
         CyranoClientRequestContext reqCtx = new CyranoClientRequestContext(uri, spec.httpMethod(), configuration);
         seedHeaders(reqCtx, spec, r, proxy, body);
         seedEntity(reqCtx, spec, r, body);
-        // MP Rest Client §4.2 — propriété standard pour les filtres
+        //MP Rest Client §4.2 — standard filter property
         reqCtx.setProperty("org.eclipse.microprofile.rest.client.invokedMethod", spec.method());
 
-        // 5. Pipeline ClientRequestFilter (priorités ascendantes)
+        //5. Pipeline ClientRequestFilter (top-up priorities)
         var reqFilters = configuration.getRequestFilters();
         if (Boolean.getBoolean("cyrano.debug.providers")) {
             System.err.println("[CyranoDebug] req filters for " + spec.method().getName()
@@ -156,7 +156,7 @@ public class CyranoInvocationHandler {
             if (reqCtx.isAborted()) break;
         }
 
-        // 6. Soit on a été aborté, soit on envoie réellement la requête
+        //6. Either we've been aborted or we're actually sending the request.
         if (asyncReturn) {
             Type asyncGenericType = innerType(spec.genericReturnType());
             Class<?> asyncRawType = rawType(asyncGenericType);
@@ -226,7 +226,7 @@ public class CyranoInvocationHandler {
             respCtx = CyranoClientResponseContext.of(resp);
         }
 
-        // 7. Pipeline ClientResponseFilter (priorités descendantes)
+        //7. Pipeline ClientResponseFilter (top-down priorities)
         for (var f : configuration.getResponseFilters()) {
             try {
                 f.filter(reqCtx, respCtx);
@@ -235,24 +235,24 @@ public class CyranoInvocationHandler {
             }
         }
 
-        // 8. Mapping final du retour
+        // 8. Final mapping of the return value
         return mapResponse(respCtx, spec);
     }
 
     // ============================================================
-    // Construction HttpRequest depuis le contexte final (post-filtres)
+    // Build the HttpRequest from the final context (post-filters)
     // ============================================================
     private HttpRequest buildHttpRequest(CyranoClientRequestContext ctx) {
         HttpRequest.Builder b = HttpRequest.newBuilder(ctx.getUri());
         if (configuration.getReadTimeoutMs() > 0) {
             b.timeout(Duration.ofMillis(configuration.getReadTimeoutMs()));
         }
-        // Headers — interdits par HttpClient JDK : Host, Connection, etc. On laisse passer
-        // tout le reste, et on ignore les rejets silencieusement.
+        //Headers — prohibited by JDK HttpClient: Host, Connection, etc. Keep
+        // everything else, and silently ignore rejections.
         for (var e : ctx.getStringHeaders().entrySet()) {
             for (String v : e.getValue()) {
                 try { b.header(e.getKey(), v); }
-                catch (IllegalArgumentException ignored) { /* header restreint */ }
+                catch (IllegalArgumentException ignored) { /* restricted header */ }
             }
         }
         HttpRequest.BodyPublisher pub;
@@ -262,7 +262,7 @@ public class CyranoInvocationHandler {
         } else if (entity instanceof byte[] bytes) {
             pub = HttpRequest.BodyPublishers.ofByteArray(bytes);
         } else {
-            // Apply registered MessageBodyWriter (+interceptors) if applicable (spec §4.2, §6.5)
+            //Apply registered MessageBodyWriter (+interceptors) if applicable (spec §4.2 §6.5)
             @SuppressWarnings({"rawtypes", "unchecked"})
             MessageBodyWriter writer = findMessageBodyWriter(entity.getClass());
             List<WriterInterceptor> writerInterceptors = configuration.getWriterInterceptors();
@@ -296,7 +296,7 @@ public class CyranoInvocationHandler {
     }
 
     // ============================================================
-    // Étape 1 : résolution des bindings (BeanParam expansé)
+    //Step 1: Binding resolution (BeanParam expanded)
     // ============================================================
     private record ResolvedBindings(
             Map<String, String> pathParams,
@@ -348,7 +348,7 @@ public class CyranoInvocationHandler {
                             try { v = fb.field().get(beanObj); }
                             catch (IllegalAccessException ex) {
                                 throw new IllegalStateException(
-                                        "Accès @BeanParam.field refusé : " + fb.field(), ex);
+                                        "@BeanParam.field access denied: " + fb.field(), ex);
                             }
                             String str = valueOrDefault(v, fb.defaultValue());
                             if (str == null) continue;
@@ -370,7 +370,7 @@ public class CyranoInvocationHandler {
 
     private static String valueOrDefault(Object v, String dflt) {
         if (v != null) return stringify(v);
-        return dflt; // peut être null
+        return dflt; //may be null
     }
 
     private static String stringify(Object v) {
@@ -383,17 +383,17 @@ public class CyranoInvocationHandler {
     }
 
     // ============================================================
-    // Étape 2 : construction d'URI
+    //Step 2: Construction of URI
     // ============================================================
     private URI buildUri(RequestSpec spec, ResolvedBindings r) {
         String path = spec.pathTemplate();
         for (var e : r.pathParams().entrySet()) {
             String token = "{" + e.getKey() + "}";
             String enc = e.getValue() == null ? "" : encodePathParam(e.getValue());
-            // PathParam : conserve les pchar valides (dont ':') et '/' pour les sous-paths.
+            //PathParam: Keeps valid pchars (including ':') and '/' for subpaths.
             path = path.replace(token, enc);
         }
-        // Matrix params : ajoutés au dernier segment du path (avant ?query)
+        //Matrix params: added to the last segment of the path (before ?query)
         if (!r.matrixParams().isEmpty()) {
             StringBuilder sb = new StringBuilder(path);
             for (var e : r.matrixParams().entrySet()) {
@@ -403,7 +403,7 @@ public class CyranoInvocationHandler {
             }
             path = sb.toString();
         }
-        // Query string — spec MP Rest Client §3.4 QueryParamStyle
+        //Query string — spec MP Rest Client §3.4 QueryParamStyle
         String query = "";
         if (!r.queryParams().isEmpty()) {
             var style = configuration.getQueryParamStyle();
@@ -422,7 +422,7 @@ public class CyranoInvocationHandler {
                     }
                     case ARRAY_PAIRS -> {
                         // RFC note: [] are technically invalid in URIs but widely used in practice.
-                        // Don't URL-encode [] — Java's URI(scheme, ssp, null) preserves them.
+                        //Don't URL-encode [] — Java's URI(scheme, ssp, null) preserves them.
                         String key = URLEncoder.encode(rawKey, StandardCharsets.UTF_8) + "[]";
                         for (String v : values) pairs.add(key + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8));
                     }
@@ -436,8 +436,8 @@ public class CyranoInvocationHandler {
         }
         String base = baseUri.toString();
         if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
-        // Si le path est juste "/" (méthode sans @Path explicite), ne pas ajouter de slash
-        // final qui ne fait pas partie du contrat (ConfigKeyForMultipleInterfacesTest §6.5).
+        //If the path is just "/" (explicit @Path method), do not add a slash
+        //Final that is not part of the contract (ConfigKeyForMultipleInterfacesTest §6.5).
         if ("/".equals(path) && query.isEmpty()) path = "";
         return buildFinalUri(base + path + query);
     }
@@ -461,7 +461,7 @@ public class CyranoInvocationHandler {
 
     private static boolean isPathParamByteAllowed(int c) {
         // RFC 3986 pchar = unreserved / sub-delims / ':' / '@'.
-        // Cyrano conserve aussi '/' pour permettre les sous-paths en @PathParam.
+        //Cyrano also keeps '/' to allow @PathParam subpaths.
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) return true;
         return c == '-' || c == '.' || c == '_' || c == '~'
                 || c == '!' || c == '$' || c == '&' || c == '\'' || c == '(' || c == ')'
@@ -470,16 +470,16 @@ public class CyranoInvocationHandler {
     }
 
     /**
-     * Crée une URI depuis une chaîne brute qui peut contenir {@code []} (ARRAY_PAIRS style).
+     * Creates a URI from a raw chain that can contain {@code []} (ARRAY PAIRS style).
      * Java's {@code URI.create()} rejette {@code []} en query string (non RFC 3986).
-     * On tente d'abord {@code URI(scheme, ssp, null)} qui peut préserver les crochets
-     * dans la représentation texte, sinon on encode en {@code %5B%5D}.
+     * We first try {@code URI(scheme, ssp, null)} that can preserve the hooks
+     * in the text representation, otherwise we encode in {@code %5B%5D}.
      */
     private static URI buildFinalUri(String rawUrl) {
         try {
             return URI.create(rawUrl);
         } catch (IllegalArgumentException e) {
-            // [] in query string: try scheme+ssp constructor which preserves raw chars
+            // [] in query string: try the scheme+ssp constructor which preserves raw chars
             int colon = rawUrl.indexOf(':');
             if (colon > 0) {
                 try {
@@ -494,12 +494,12 @@ public class CyranoInvocationHandler {
     }
 
     // ============================================================
-    // Étape 3 : construction du body
+    //Step 3: Body Building
     // ============================================================
     private record BodyPayload(HttpRequest.BodyPublisher publisher, String contentType) {}
 
     private BodyPayload buildBody(RequestSpec spec, ResolvedBindings r) {
-        // (a) Form-encoded — prioritaire si @FormParam présents
+        //(a) Form-encoded — priority if @FormParam present
         if (!r.formParams().isEmpty()) {
             List<String> pairs = new ArrayList<>();
             for (var e : r.formParams().entrySet()) {
@@ -511,7 +511,7 @@ public class CyranoInvocationHandler {
             return new BodyPayload(HttpRequest.BodyPublishers.ofString(form),
                     MediaType.APPLICATION_FORM_URLENCODED);
         }
-        // (b) Body POJO — content-type determined here; actual serialization in buildHttpRequest()
+        //(b) Body POJO — content-type determined here; current serialization in buildHttpRequest()
         // (MessageBodyWriter + interceptors run post-filters on the final entity from context)
         if (r.hasBody() && r.body() != null) {
             String ct = firstConsumesOrJson(spec);
@@ -525,28 +525,28 @@ public class CyranoInvocationHandler {
     }
 
     // ============================================================
-    // Étape 4 : seed headers + entity dans le contexte (pré-filtres)
+    //Step 4: Seed headers + entity in context (pre-filters)
     // ============================================================
     private void seedHeaders(CyranoClientRequestContext ctx, RequestSpec spec, ResolvedBindings r,
                              Object proxy, BodyPayload body) {
         var headers = ctx.getHeaders();
-        // Accept (@Produces) — spec §4.1: default is application/json when no @Produces
+        //Accept (@Produces) — spec §4.1: default is application/json when no @Produces
         if (!spec.produces().isEmpty()) {
             headers.putSingle("Accept", String.join(", ", spec.produces()));
         } else {
             headers.putSingle("Accept", MediaType.APPLICATION_JSON);
         }
-        // Content-Type via @Consumes ou dérivé du body initial
+        //Content-Type via @Consumes or derived from the original body
         if (body.contentType() != null) {
             headers.putSingle("Content-Type", body.contentType());
         }
-        // @ClientHeaderParam statique — supplanté par @HeaderParam runtime de même nom (spec §6.5)
+        //@ClientHeaderParam static — replaced by @HeaderParam at runtime with the same name (spec §6.5)
         Set<String> runtimeOverrides = r.headers().keySet();
         for (var e : spec.staticHeaders().entrySet()) {
             if (runtimeOverrides.contains(e.getKey())) continue;
             for (String v : e.getValue()) headers.add(e.getKey(), v);
         }
-        // @ClientHeaderParam dynamique
+        // @ClientHeaderParam dynamic
         for (var e : spec.dynamicHeaders().entrySet()) {
             if (runtimeOverrides.contains(e.getKey())) continue;
             RequestSpec.DynamicHeader dh = e.getValue();
@@ -560,7 +560,7 @@ public class CyranoInvocationHandler {
             }
             if (value != null) headers.add(e.getKey(), value);
         }
-        // Headers posés via RestClientBuilder.header() — spec §3.2, priorité basse (surchargés par @HeaderParam)
+        //Headers installed via RestClientBuilder.header() — spec §3.2, low priority (overridden by @HeaderParam)
         for (var e : configuration.getBuilderHeaders().entrySet()) {
             if (!r.headers().containsKey(e.getKey())) {
                 headers.add(e.getKey(), String.valueOf(e.getValue()));
@@ -572,7 +572,7 @@ public class CyranoInvocationHandler {
                 if (v != null) headers.add(e.getKey(), v);
             }
         }
-        // @CookieParam → header "Cookie" combiné
+        //@CookieParam → combined "Cookie" header
         if (!r.cookies().isEmpty()) {
             StringBuilder sb = new StringBuilder();
             boolean first = true;
@@ -619,15 +619,15 @@ public class CyranoInvocationHandler {
         }
     }
 
-    /** Met l'entity métier dans le contexte (POJO si JSON-B ; form-encoded String si @FormParam). */
+    /** Stores the business entity in the context (POJO for JSON-B; form-encoded String for @FormParam). */
     private void seedEntity(CyranoClientRequestContext ctx, RequestSpec spec, ResolvedBindings r, BodyPayload body) {
         if (!r.formParams().isEmpty()) {
-            // Pour le form-encoded, on stocke la chaîne déjà encodée comme entité — un filtre
-            // peut la remplacer s'il veut.
+            //For form-encoded, the already encoded string is stored as an entity — a filter
+            // can replace it if desired.
             String form = encodeForm(r.formParams());
             ctx.setEntityInternal(form, String.class, String.class);
         } else if (r.hasBody() && r.body() != null) {
-            // POJO destiné à être sérialisé via JSON-B au moment de l'envoi.
+            //POJO to be serialized via JSON-B at dispatch time.
             ctx.setEntityInternal(r.body(), r.body().getClass(), r.body().getClass());
         }
     }
@@ -643,14 +643,14 @@ public class CyranoInvocationHandler {
     }
 
     // ============================================================
-    // (legacy retiré : applyHeaders → remplacé par seedHeaders + buildHttpRequest)
+    //(legacy removed: applyHeaders → replaced by seeHeaders + buildHttpRequest)
     // ============================================================
 
     private static String invokeHeaderMethod(Object proxy, Class<?> iface, String methodName, String headerName) {
-        // Spec §6.5 : signature autorisée = pas d'arg / String (header name).
+        //Spec §6.5: allowed signature = no arg / string (header name).
         Method dm = findHeaderMethod(iface, methodName);
         if (dm == null) {
-            throw new IllegalStateException("Méthode @ClientHeaderParam introuvable : "
+            throw new IllegalStateException("@ClientHeaderParam method not found: "
                     + iface.getName() + "#" + methodName + " — spec §6.5");
         }
         Class<?>[] pt = dm.getParameterTypes();
@@ -662,15 +662,15 @@ public class CyranoInvocationHandler {
                 result = dm.invoke(proxy, pt.length == 0 ? new Object[0] : new Object[]{headerName});
             }
         } catch (java.lang.reflect.InvocationTargetException ite) {
-            // Spec §6.5 : le caller doit voir l'exception telle quelle (ou l'en-tête est
-            // omis silencieusement si required=false — décidé en amont par applyHeaders).
+            //Spec §6.5: the caller must see the exception as-is (or the header is
+            //silently omitted if required=false — decided upstream by applyHeaders).
             Throwable cause = ite.getCause();
             if (cause instanceof RuntimeException re) throw re;
             if (cause instanceof Error err) throw err;
-            throw new IllegalStateException("@ClientHeaderParam(" + methodName + ") a échoué",
+            throw new IllegalStateException("@ClientHeaderParam(" + methodName + ") failed",
                     cause != null ? cause : ite);
         } catch (IllegalAccessException iae) {
-            throw new IllegalStateException("Accès refusé à @ClientHeaderParam("
+            throw new IllegalStateException("Access denied to @ClientHeaderParam("
                     + methodName + ") sur " + iface.getName(), iae);
         }
         if (result == null) return null;
@@ -681,7 +681,7 @@ public class CyranoInvocationHandler {
     }
 
     private static Method findHeaderMethod(Class<?> iface, String name) {
-        // Spec §6.5 — référence FQN à une méthode statique externe :
+        //Spec §6.5 — FQN reference to an external static method:
         // {@code @ClientHeaderParam(value="{com.foo.Util.compute}")}.
         int lastDot = name.lastIndexOf('.');
         if (lastDot > 0) {
@@ -699,7 +699,7 @@ public class CyranoInvocationHandler {
                 }
                 return bestMatch;
             } catch (ClassNotFoundException ignored) {
-                // tomber dans la recherche locale ci-dessous
+                // fall back to the local lookup below
             }
         }
         for (Method m : iface.getMethods()) {
@@ -708,7 +708,7 @@ public class CyranoInvocationHandler {
             if (pc == 0) return m;
             if (pc == 1 && m.getParameterTypes()[0] == String.class) return m;
         }
-        // chercher dans les méthodes déclarées (cas static)
+        //search in declared methods (edge cases)
         for (Method m : iface.getDeclaredMethods()) {
             if (m.getName().equals(name)) return m;
         }
@@ -716,7 +716,7 @@ public class CyranoInvocationHandler {
     }
 
     // ============================================================
-    // Étape 5 : mapping de la réponse + exception mapping
+    //Step 5: mapping response + exception mapping
     // ============================================================
     private Object mapResponse(CyranoClientResponseContext respCtx, RequestSpec spec) {
         return mapResponse(respCtx, spec, null, null);
@@ -731,8 +731,8 @@ public class CyranoInvocationHandler {
         Class<?> rt = overrideReturnType != null ? overrideReturnType : spec.returnType();
         Type genericType = overrideGenericType != null ? overrideGenericType : spec.genericReturnType();
 
-        // User-registered ResponseExceptionMapper run for ALL status codes (spec §5.4).
-        // A mapper can handle any status — e.g. TestResponseExceptionMapper handles 200.
+        //User-registered ResponseExceptionMapper run for ALL status codes (spec §5.4).
+        //A mapper can handle any status — e.g. TestResponseExceptionMapper handles 200.
         Optional<RuntimeException> userEx = applyExceptionMappers(respCtx, body, spec);
         if (userEx.isPresent()) throw userEx.get();
 
@@ -740,7 +740,7 @@ public class CyranoInvocationHandler {
             if (rt == Optional.class && status == 404) {
                 return Optional.empty();
             }
-            // spec §8 : microprofile.rest.client.disable.default.mapper=true → retourner Response brute
+            //spec §8: microprofile.rest.client.disable.default.mapper=true → return raw response
             Object disableProp = configuration.getProperty("microprofile.rest.client.disable.default.mapper");
             if (disableProp == null) {
                 disableProp = System.getProperty("microprofile.rest.client.disable.default.mapper");
@@ -756,10 +756,10 @@ public class CyranoInvocationHandler {
         }
 
         if (rt == void.class || rt == Void.class) return null;
-        // Response return type — pass configuration so readEntity() can use registered readers
+        //Response return type — pass configuration so readEntity() can use registered readers
         if (rt == Response.class) return CyranoLightResponse.of(respCtx, body, configuration);
 
-        // MessageBodyReader (+interceptors) — check registered readers before default deserialization
+        //MessageBodyReader (+interceptors) — check registered readers before the default path
         @SuppressWarnings({"rawtypes", "unchecked"})
         MessageBodyReader reader = findMessageBodyReader(rt);
         if (reader != null && body != null) {
@@ -807,7 +807,7 @@ public class CyranoInvocationHandler {
     private Optional<RuntimeException> applyExceptionMappers(CyranoClientResponseContext respCtx,
                                                              String body, RequestSpec spec) {
         Response light = CyranoLightResponse.of(respCtx, body);
-        // Collecte tous les ResponseExceptionMapper enregistrés via builder.register(...)
+        //Collect all ResponseExceptionMapper saved via builder.register(...)
         List<MapperEntry> mappers = new ArrayList<>();
         for (Object inst : configuration.getInstances()) {
             if (inst instanceof ResponseExceptionMapper<?> rem) {
@@ -832,7 +832,7 @@ public class CyranoInvocationHandler {
     private record MapperEntry(ResponseExceptionMapper<?> mapper, int priority) {}
 
     private static WebApplicationException defaultException(CyranoClientResponseContext respCtx, String body) {
-        // Spec §8 : default mapper priorité 1 → WebApplicationException basé sur Response.
+        //Spec §8: default mapper priority 1 → WebApplicationException based on Response.
         return new WebApplicationException("HTTP " + respCtx.getStatus(),
                 CyranoLightResponse.of(respCtx, body));
     }
@@ -859,7 +859,7 @@ public class CyranoInvocationHandler {
                     AsyncInvocationInterceptor interceptor = factory.newInterceptor();
                     if (interceptor != null) out.add(interceptor);
                 } catch (RuntimeException ignored) {
-                    // factory défaillante ignorée
+                    //failed factory ignored
                 }
             }
         }
@@ -918,7 +918,7 @@ public class CyranoInvocationHandler {
                     VarHandle handle = lookup.findVarHandle(cursor, field.getName(), field.getType());
                     handle.set(target, value);
                 } catch (RuntimeException | ReflectiveOperationException ignored) {
-                    // fallback best-effort uniquement
+                    //best-effort fallback only
                 }
             }
             cursor = cursor.getSuperclass();
@@ -989,7 +989,7 @@ public class CyranoInvocationHandler {
         if (type == float.class || type == Float.class) return Float.parseFloat(s);
         if (type == boolean.class || type == Boolean.class) return Boolean.parseBoolean(s);
         if (type == char.class || type == Character.class) return s.isEmpty() ? '\0' : s.charAt(0);
-        throw new UnsupportedOperationException("Primitif non géré : " + type);
+        throw new UnsupportedOperationException("Unsupported primitive: " + type);
     }
 
     /** Find the first registered MessageBodyReader applicable to the given type. */
@@ -1043,7 +1043,7 @@ public class CyranoInvocationHandler {
         return CyranoProxyGenerator.instantiate(entry.proxyClass(), subHandler);
     }
 
-    /** Trompe-l'œil pour aider l'analyse d'usage — supprimable. */
+    /** Placeholder to help usage analysis — removable. */
     @SuppressWarnings("unused")
     private static InvocationHandler unused() { return null; }
 }

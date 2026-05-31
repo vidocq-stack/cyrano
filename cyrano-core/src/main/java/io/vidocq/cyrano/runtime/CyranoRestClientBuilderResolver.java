@@ -14,19 +14,19 @@ import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.eclipse.microprofile.rest.client.spi.RestClientBuilderResolver;
 
 /**
- * Implémentation du SPI {@link RestClientBuilderResolver} — invoqué par
+ * Implementation of SPI {@link RestClientBuilderResolver} — invoked by
  * {@link RestClientBuilder#newBuilder()} via {@link java.util.ServiceLoader ServiceLoader}.
  *
- * <p>Spec MicroProfile Rest Client 4.0 §10 (SPI) : ce resolver est découvert via
+ * <p>Spec MicroProfile Rest Client 4.0 §10 (SPI): this resolver is discovered via
  * {@code META-INF/services/org.eclipse.microprofile.rest.client.spi.RestClientBuilderResolver}.
- * Une seule instance est instanciée par classloader.</p>
+ * Only one instance is installed per classloader.</p>
  *
- * <p>Doit être un constructeur sans argument public — exigence ServiceLoader.</p>
+ * <p>Must expose a public no-arg constructor — {@link java.util.ServiceLoader} requirement.</p>
  */
 public final class CyranoRestClientBuilderResolver extends RestClientBuilderResolver {
 
     public CyranoRestClientBuilderResolver() {
-        // requis pour ServiceLoader
+        // required for ServiceLoader
     }
 
     @Override
@@ -37,13 +37,13 @@ public final class CyranoRestClientBuilderResolver extends RestClientBuilderReso
                 tccl != null
                         ? java.util.ServiceLoader.load(org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener.class, tccl)
                         : java.util.ServiceLoader.load(org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener.class);
-        // Spec MP Rest Client 4.0 §10.1 — RestClientBuilderListener.onNewBuilder() est invoqué
-        // pour chaque nouveau builder créé via RestClientBuilder.newBuilder().
+        //Spec MP Rest Client 4.0 §10.1 — RestClientBuilderListener.onNewBuilder() is invoked
+        //for each new builder created via RestClientBuilder.newBuilder().
         for (var listener : listeners) {
             try {
                 listener.onNewBuilder(builder);
             } catch (RuntimeException ignored) {
-                // un listener défaillant ne doit pas bloquer la création du builder
+                //a failed lister must not block the creation of the builder
             }
         }
         return builder;

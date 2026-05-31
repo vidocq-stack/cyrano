@@ -21,33 +21,33 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
- * Creator pour les beans synthétiques produits par {@link CyranoRestClientCdiExtension}.
+ * Creator for synthetic beans produced by {@link CyranoRestClientCdiExtension}.
  *
- * <p>Au moment où le container demande l'instanciation du bean (premier
- * {@code @Inject @RestClient}), ce creator :</p>
+ * <p>At the time the container requests bean instantiation (first
+ * {@code @Inject @RestClient}), this creator:</p>
  * <ol>
- *   <li>charge l'interface client à partir du paramètre {@code interfaceName} ;</li>
- *   <li>résout la base URI via {@link CyranoBaseUriResolver} — MP Config en
- *       priorité (si Ravel est sur le module-path), sinon
+ * <li>loads the client interface from {@code interfaceName};</li>
+ * <li>resolves the base URI via {@link CyranoBaseUriResolver} — MP Config takes
+ * priority (if Ravel is on the module path), otherwise
  *       {@code @RegisterRestClient(baseUri=...)} ;</li>
- *   <li>délègue à {@link RestClientBuilder#newBuilder()} qui produit un proxy
- *       Class-File API via la SPI {@code RestClientBuilderResolver}.</li>
+ * <li>delegates to {@link RestClientBuilder#newBuilder()} which produces a proxy
+ *       through the Class-File API via the SPI {@code RestClientBuilderResolver}.</li>
  * </ol>
  *
  * <p>Spec MP Rest Client 4.0 §6.2 — « The container must use the
  * {@link RestClientBuilder} API to instantiate the rest client interface
- * proxy ». Cette voie unique garantit que les chemins programmatique et CDI
- * partagent exactement le même proxy.</p>
+ * proxy". This single path ensures that the programmatic and CDI paths
+ * share exactly the same proxy.</p>
  */
 public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Object> {
 
-    /** Paramètre BCE : FQN de l'interface client (transporté entre @Synthesis et runtime). */
+    /** BCE parameter: client interface FQN (carried between {@code @Synthesis} and runtime). */
     public static final String PARAM_INTERFACE_NAME = "interfaceName";
 
-    /** Paramètre BCE : valeur littérale de {@code @RegisterRestClient.baseUri()}. */
+    /** BCE parameter: literal value of {@code @RegisterRestClient.baseUri()}. */
     public static final String PARAM_BASE_URI = "baseUri";
 
-    /** Paramètre BCE : valeur littérale de {@code @RegisterRestClient.configKey()}. */
+    /** BCE parameter: literal value of {@code @RegisterRestClient.configKey()}. */
     public static final String PARAM_CONFIG_KEY = "configKey";
 
     @Override
@@ -64,7 +64,7 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
 
         Function<String, Optional<String>> configLookup = CyranoBaseUriResolver.defaultMpConfigLookup();
 
-        // Spec §5 — queryParamStyle via MP Config
+        //Spec §5 — queryParamStyle via MP Config
         QueryParamStyle qps = resolveQueryParamStyle(interfaceFqn, configKey, configLookup);
         if (qps != null) {
             builder.queryParamStyle(qps);
@@ -85,7 +85,7 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
             builder.readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS);
         }
 
-        // Spec §5 — providers via MP Config (comma-separated FQNs)
+        //Spec §5 — providers via MP Config (comma-separated FQNs)
         registerConfigProviders(interfaceFqn, configKey, configLookup, builder);
 
         return builder.build(iface);
@@ -112,7 +112,7 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
                         Thread.currentThread().getContextClassLoader());
                 builder.register(providerClass);
             } catch (ClassNotFoundException e) {
-                // provider not on classpath — skip silently
+                //provider not on classpath — skip silently
             }
         }
     }
@@ -143,7 +143,7 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
         try {
             return Long.parseLong(val.get().trim());
         } catch (NumberFormatException e) {
-            throw new IllegalStateException("Cyrano CDI : valeur MP Config invalide pour '"
+            throw new IllegalStateException("Cyrano CDI: invalid MP Config value for '"
                     + effectivePropertyName(fqn, configKey, lookup, suffix) + "' = '" + val.get() + "'", e);
         }
     }
@@ -171,8 +171,7 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
             return Class.forName(fqn, true, Thread.currentThread().getContextClassLoader());
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(
-                    "Cyrano CDI : interface @RegisterRestClient introuvable '" + fqn + "'", e);
+                    "Cyrano CDI: @RegisterRestClient interface not found '" + fqn + "'", e);
         }
     }
 }
-

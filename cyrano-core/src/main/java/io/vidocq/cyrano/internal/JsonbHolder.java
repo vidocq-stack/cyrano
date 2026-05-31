@@ -13,12 +13,12 @@ import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 
 /**
- * Holder lazy + thread-safe d'une instance {@link Jsonb} partagée par toutes les
- * invocations Cyrano. {@code JsonbBuilder.create()} charge l'implémentation via
- * {@link java.util.ServiceLoader ServiceLoader} — champollion en runtime.
+ * Lazy + thread-safe holder of a {@link Jsonb} instance shared by all Cyrano
+ * invocations. {@code JsonbBuilder.create()} loads the implementation via
+ * {@link java.util.ServiceLoader ServiceLoader} — champollion at runtime.
  *
- * <p>Pas de {@code synchronized} : initialisation par holder pattern (lazy class init
- * garantie thread-safe par la JVM).</p>
+ * <p>No {@code synchronized}: initialization via the holder pattern (lazy class
+ * init is guaranteed thread-safe by the JVM).</p>
  */
 final class JsonbHolder {
 

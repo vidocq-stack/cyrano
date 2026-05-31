@@ -19,18 +19,18 @@ import java.util.ServiceLoader;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests de publication de la BCE Cyrano — vérifie que l'extension est
- * découvrable via {@code META-INF/services} et, si le module est nommé, qu'il
- * l'exporte aussi via {@code provides ... with}.
+ * Cyrano BCE publication tests — verifies that the extension is
+ * discoverable via {@code META-INF/services} and, if the module is named, is
+ * also exported via {@code provides ... with}.
  *
- * <p>Spec MicroProfile Rest Client 4.0 §6.1/§6.2 : une implémentation CDI doit
- * découvrir les interfaces {@code @RegisterRestClient} et produire un bean pour
- * chacune. La BCE doit donc être exposée de manière fiable au conteneur.</p>
+ * <p>Spec MicroProfile Rest Client 4.0 §6.1/§6.2: a CDI implementation must
+ * discover {@code @RegisterRestClient} interfaces and produce a bean for
+ * each one. The BCE must therefore be reliably exposed to the container.</p>
  */
 class CyranoRestClientCdiExtensionDiscoveryTest {
 
     @Test
-    @DisplayName("§6.1/§6.2 — la BCE Cyrano est découvrable via ServiceLoader et publie provides quand le module est nommé")
+    @DisplayName("§6.1/§6.2 — Cyrano BCE is discoverable via ServiceLoader and publishes provides when the module is named")
     void build_compatible_extension_is_service_loaded_and_module_provided() {
         boolean serviceLoaderFound = ServiceLoader.load(BuildCompatibleExtension.class)
                 .stream()
@@ -38,7 +38,7 @@ class CyranoRestClientCdiExtensionDiscoveryTest {
                 .anyMatch(CyranoRestClientCdiExtension.class::isInstance);
 
         assertTrue(serviceLoaderFound,
-                "CyranoRestClientCdiExtension doit être découvert via META-INF/services");
+                "CyranoRestClientCdiExtension must be discovered via META-INF/services");
 
         Module module = CyranoRestClientCdiExtension.class.getModule();
         ModuleDescriptor descriptor = module.getDescriptor();
@@ -47,7 +47,7 @@ class CyranoRestClientCdiExtensionDiscoveryTest {
                     .anyMatch(provides -> BuildCompatibleExtension.class.getName().equals(provides.service())
                             && provides.providers().contains(CyranoRestClientCdiExtension.class.getName()));
             assertTrue(providesExtension,
-                    "Le module JPMS doit publier BuildCompatibleExtension via provides ... with");
+                    "The JPMS module must publish BuildCompatibleExtension via provides ... with");
         }
     }
 }

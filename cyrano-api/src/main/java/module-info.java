@@ -1,10 +1,10 @@
 /**
- * API Cyrano : re-exposition contrôlée de la spec MicroProfile Rest Client 4.0 et SPI
- * publique stable. Le contenu sera étoffé au fil des milestones (M1+).
+ * Cyrano API: controlled re-exposure of the MicroProfile Rest Client 4.0 spec
+ * and stable public SPI. The content will be expanded over the milestones (M1+).
  *
- * <p><strong>Note JPMS — compatibilité jlink</strong> : la spec MP Rest Client est
- * importée via {@code io.vidocq.cyrano.mp.rest.client.api}, un module de repackage
- * explicite qui évite l'usage d'un module automatique dans le graphe.</p>
+ * <p><strong>JPMS note — jlink compatibility</strong>: the MP Rest Client spec is
+ * imported via {@code io.vidocq.cyrano.mp.rest.client.api}, an explicit repackage
+ * module that avoids the use of an automatic module in the graph.</p>
  */
 module io.vidocq.cyrano.api {
     requires transitive io.vidocq.cyrano.mp.rest.client.api;
@@ -12,4 +12,3 @@ module io.vidocq.cyrano.api {
 
     exports io.vidocq.cyrano.spi;
 }
-

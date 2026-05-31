@@ -20,14 +20,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 
 /**
- * Transport HTTP de Cyrano — utilise {@link HttpClient} du JDK avec un
- * {@code VirtualThreadPerTaskExecutor}. Zéro dépendance réseau externe.
+ * Cyrano HTTP Transport — uses {@link HttpClient} from the JDK with a
+ * {@code VirtualThreadPerTaskExecutor}. Zero external network dependency.
  *
- * <p>Spec MicroProfile Rest Client 4.0 §4 (invocation) — l'implémentation choisit
- * librement son transport, ici {@code java.net.http}.</p>
+ * <p>Spec MicroProfile Rest Client 4.0 §4 (invocation) — the implementation chooses
+ * its transport freely, here {@code java.net.http}.</p>
  *
- * <p>Thread-safe : {@link HttpClient} est documenté comme thread-safe. Aucun
- * {@code synchronized}, aucun {@code ThreadLocal} — virtual-thread-friendly.</p>
+ * <p>Thread-safe: {@link HttpClient} is documented as thread-safe. No
+ * {@code synchronized}, no {@code ThreadLocal} — virtual-thread-friendly.</p>
  */
 public final class CyranoHttpTransport implements AutoCloseable {
 
@@ -57,26 +57,25 @@ public final class CyranoHttpTransport implements AutoCloseable {
         this.client = builder.build();
     }
 
-    /** Constructeur de test — permet d'injecter un client préconfiguré. */
+    /** Test constructor — allows injecting a preconfigured client. */
     CyranoHttpTransport(HttpClient client) {
         this.client = client;
     }
 
-    /** Envoi synchrone — bloque le virtual thread courant. */
+    /** Synchronous send — blocks the current virtual thread. */
     public HttpResponse<String> send(HttpRequest req) throws IOException, InterruptedException {
         return client.send(req, HttpResponse.BodyHandlers.ofString());
     }
 
-    /** Envoi asynchrone — pour les retours {@link java.util.concurrent.CompletionStage}. */
+    /** Asynchronous send — for {@link java.util.concurrent.CompletionStage} return types. */
     public CompletableFuture<HttpResponse<String>> sendAsync(HttpRequest req) {
         return client.sendAsync(req, HttpResponse.BodyHandlers.ofString());
     }
 
     @Override
     public void close() {
-        // HttpClient n'a pas de fermeture explicite avant Java 21 ; en Java 25, on peut appeler
-        // client.close() qui shutdown l'executor virtual-thread.
+        // HttpClient has no explicit close before Java 21; in Java 25, we can call
+        // client.close() which shuts down the virtual-thread executor.
         client.close();
     }
 }
-

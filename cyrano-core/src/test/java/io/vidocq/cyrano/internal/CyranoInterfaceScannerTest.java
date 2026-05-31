@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests TDD du {@link CyranoInterfaceScanner} — couvre la spec MicroProfile Rest Client
- * 4.0 §3 (interface client) et §3.1 (types de paramètre de base).
+ * {@link CyranoInterfaceScanner} TDD tests — covers spec MicroProfile Rest Client
+ * 4.0 §3 (customer interface) and §3.1 (base parameter types).
  */
 class CyranoInterfaceScannerTest {
 
@@ -103,13 +103,13 @@ class CyranoInterfaceScannerTest {
 
     @Test
     void scanner_extracts_request_specs_spec_section3() throws Exception {
-        // §3 : chaque méthode annotée par un verbe HTTP devient une RequestSpec
+        //§3: Each method annotated by an HTTP verb becomes a RequestSpec
         var specs = CyranoInterfaceScanner.scan(UserService.class);
 
         Method getUser = UserService.class.getMethod("getUser", long.class);
         RequestSpec spec = specs.get(getUser);
 
-        assertNotNull(spec, "getUser doit être scanné");
+        assertNotNull(spec, "getUser must be scanned");
         assertEquals("GET", spec.httpMethod());
         assertEquals("/users/{id}", spec.pathTemplate());
         assertEquals(String.class, spec.returnType());
@@ -117,7 +117,7 @@ class CyranoInterfaceScannerTest {
 
     @Test
     void scanner_extracts_path_param_binding_spec_section3_1() throws Exception {
-        // §3.1 : @PathParam → ParamBinding.Path
+        //§3.1: @PathParam → ParamBinding.Path
         var specs = CyranoInterfaceScanner.scan(UserService.class);
         Method getUser = UserService.class.getMethod("getUser", long.class);
         RequestSpec spec = specs.get(getUser);
@@ -131,7 +131,7 @@ class CyranoInterfaceScannerTest {
 
     @Test
     void scanner_extracts_query_param_binding_spec_section3_1() throws Exception {
-        // §3.1 : @QueryParam → ParamBinding.Query
+        //§3.1: @QueryParam → ParamBinding.Query
         var specs = CyranoInterfaceScanner.scan(UserService.class);
         Method search = UserService.class.getMethod("search", String.class);
         RequestSpec spec = specs.get(search);
@@ -155,7 +155,7 @@ class CyranoInterfaceScannerTest {
 
     @Test
     void scanner_rejects_interface_without_http_method_annotations() {
-        // §3 : une interface client doit avoir au moins une méthode annotée
+        //§3: a client interface must have at least one annotated method
         assertThrows(IllegalArgumentException.class,
                 () -> CyranoInterfaceScanner.scan(NotAnnotated.class));
     }

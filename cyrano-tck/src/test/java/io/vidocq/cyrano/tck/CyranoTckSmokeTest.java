@@ -26,16 +26,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * Smoke test du bootstrap Cyrano — vérifie que les modules cyrano-core et cyrano-api
- * sont correctement chargés sans Arquillian.
+ * Smoke Cyrano bootstrap test — checks that cyrano-core and cyrano-api modules
+ * are properly loaded without Arquillian.
  *
- * <p>À M0 (bootstrap), seul le chargement des classes spec est validé. La construction
- * de proxies via {@link RestClientBuilder} nécessite l'implémentation
- * {@code CyranoRestClientBuilder} (M1) — les tests correspondants seront ajoutés
- * progressivement.</p>
+ * <p>At M0 (bootstrap), only the loading of spec classes is validated. Proxy
+ * construction via {@link RestClientBuilder} requires the {@code CyranoRestClientBuilder}
+ * implementation (M1) — the corresponding tests will be added progressively.</p>
  *
- * <p>Exécuté par le profil Maven {@code smoke} (actif par défaut) via le script
- * {@code run-official-tck-mp-rest-client-4.0.sh}.</p>
+ * <p>Run by the Maven {@code smoke} (default active) profile via the
+ * {@code run-official-tck-mp-rest-client-4.0.sh} script.</p>
  */
 class CyranoTckSmokeTest {
 
@@ -48,7 +47,7 @@ class CyranoTckSmokeTest {
 
     @Test
     void rest_client_api_classes_are_loadable() {
-        // Vérifie que les classes MicroProfile Rest Client 4.0 sont bien sur le module-path
+        //Check that MicroProfile Rest Client 4.0 classes are on the module path
         assertNotNull(RestClientBuilder.class);
         assertNotNull(RegisterRestClient.class);
         assertNotNull(RestClient.class);
@@ -56,7 +55,7 @@ class CyranoTckSmokeTest {
 
     @Test
     void jaxrs_annotations_are_loadable() {
-        // Les annotations JAX-RS sont utilisées sur les interfaces client (spec §3)
+        //JAX-RS annotations are used on client interfaces (spec §3)
         assertNotNull(GET.class);
         assertNotNull(Path.class);
         assertNotNull(PathParam.class);
@@ -72,28 +71,28 @@ class CyranoTckSmokeTest {
 
     @Test
     void rest_client_builder_is_resolved_via_service_loader_spec_section10() {
-        // §10 (SPI) : RestClientBuilder.newBuilder() doit retourner un builder via
-        // ServiceLoader — ici Cyrano via META-INF/services + provides JPMS.
+        //§10 (SPI): RestClientBuilder.newBuilder() must return a builder via
+        //ServiceLoader — here Cyrano via META-INF/services + provides JPMS.
         RestClientBuilder builder = RestClientBuilder.newBuilder();
-        assertNotNull(builder, "Le SPI RestClientBuilderResolver doit fournir un builder");
+        assertNotNull(builder, "The RestClientBuilderResolver SPI must provide a builder");
         assertEquals("io.vidocq.cyrano.internal.CyranoRestClientBuilder",
                 builder.getClass().getName(),
-                "Le builder doit être l'implémentation Cyrano");
+                "The builder must be the Cyrano implementation");
     }
 
     @Test
     void rest_client_builder_produces_cyrano_proxy_spec_section3() {
-        // §3 : build(Class) doit produire une instance qui implémente l'interface.
+        //§3: build(Class) must produce an instance that implements the interface.
         SampleClient client = RestClientBuilder.newBuilder()
                 .baseUri(URI.create("http://127.0.0.1:1"))
                 .build(SampleClient.class);
         assertNotNull(client);
         assertNotNull(client.getClass().getName());
-        // Le proxy doit être nommé Cyrano$<SimpleName> (Class-File API JEP 484, pas Proxy)
+        //The proxy must be named Cyrano$<SimpleName> (Class-File API JEP 484, not Proxy)
         org.junit.jupiter.api.Assertions.assertTrue(
                 client.getClass().getName().endsWith("Cyrano$SampleClient"),
-                "Le proxy doit être généré via Class-File API et nommé Cyrano$SampleClient "
-                        + "— était " + client.getClass().getName());
+                "The proxy must be generated via the Class-File API and named Cyrano$SampleClient "
+                        + "— was " + client.getClass().getName());
     }
 }
 

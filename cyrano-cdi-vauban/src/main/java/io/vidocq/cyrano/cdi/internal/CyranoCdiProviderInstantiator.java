@@ -25,16 +25,16 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 
 /**
- * Implémentation CDI-aware de {@link ProviderInstantiator} — résout les providers
- * (filtres, intercepteurs, mappers...) via le {@link BeanManager} courant si un bean
- * géré existe pour la classe demandée. Sinon retourne {@code null} pour laisser
- * cyrano-core retomber sur l'instanciation réflexive.
+ * CDI-aware implementation of {@link ProviderInstantiator} — resolves providers
+ * (filters, interceptors, mappers...) via the current {@link BeanManager} if a managed
+ * bean exists for the requested class. Otherwise returns {@code null} to let
+ * cyrano-core fall back on reflective instantiation.
  *
  * <p>Spec MP Rest Client 4.0 §4.2.4 — <em>« RestClient implementations must use the
  * BeanManager to obtain providers if they are managed beans. »</em></p>
  *
- * <p>Découverte via {@code META-INF/services/io.vidocq.cyrano.runtime.ProviderInstantiator}
- * et {@code provides} JPMS.</p>
+ * <p>Discovered via {@code META-INF/services/io.vidocq.cyrano.runtime.ProviderInstantiator}
+ * and JPMS {@code provides}.</p>
  *
  * @since 0.1.0 (M4-3)
  */
@@ -46,7 +46,7 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
         try {
             bm = CDI.current().getBeanManager();
         } catch (IllegalStateException unavailable) {
-            // CDI container pas encore démarré (ou hors CDI) — délègue au fallback réflexif
+            //CDI not yet started (or outside CDI) — delegates to reflective fallback
             return null;
         }
         var beans = bm.getBeans(componentClass, new Annotation[0]);
@@ -147,7 +147,7 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
         @Override
         public void setParameters(Object[] params) {
             if (params == null || params.length != args.length) {
-                throw new IllegalArgumentException("Paramètres d'interception invalides");
+                throw new IllegalArgumentException("Invalid interception parameters");
             }
             System.arraycopy(params, 0, args, 0, args.length);
         }
@@ -185,4 +185,3 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
         }
     }
 }
-

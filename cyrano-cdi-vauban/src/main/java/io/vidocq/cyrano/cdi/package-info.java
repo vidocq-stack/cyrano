@@ -8,8 +8,8 @@
  *     https://www.apache.org/licenses/LICENSE-2.0
  */
 /**
- * Intégration CDI Vauban de Cyrano — découverte des interfaces {@code @RegisterRestClient}
- * et production des beans qualifiés {@code @RestClient}. Le contenu détaillé sera ajouté
+ * CDI integration Vauban de Cyrano — discovery of {@code @RegisterRestClient} interfaces
+ * and production of qualified beans {@code @RestClient}. Detailed content will be added
  * au milestone M3.
  */
 package io.vidocq.cyrano.cdi;

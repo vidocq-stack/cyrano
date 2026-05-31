@@ -1,51 +1,51 @@
 # BUG — Cyrano
 
-Suivi des bugs reproductibles dans `cyrano` (issues internes, régressions, comportements
-incorrects non encore corrigés). Convention workspace Vidocq : id court, date, symptôme,
-repro minimal, hypothèse de cause, statut.
+Tracking of reproducible bugs in `cyrano` (internal issues, regressions, incorrect behaviours
+not yet fixed). Vidocq workspace convention: short id, date, symptom,
+minimal repro, root cause hypothesis, status.
 
 ---
 
-## CYR-001 — JPMS contourné via copie manuelle des JARs compile-scope
+## CYR-001 — JPMS bypassed via manual copy of compile-scope JARs
 
-- **Date ouverture** : 2026-05-25
-- **Statut** : ⚠️ OPEN — workaround actif
+- **Opened**: 2026-05-25
+- **Status**: ⚠️ OPEN — active workaround
 
-### Symptôme
+### Symptom
 
-Le `pom.xml` racine de cyrano utilise `maven-dependency-plugin` (phase `initialize`) pour
-copier tous les JARs de scope compile dans `target/javamodules/`, puis passe
-`--module-path ${project.build.directory}/javamodules` manuellement au compilateur.
+The root `pom.xml` of cyrano uses `maven-dependency-plugin` (phase `initialize`) to
+copy all compile-scope JARs into `target/javamodules/`, then passes
+`--module-path ${project.build.directory}/javamodules` manually to the compiler.
 
-Ce contournement indique que la résolution JPMS native de Maven ne fonctionne pas pour
-certaines dépendances compile-scope de cyrano, notamment `microprofile-rest-client-api`,
+This workaround indicates that Maven's native JPMS resolution does not work for
+certain compile-scope dependencies of cyrano, notably `microprofile-rest-client-api`,
 `vauban-core`/`vauban-classloader-spi`, `champollion-jsonp`/`champollion-jsonb`.
 
-### Repro minimal
+### Minimal Repro
 
 ```bash
 grep -n "javamodules\|module-path" cyrano/pom.xml
-# révèle les deux plugins configurés manuellement
+# reveals the two manually configured plugins
 ```
 
-Sans le workaround (suppression de la config `maven-dependency-plugin`), `javac` échoue avec :
+Without the workaround (removing the `maven-dependency-plugin` config), `javac` fails with:
 
 ```
 error: module not found: org.eclipse.microprofile.rest.client
 ```
 
-### Hypothèse de cause
+### Root Cause Hypothesis
 
-Les JARs concernés ne disposent pas de `module-info.class` propre — ils n'exposent qu'un
-`Automatic-Module-Name` dans leur `MANIFEST.MF`. La version 4.x du `maven-compiler-plugin`
-ne les place pas automatiquement sur le `--module-path` pour les projets ayant un
-`module-info.java` explicite. La copie dans `target/javamodules/` permet à javac de les
-résoudre comme automatic modules en dérivant leur nom depuis le nom de fichier JAR.
+The affected JARs do not have a proper `module-info.class` — they only expose an
+`Automatic-Module-Name` in their `MANIFEST.MF`. Version 4.x of `maven-compiler-plugin`
+does not automatically place them on `--module-path` for projects with an explicit
+`module-info.java`. Copying to `target/javamodules/` allows javac to resolve them
+as automatic modules by deriving their name from the JAR filename.
 
-### Piste de résolution
+### Resolution Path
 
-1. Vérifier si une version amont de `microprofile-rest-client-api` publie un
-   `module-info.class`. Si oui, bumper la version et supprimer le workaround.
-2. Contacter / PR upstream Eclipse MicroProfile pour ajouter un descripteur modulaire.
-3. À défaut, wrapper via un module Cyrano interne (`cyrano-mp-rest-client-api`) qui fournit
-   le `module-info.class` manquant — pattern déjà utilisé pour `ravel-mp-config-api`.
+1. Check whether an upstream version of `microprofile-rest-client-api` publishes a
+   `module-info.class`. If so, bump the version and remove the workaround.
+2. Contact / PR upstream Eclipse MicroProfile to add a modular descriptor.
+3. Otherwise, wrap via an internal Cyrano module (`cyrano-mp-rest-client-api`) that provides
+   the missing `module-info.class` — a pattern already used for `ravel-mp-config-api`.

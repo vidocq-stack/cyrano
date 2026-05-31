@@ -20,25 +20,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Arquillian {@link TestEnricher} — injecte les champs {@code @Inject} de chaque
- * instance de test TCK en utilisant le container Vauban démarré par
+ * Arquillian {@link TestEnricher} — injects the {@code @Inject} fields of each
+ * TCK test instance using the Vauban container started by
  * {@link VaubanTckBootstrap}.
  *
- * <p>Supporte :</p>
+ * <p>Supports:</p>
  * <ul>
- *   <li>{@code @Inject BeanManager} — résolution directe depuis le container Vauban ;</li>
- *   <li>{@code @Inject @RestClient SomeApi} — résolution via le
- *       {@link BeanManager#getBeans(java.lang.reflect.Type, Annotation...)} standard CDI,
- *       en passant les qualifieurs portés par le champ.</li>
+ * <li>{@code @Inject BeanManager} — direct resolution from the Vauban container;</li>
+ * <li>{@code @Inject @RestClient SomeApi} — resolution via the standard CDI
+ *       {@link BeanManager#getBeans(java.lang.reflect.Type, Annotation...)},
+ *       passing the qualifiers carried by the field.</li>
  * </ul>
  *
- * <p>Enregistrement : {@link CyranoArquillianExtension#register(LoadableExtension.ExtensionBuilder)}
+ * <p>Registration: {@link CyranoArquillianExtension#register(LoadableExtension.ExtensionBuilder)}
  * via {@code builder.service(TestEnricher.class, CyranoTestEnricher.class)}.</p>
  *
  * <p>Spec MP Rest Client 4.0 §6.2 — « The container must use the RestClientBuilder API
- * to instantiate the rest client interface proxy » — satisfait via
- * {@code CyranoRestClientSyntheticCreator} ; ce TestEnricher câble simplement les
- * champs de l'instance de test hors du container TestNG.</p>
+ * to instantiate the rest client interface proxy » — satisfied via
+ * {@code CyranoRestClientSyntheticCreator}; this {@code TestEnricher} simply wires the
+ * fields of the test instance outside of the TestNG container.</p>
  */
 public class CyranoTestEnricher implements TestEnricher {
 
@@ -53,7 +53,7 @@ public class CyranoTestEnricher implements TestEnricher {
             try {
                 injectField(testInstance, field, bm);
             } catch (Exception ignored) {
-                // Not resolvable — skip (test may fail for its own reasons)
+                //Not solvent — skip (test may fail for its own reasons)
             }
         }
     }
@@ -71,7 +71,7 @@ public class CyranoTestEnricher implements TestEnricher {
         var qualifiers = extractQualifiers(field);
         var type = field.getType();
 
-        // Support explicite de @Inject @RestClient Instance<T> (TCK JsonBProviderTest).
+        // Explicit support for @Inject @RestClient Instance<T> (TCK JsonBProviderTest).
         if (jakarta.enterprise.inject.Instance.class.equals(type)) {
             Class<?> targetType = extractInstanceTargetType(field.getGenericType());
             if (targetType != null) {
@@ -107,8 +107,8 @@ public class CyranoTestEnricher implements TestEnricher {
     }
 
     /**
-     * Collecte toutes les annotations du champ, en excluant {@code @Inject} lui-même,
-     * pour les transmettre comme qualifieurs CDI au {@link BeanManager}.
+     * Collect all the annotations of the field, excluding {@code @Inject} itself,
+     * to transmit them as CDI qualifiers to {@link BeanManager}.
      */
     private static List<Annotation> extractQualifiers(Field field) {
         var qualifiers = new ArrayList<Annotation>();
@@ -120,8 +120,8 @@ public class CyranoTestEnricher implements TestEnricher {
     }
 
     /**
-     * Remonte la hiérarchie de classes pour collecter tous les champs déclarés
-     * (y compris ceux hérités des superclasses de test).
+     * Move the hierarchy of classes to collect all declared fields
+     * (including those inherited from test superclasses).
      */
     private static List<Field> getAllFields(Class<?> clazz) {
         var fields = new ArrayList<Field>();

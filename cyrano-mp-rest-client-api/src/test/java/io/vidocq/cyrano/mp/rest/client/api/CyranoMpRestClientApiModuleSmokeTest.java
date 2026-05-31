@@ -31,11 +31,11 @@ class CyranoMpRestClientApiModuleSmokeTest {
 
         ModuleDescriptor descriptor = ModuleFinder.of(jar)
                 .find("io.vidocq.cyrano.mp.rest.client.api")
-                .orElseThrow(() -> new AssertionError("Module io.vidocq.cyrano.mp.rest.client.api introuvable dans " + jar))
+                .orElseThrow(() -> new AssertionError("Module io.vidocq.cyrano.mp.rest.client.api not found in " + jar))
                 .descriptor();
 
         assertNotNull(descriptor.rawVersion().orElse(null));
-        assertFalse(descriptor.isAutomatic(), "Le module repacke ne doit pas etre automatique");
+        assertFalse(descriptor.isAutomatic(), "The repackaged module must not be automatic");
         assertEquals("io.vidocq.cyrano.mp.rest.client.api", descriptor.name());
 
         Set<String> exportedPackages = descriptor.exports().stream()
@@ -69,9 +69,9 @@ class CyranoMpRestClientApiModuleSmokeTest {
                     })
                     .findFirst()
                     .orElseThrow(() -> new AssertionError(
-                            "Repackaged jar cyrano-mp-rest-client-api-*.jar introuvable dans " + target.toAbsolutePath()));
+                            "Repackaged jar cyrano-mp-rest-client-api-*.jar not found in " + target.toAbsolutePath()));
         } catch (IOException e) {
-            throw new AssertionError("Impossible de lister " + target.toAbsolutePath(), e);
+            throw new AssertionError("Unable to list " + target.toAbsolutePath(), e);
         }
     }
 }

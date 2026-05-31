@@ -20,32 +20,31 @@ import java.util.List;
 import java.util.Properties;
 
 /**
- * Gère le cycle de vie du container Vauban CDI dans le runner TCK Arquillian.
- * Appelé depuis {@link CyranoDeployableContainer#deploy(Archive)} /
+ * Manages the life cycle of the Vauban CDI container in the TCK Arquillian Runner.
+ * Called from {@link CyranoDeployableContainer#deploy(Archive)} /
  * {@link CyranoDeployableContainer#undeploy(Archive)}.
  *
- * <p>Chaque déploiement Arquillian (une ShrinkWrap archive par classe de test TCK) :
+ * <p>Each Arquillian deployment (one ShrinkWrap archive per TCK test class):</p>
  * <ol>
- *   <li>Extrait {@code META-INF/microprofile-config.properties} de l'archive ;</li>
- *   <li>Configure {@link TckConfigBridge} avec les propriétés (URL redirigées vers WireMock) ;</li>
- *   <li>Extrait les noms de classes de l'archive (déjà sur le classpath en mode Local) ;</li>
- *   <li>Démarre un container Vauban avec {@link CyranoRestClientCdiExtension} + ces classes.</li>
+ *   <li>Extracts {@code META-INF/microprofile-config.properties} from the archive;</li>
+ *   <li>Configures {@link TckConfigBridge} with the properties (URL redirected to WireMock);</li>
+ *   <li>Extracts the archive class names (already on the classpath in Local mode);</li>
+ *   <li>Starts a Vauban container with {@link CyranoRestClientCdiExtension} + these classes.</li>
  * </ol>
- * </p>
  *
- * <p>Contrainte CDI Lite / Vauban : {@code addBeanClass} accepte les interfaces (Vauban les
- * filtre pour la création de beans gérés, mais la BCE {@code @Enhancement} peut les inspecter
- * via le scan de l'index interne). On passe donc toutes les classes de l'archive, interfaces
- * comprises.</p>
+ * <p>CDI Lite / Vauban constraint: {@code addBeanClass} accepts interfaces (Vauban filters
+ * them out when creating managed beans, but the {@code @Enhancement} BCE can still inspect
+ * them through the scan of the internal index). We therefore pass all archive classes,
+ * interfaces included.</p>
  */
 final class VaubanTckBootstrap {
 
     private VaubanTckBootstrap() {}
 
     /**
-     * Démarre un nouveau container Vauban pour l'archive donnée.
+     * Start a new Vauban container for the given archive.
      *
-     * @param archive l'archive ShrinkWrap fournie par {@code @Deployment} du test TCK
+     * @param archive the ShrinkWrap archive provided by the TCK test's {@code @Deployment}
      */
     static void deploy(Archive<?> archive) {
         // 1. Extract config properties from the archive
@@ -79,7 +78,7 @@ final class VaubanTckBootstrap {
     }
 
     /**
-     * Arrête le container Vauban courant et nettoie les system properties de config.
+     * Stop the current Vauban container and clean the config properties system.
      */
     static void undeploy() {
         TckConfigBridge.clear();
@@ -95,12 +94,12 @@ final class VaubanTckBootstrap {
     // -----------------------------------------------------------------------
 
     /**
-     * Extrait {@code META-INF/microprofile-config.properties} de l'archive.
-     * Supporte :
+     * Extracts {@code META-INF/microprofile-config.properties} from the archive.
+     * Supports:
      * <ul>
-     *   <li>JavaArchive : {@code /META-INF/microprofile-config.properties}</li>
-     *   <li>WebArchive classes : {@code /WEB-INF/classes/META-INF/...}</li>
-     *   <li>WebArchive library : {@code /WEB-INF/lib/*.jar/META-INF/...} (archives ShrinkWrap imbriquées)</li>
+     *   <li>JavaArchive: {@code /META-INF/microprofile-config.properties}</li>
+     *   <li>WebArchive classes: {@code /WEB-INF/classes/META-INF/...}</li>
+     *   <li>WebArchive library: {@code /WEB-INF/lib/*.jar/META-INF/...} (embedded ShrinkWrap archive)</li>
      * </ul>
      */
     private static Properties extractConfig(Archive<?> archive) {
@@ -145,20 +144,20 @@ final class VaubanTckBootstrap {
     }
 
     /**
-     * Extrait toutes les classes applicatives de l'archive (interfaces incluses — la BCE
-     * {@code @Enhancement} de Cyrano en a besoin pour découvrir les {@code @RegisterRestClient}).
-     * Les classes {@code module-info} sont exclues.
+     * Extract all application classes from the archive (interfaces included — ECB)
+     * {@code @Enhancement} from Cyrano needs it to discover {@code @RegisterRestClient}).
+     * Classes {@code module-info} are excluded.
      *
-     * <p>Supporte trois layouts :</p>
+     * <p>Supports three layouts:</p>
      * <ul>
-     *   <li>JavaArchive : {@code /org/example/MyClass.class} directement à la racine ;</li>
-     *   <li>WebArchive/classes : {@code /WEB-INF/classes/org/example/MyClass.class} ;</li>
-     *   <li>WebArchive/lib : archives ShrinkWrap imbriquées dans {@code /WEB-INF/lib/*.jar}.</li>
+     *   <li>JavaArchive: {@code /org/example/MyClass.class} directly at the root;</li>
+     *   <li>WebArchive/classes: {@code /WEB-INF/classes/org/example/MyClass.class};</li>
+     *   <li>WebArchive/lib: ShrinkWrap archive embedded in {@code /WEB-INF/lib/*.jar}.</li>
      * </ul>
      *
-     * <p>En mode Local Arquillian, les classes de l'archive sont déjà présentes sur le
-     * classpath de la JVM de test — {@code Class.forName} retrouve directement leur
-     * {@link ClassLoader} contexte.</p>
+     * <p>In Local Arquillian mode, the archive classes are already present on the test
+     * JVM classpath — {@code Class.forName} returns them directly via their context
+     * {@link ClassLoader}.</p>
      */
     private static List<Class<?>> extractBeanClasses(Archive<?> archive) {
         var classes = new ArrayList<Class<?>>();
@@ -196,7 +195,7 @@ final class VaubanTckBootstrap {
                 Class<?> clazz = Class.forName(className, false, cl);
                 classes.add(clazz);
             } catch (ClassNotFoundException | NoClassDefFoundError ignored) {
-                // Class not available on test classpath — skip silently
+                //Class not available on test classpath — skip silently
             }
         }
     }

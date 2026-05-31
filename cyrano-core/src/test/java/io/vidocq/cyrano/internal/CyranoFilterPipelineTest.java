@@ -34,13 +34,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Couvre l'itération M4-2 du runtime : pipeline {@link ClientRequestFilter} /
+ * Covers runtime M4-2 iteration: {@link ClientRequestFilter} pipeline /
  * {@link ClientResponseFilter} (JAX-RS §6.3 + MicroProfile Rest Client §4.2).
  *
- * <p>Vérifie : ordre par priorité, abort via {@code abortWith(Response)}, modification
- * des headers/URI par un filtre, lecture de la propriété standard
- * {@code org.eclipse.microprofile.rest.client.invokedMethod}, et inversion d'ordre
- * des response filters par rapport aux request filters.</p>
+ * <p>Checks: ordering by priority, abort via {@code abortWith(Response)}, header/URI
+ * modification by a filter, reading the standard property
+ * {@code org.eclipse.microprofile.rest.client.invokedMethod}, and the reverse
+ * ordering of response filters relative to request filters.</p>
  */
 class CyranoFilterPipelineTest {
 
@@ -82,7 +82,7 @@ class CyranoFilterPipelineTest {
         if (server != null) server.stop(0);
     }
 
-    /** Un filtre peut ajouter un header avant l'envoi. */
+    /** A filter can add a header before sending. */
     @Test
     void requestFilter_addsHeader() {
         EchoService client = RestClientBuilder.newBuilder()
@@ -93,7 +93,7 @@ class CyranoFilterPipelineTest {
         assertEquals("applied", capturedHeader.get());
     }
 
-    /** Un filtre peut réécrire l'URI cible. */
+    /** A filter can rewrite the target URI. */
     @Test
     void requestFilter_rewritesUri() {
         EchoService client = RestClientBuilder.newBuilder()
@@ -108,20 +108,20 @@ class CyranoFilterPipelineTest {
     @Test
     void requestFilter_abortShortCircuitsTransport() {
         capturedPath.set(null);
-        // En unit-test on n'a pas de RuntimeDelegate JAX-RS (pas de Cassini test-dep) — on construit
-        // donc une Response manuellement via la même fabrique interne que le moteur (CyranoLightResponse).
-        // Le scénario complet `Response.ok(...).build()` est couvert par le TCK officiel.
+        //In unit-test we don't have RuntimeDelegate JAX-RS (no Cassini test-dep) — we build
+        //So a Response manually via the same internal factory as the engine (CyranoLightResponse).
+        //The full `Response.ok(...).build()` scenario is covered by the official TCK.
         EchoService client = RestClientBuilder.newBuilder()
                 .baseUri(baseUri)
                 .register((ClientRequestFilter) ctx ->
                         ctx.abortWith(StubResponse.ofString(200, "aborted!")))
                 .build(EchoService.class);
         assertEquals("aborted!", client.ping());
-        // le serveur n'a JAMAIS été contacté
+        //the server has never been contacted
         assertEquals(null, capturedPath.get());
     }
 
-    /** Filtre lit la propriété MP-RC `invokedMethod` et la trouve correctement. */
+    /** A filter reads the MP-RC `invokedMethod` property and resolves it correctly. */
     @Test
     void requestFilter_exposesInvokedMethod() {
         AtomicReference<String> seen = new AtomicReference<>();
@@ -136,7 +136,7 @@ class CyranoFilterPipelineTest {
         assertEquals("ping", seen.get());
     }
 
-    /** Request filters : priorité ascendante. Response filters : priorité descendante. */
+    /** Request filters: ascending priority. Response filters: descending priority. */
     @Test
     void filterPriorities_ascendingRequest_descendingResponse() {
         List<String> reqOrder = new ArrayList<>();
@@ -163,11 +163,11 @@ class CyranoFilterPipelineTest {
                 .register(new RespB(), 1000)
                 .build(EchoService.class);
         client.ping();
-        assertEquals(List.of("B", "A"), reqOrder, "request: priorité ascendante");
-        assertEquals(List.of("A", "B"), respOrder, "response: priorité descendante");
+        assertEquals(List.of("B", "A"), reqOrder, "request: ascending priority");
+        assertEquals(List.of("A", "B"), respOrder, "response: descending priority");
     }
 
-    /** Un ClientResponseFilter peut observer / modifier le statut. */
+    /** A ClientResponseFilter can observe or modify the status. */
     @Test
     void responseFilter_canChangeStatus() {
         EchoService client = RestClientBuilder.newBuilder()
@@ -177,7 +177,7 @@ class CyranoFilterPipelineTest {
         assertEquals("pong", client.ping());
     }
 
-    /** Un response filter voit bien la réponse abortée par un request filter. */
+    /** A response filter correctly sees the response aborted by a request filter. */
     @Test
     void responseFilter_seesAbortedResponse() {
         AtomicReference<Integer> seenStatus = new AtomicReference<>();

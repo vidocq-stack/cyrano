@@ -23,10 +23,10 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
 /**
- * Producer pour @RestClient Instance<T>.
+ * Producer for @RestClient Instance<T>.
  *
- * <p>Le TCK demande explicitement ce mode d'injection; on le mappe vers une
- * selection CDI explicite de T + @RestClient.</p>
+ * <p>The TCK explicitly requires this injection form; we map it to an
+ * explicit CDI selection of T + @RestClient.</p>
  */
 @Dependent
 public class CyranoRestClientInstanceProducer {
@@ -50,7 +50,7 @@ public class CyranoRestClientInstanceProducer {
                 return c;
             }
         }
-        throw new UnsatisfiedResolutionException("@RestClient Instance<T> doit etre parametre avec une interface client");
+        throw new UnsatisfiedResolutionException("@RestClient Instance<T> must be parameterized with a client interface");
     }
 }
 

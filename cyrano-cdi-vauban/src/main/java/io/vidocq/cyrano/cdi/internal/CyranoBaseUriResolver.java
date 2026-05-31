@@ -15,50 +15,50 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Résolveur de base URI pour une interface {@code @RegisterRestClient} — spec
- * MicroProfile Rest Client 4.0 §5 « Configuration ».
+ * Base URI resolver for {@code @RegisterRestClient} interfaces — MicroProfile
+ * Rest Client 4.0 §5 "Configuration".
  *
- * <p>Ordre de priorité (du plus fort au plus faible) :</p>
+ * <p>Priority order (from highest to lowest):</p>
  * <ol>
  *   <li>{@code <interface.fqn>/mp-rest/url} via MicroProfile Config (Ravel) ;</li>
- *   <li>{@code <configKey>/mp-rest/url} via MicroProfile Config (Ravel), si
- *       {@code @RegisterRestClient(configKey=...)} est renseigné ;</li>
+ *   <li>{@code <configKey>/mp-rest/url} via MicroProfile Config (Ravel), if
+ * {@code @RegisterRestClient(configKey=...)} is specified;</li>
  *   <li>{@code @RegisterRestClient(baseUri=...)} ;</li>
- *   <li>échec : {@link IllegalStateException} (mapper en
- *       {@code DeploymentException} côté BCE).</li>
+ * <li> failure: {@link IllegalStateException}
+ * {@code DeploymentException} on the ECB side).</li>
  * </ol>
  *
- * <p>MP Config est <strong>optionnel</strong> : si l'API
- * {@code org.eclipse.microprofile.config.ConfigProvider} n'est pas chargeable
- * (Ravel absent du module-path), la résolution se rabat silencieusement sur
- * l'annotation. Ce comportement satisfait l'exigence AGENTS.md « dégrader
- * gracieusement sans NPE si Ravel absent ».</p>
+ * <p>MP Config is <strong>optional</strong>: if the API
+ * {@code org.eclipse.microprofile.config.ConfigProvider} is not loadable
+ * (Ravel absent from the module path), resolution silently falls back to
+ * the annotation. This behaviour satisfies the AGENTS.md requirement "degradation
+ * free of NPE if Ravel absent".</p>
  *
- * <p>Le composant est conçu pour être unit-testable : la fonction de lookup
- * MP Config est injectable via {@link #resolve(String, String, String, Function)}.</p>
+ * <p>The component is designed to be unit-testable: the MP Config lookup function
+ * is injectable via {@link #resolve(String, String, String, Function)}.</p>
  */
 public final class CyranoBaseUriResolver {
 
-    /** Suffixe MP Config — spec §5. */
+    /** MP Config suffix — spec §5. */
     public static final String MP_REST_URL_SUFFIX = "/mp-rest/url";
 
-    /** Alias URI — spec §5 (même priorité que /mp-rest/url, /uri prévaut si les deux sont définis). */
+    /** URI alias — spec §5 (same priority as /mp-rest/url, with /uri taking precedence if both are defined). */
     public static final String MP_REST_URI_SUFFIX = "/mp-rest/uri";
 
     private CyranoBaseUriResolver() {
-        // utility — pas d'instanciation
+        //utility — no detailing
     }
 
     /**
-     * Résout la base URI à partir des informations de l'annotation et de la
-     * fonction de lookup MP Config fournie.
+     * Resolves the base URI from the annotation and the
+     * provided MP Config lookup function.
      *
-     * @param interfaceFqn FQN de l'interface client (non null)
-     * @param baseUriValue valeur de {@code @RegisterRestClient.baseUri()} (jamais null, peut être {@code ""})
-     * @param configKey    valeur de {@code @RegisterRestClient.configKey()} (jamais null, peut être {@code ""})
-     * @param configLookup fonction qui retourne la valeur MP Config pour une clé (ou {@link Optional#empty()})
-     * @return l'URI résolue
-     * @throws IllegalStateException si aucune source n'est disponible
+     * @param interfaceFqn FQN of the client interface (non-null)
+     * @param baseUriValue value of {@code @RegisterRestClient.baseUri()} (never null, can be {@code ""})
+     * @param configKey value of {@code @RegisterRestClient.configKey()} (never null, can be {@code ""})
+     * @param configLookup function that returns the MP Config value for a key (or {@link Optional#empty()})
+     * @return resolved URI
+     * @throws IllegalStateException if no source is available
      */
     public static URI resolve(
             String interfaceFqn,
@@ -66,13 +66,13 @@ public final class CyranoBaseUriResolver {
             String configKey,
             Function<String, Optional<String>> configLookup) {
 
-        // §5 priorité 1 : <fqn>/mp-rest/url ou <fqn>/mp-rest/uri
+        //§5 priority 1: <fqn>/mp-rest/url or <fqn>/mp-rest/uri
         Optional<String> fromFqn = lookupUrlOrUri(configLookup, interfaceFqn);
         if (fromFqn.isPresent() && !fromFqn.get().isBlank()) {
             return URI.create(fromFqn.get());
         }
 
-        // §5 priorité 2 : <configKey>/mp-rest/url ou <configKey>/mp-rest/uri
+        //§5 priority 2: <configKey>/mp-rest/url or <configKey>/mp-rest/uri
         if (configKey != null && !configKey.isBlank()) {
             Optional<String> fromKey = lookupUrlOrUri(configLookup, configKey);
             if (fromKey.isPresent() && !fromKey.get().isBlank()) {
@@ -80,13 +80,13 @@ public final class CyranoBaseUriResolver {
             }
         }
 
-        // §5 priorité 3 : @RegisterRestClient(baseUri=...)
+        //§5 priority 3: @RegisterRestClient(baseUri=...)
         if (baseUriValue != null && !baseUriValue.isBlank()) {
             return URI.create(baseUriValue);
         }
 
         throw new IllegalStateException(
-                "Cyrano CDI : aucune base URI résolue pour '" + interfaceFqn
+                "Cyrano CDI: no base URI resolved for '" + interfaceFqn
                 + "' (ni MP Config '" + interfaceFqn + MP_REST_URL_SUFFIX + "' / '"
                 + interfaceFqn + MP_REST_URI_SUFFIX + "'"
                 + (configKey != null && !configKey.isBlank()
@@ -96,8 +96,8 @@ public final class CyranoBaseUriResolver {
     }
 
     /**
-     * Cherche {@code prefix/mp-rest/url} puis {@code prefix/mp-rest/uri}.
-     * Retourne la première valeur non vide trouvée.
+     * Searches {@code prefix/mp-rest/url} then {@code prefix/mp-rest/uri}.
+     * Returns the first non-empty value found.
      */
     private static Optional<String> lookupUrlOrUri(Function<String, Optional<String>> configLookup, String prefix) {
         Optional<String> uri = configLookup.apply(prefix + MP_REST_URI_SUFFIX);
@@ -106,8 +106,8 @@ public final class CyranoBaseUriResolver {
     }
 
     /**
-     * Variante production : tente d'utiliser MP Config via réflexion (Ravel
-     * détecté à l'exécution) ; à défaut, ne retourne jamais de valeur MP Config.
+     * Production variant: tries to use MP Config via reflection (Ravel
+     * detected at runtime); if not available, never returns an MP Config value.
      */
     public static URI resolveWithDefaultMpConfig(
             String interfaceFqn, String baseUriValue, String configKey) {
@@ -115,14 +115,14 @@ public final class CyranoBaseUriResolver {
     }
 
     /**
-     * Fonction de lookup MP Config résolue via réflexion — détache
-     * {@code cyrano-cdi-vauban} de toute dépendance compile sur
-     * {@code microprofile-config-api}. Si l'API n'est pas accessible, retourne
-     * une fonction qui renvoie systématiquement {@link Optional#empty()}.
+     * Resolved MP Config lookup function via reflection — detached
+     * {@code cyrano-cdi-vauban} from any compile-time dependency on
+     * {@code microprofile-config-api}. If the API is not accessible, returns
+     * a function that systematically returns {@link Optional#empty()}.
      */
     static Function<String, Optional<String>> defaultMpConfigLookup() {
-        // Cache la résolution réflexive en lambda — l'échec d'introspection
-        // (ClassNotFound, NoClassDefFound) provoque un fallback sur les system properties.
+        //Hide reflective resolution in lambda — introspection failure
+        // (ClassNotFound, NoClassDefFound) triggers a fallback to system properties.
         try {
             ClassLoader tccl = Thread.currentThread().getContextClassLoader();
             ClassLoader self = CyranoBaseUriResolver.class.getClassLoader();
@@ -154,13 +154,12 @@ public final class CyranoBaseUriResolver {
                 } catch (ReflectiveOperationException | RuntimeException ignored) {
                     // fall through to system property fallback
                 }
-                // Fallback : system property (utilisé par TckConfigBridge en mode TCK)
+                //Fallback: system property (used by TckConfigBridge in TCK mode)
                 return Optional.ofNullable(System.getProperty(key));
             };
         } catch (ClassNotFoundException | NoClassDefFoundError | NoSuchMethodException ignored) {
-            // MP Config absent — fallback complet sur les system properties
+            //MP Config absent — complete fallback to system properties
             return key -> Optional.ofNullable(System.getProperty(key));
         }
     }
 }
-

@@ -30,14 +30,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Test d'intégration end-to-end : interface client → scanner → proxy Class-File API →
+ * End-to-end integration test: client interface → scanner → proxy Class-File API →
  * invocation handler → HttpClient JDK → {@link HttpServer} JDK inline.
  *
- * <p>Aucune lib tierce, aucun container. Démarre un serveur HTTP JDK sur un port
- * aléatoire, déclare une interface client Cyrano pointée dessus, et vérifie l'aller-retour.</p>
+ * <p>No third-party library, no container. Starts a JDK HTTP server on a random
+ * port, declares a Cyrano client interface pointed at it, and verifies the round-trip.</p>
  *
- * <p>Couvre spec MicroProfile Rest Client 4.0 §3 (interface client), §3.1 (path/query),
- * §4 (invocation), §5 (config baseUri).</p>
+ * <p>Covers MicroProfile Rest Client 4.0 §3 (client interface), §3.1 (path/query),
+ * §4 (invocation), §5 (base URI config).</p>
  */
 class CyranoEndToEndTest {
 
@@ -116,7 +116,7 @@ class CyranoEndToEndTest {
         assertEquals("ok", result);
         assertEquals("GET", lastMethod.get());
         assertTrue(lastUri.get().startsWith("/users?q=alice"),
-                "URI attendue commence par /users?q=alice mais était " + lastUri.get());
+                "Expected URI to start with /users?q=alice but was " + lastUri.get());
     }
 
     @Test
@@ -143,11 +143,11 @@ class CyranoEndToEndTest {
     void proxy_is_cached_across_builds() {
         UserService a = newClient();
         UserService b = newClient();
-        // L'instance change (handler / baseUri propres) mais la classe est partagée.
+        //The instance changes (handler/baseUri own) but the class is shared.
         assertNotNull(a);
         assertNotNull(b);
         assertEquals(a.getClass(), b.getClass(),
-                "Le proxy doit être généré une seule fois et mis en cache");
+                "The proxy must be generated only once and cached");
         assertTrue(a.getClass().getName().endsWith("Cyrano$CyranoEndToEndTest_UserService"),
                 "Proxy name must end with Cyrano$CyranoEndToEndTest_UserService — was " + a.getClass().getName());
     }

@@ -23,10 +23,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Petit double {@link Response} pour les tests d'unité — évite la dépendance à un
- * {@code RuntimeDelegate} JAX-RS (Cassini) en scope test, qui n'est pas tirée par
- * {@code cyrano-core}. Le scénario complet {@code Response.ok(...).build()} est
- * couvert par le TCK officiel (où Cassini est test-scope).
+ * Small double {@link Response} for unit tests — avoids dependency on one
+ * {@code RuntimeDelegate} JAX-RS (Cassini) in test scope, which is not drawn by
+ * {@code cyrano-core}. The full scenario {@code Response.ok(...).build()} is
+ * covered by the official TCK (where Cassini is test-scope).
  */
 final class StubResponse extends Response {
     private final int status;

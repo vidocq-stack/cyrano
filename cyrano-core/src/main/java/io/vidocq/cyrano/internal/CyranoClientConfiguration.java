@@ -31,10 +31,10 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Implémentation minimale de {@link Configuration} pour {@code RestClientBuilder}.
- * M1 : juste le strict nécessaire pour respecter le contrat
- * {@link jakarta.ws.rs.core.Configurable}. Les providers enregistrés sont stockés
- * mais non encore appliqués au pipeline ; cela suit en M2.
+ * Minimum implementation of {@link Configuration} for {@code RestClientBuilder}.
+ * M1: only the bare minimum needed to satisfy the contract
+ * {@link jakarta.ws.rs.core.Configurable}. Registered providers are stored
+ * but not yet applied to the pipeline; This will follow in M2.
  */
 public final class CyranoClientConfiguration implements Configuration {
 
@@ -118,7 +118,7 @@ public final class CyranoClientConfiguration implements Configuration {
     }
 
     void registerProvider(Class<?> componentClass, Map<Class<?>, Integer> contractsMap) {
-        // M4-3 — passe d'abord par le ProviderInstantiator (CDI si présent), fallback réflexif
+        // M4-3 — first goes through the ProviderInstantiator (CDI if present), with reflective fallback
         Object instance = io.vidocq.cyrano.runtime.ProviderInstantiator.current().create(componentClass);
         if (instance == null) {
             instance = io.vidocq.cyrano.runtime.ProviderInstantiator.defaultInstantiator().create(componentClass);
@@ -156,15 +156,15 @@ public final class CyranoClientConfiguration implements Configuration {
     @Override public Set<Object> getInstances() { return Set.copyOf(instances.values()); }
 
     // ------------------------------------------------------------
-    // SPI filters (MP Rest Client §4.2 + JAX-RS §6.3) — M4-2
+    //SPI filters (MP Rest Client §4.2 + JAX-RS §6.3) — M4-2
     // ------------------------------------------------------------
 
     /**
-     * Renvoie les {@link ClientRequestFilter} enregistrés, triés par priorité ascendante
-     * (la plus basse priorité — donc {@code Priorities.AUTHENTICATION = 1000} — s'exécute
-     * en premier). La priorité provient en premier de la map de contracts passée à
-     * {@code register(...)}, sinon de l'annotation {@link Priority}, sinon
-     * {@code Priorities.USER} = 5000.
+     * Returns registered {@link ClientRequestFilter}, sorted by ascending priority
+     * (the lowest priority — thus {@code Priorities.AUTHENTICATION = 1000} — runs
+     * first). The priority comes first from the contracts map passed to
+     * {@code register(...)}, otherwise from the {@code @Priority} annotation,
+     * otherwise {@code Priorities.USER} = 5000.
      */
     List<ClientRequestFilter> getRequestFilters() {
         List<FilterEntry<ClientRequestFilter>> entries = new ArrayList<>();
@@ -180,9 +180,9 @@ public final class CyranoClientConfiguration implements Configuration {
     }
 
     /**
-     * Renvoie les {@link ClientResponseFilter} enregistrés, triés par priorité descendante
-     * (la plus haute s'exécute en premier — sens inverse des request filters, conformément
-     * à JAX-RS §6.3).
+     * Returns registered {@link ClientResponseFilter}, sorted by descending priority
+     * (highest runs first — reverse direction of request filters, according to
+     * to JAX-RS §6.3.
      */
     List<ClientResponseFilter> getResponseFilters() {
         List<FilterEntry<ClientResponseFilter>> entries = new ArrayList<>();
@@ -202,13 +202,13 @@ public final class CyranoClientConfiguration implements Configuration {
         if (c != null) {
             Integer p = c.get(contract);
             if (p != null) return p;
-            // priorité globale (sans contrat ciblé) — register(obj, priority)
+            //global priority (without targeted contract) — register(obj, priority)
             if (c.size() == 1) {
                 Integer only = c.values().iterator().next();
                 if (only != null) return only;
             }
         }
-        // jakarta.annotation.Priority — détection réflective pour éviter d'ajouter une dépendance compile-time
+        //jakarta.annotation.Priority — Reflective detection to avoid adding compile-time dependency
         try {
             @SuppressWarnings("unchecked")
             Class<? extends Annotation> prioCls =
@@ -219,9 +219,9 @@ public final class CyranoClientConfiguration implements Configuration {
                 if (v != null) return v;
             }
         } catch (ClassNotFoundException ignored) {
-            // jakarta.annotation absent — c'est OK
+            // jakarta.annotation is absent — this is fine
         } catch (ReflectiveOperationException ignored) {
-            // ignore — fallback Priorities.USER
+            // ignored — falls back to Priorities.USER
         }
         return jakarta.ws.rs.Priorities.USER; // 5000
     }

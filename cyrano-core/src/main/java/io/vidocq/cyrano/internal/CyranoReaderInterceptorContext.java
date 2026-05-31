@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Contexte pour la chaîne d'intercepteurs {@link ReaderInterceptor} (spec JAX-RS §6.5).
- * Wraps un {@link MessageBodyReader} terminal et une liste d'intercepteurs ordonnés.
+ * Context for the {@link ReaderInterceptor} interceptor chain (spec JAX-RS §6.5).
+ * Wraps a terminal {@link MessageBodyReader} and a list of ordered interceptors.
  */
 final class CyranoReaderInterceptorContext implements ReaderInterceptorContext {
 

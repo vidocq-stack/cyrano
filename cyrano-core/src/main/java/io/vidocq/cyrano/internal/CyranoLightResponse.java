@@ -36,13 +36,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Implémentation minimale de {@link Response} (M1) — évite la dépendance à une impl
- * {@code RuntimeDelegate} (Cassini) pour les premiers tests d'intégration. Sera
- * remplacée en M2 par l'utilisation de {@link Response#ok()} et consorts une fois
- * Cassini disponible en runtime.
+ * Minimal implementation of {@link Response} (M1) — avoids implementation dependence on
+ * {@code RuntimeDelegate} (Cassini) for the first integration tests. Will be
+ * replaced in M2 by using {@link Response#ok()} and similar once Cassini is
+ * available at runtime.
  *
- * <p>Couvre uniquement les méthodes susceptibles d'être appelées par les tests M1 :
- * {@link #getStatus()}, {@link #readEntity(Class)} pour {@link String}.</p>
+ * <p>Only covers methods that may be called by M1 tests:
+ * {@link #getStatus()}, {@link #readEntity(Class)} for {@link String}.</p>
  */
 final class CyranoLightResponse extends Response {
 
@@ -80,9 +80,9 @@ final class CyranoLightResponse extends Response {
     }
 
     /**
-     * Construit une vue {@link Response} immuable à partir d'un {@link CyranoClientResponseContext}
-     * (post-pipeline filtres) et de la chaîne de body déjà extraite — utilisée par les
-     * {@code ResponseExceptionMapper} et le default mapper (spec §8).
+     * Builds an immutable {@link Response} view from a {@link CyranoClientResponseContext}
+     * (post-pipeline filters) and body string already extracted — used by
+     * {@code ResponseExceptionMapper} and the default mapper (spec §8).
      */
     static CyranoLightResponse of(CyranoClientResponseContext ctx, String body) {
         return of(ctx, body, null);
@@ -90,7 +90,7 @@ final class CyranoLightResponse extends Response {
 
     /**
      * Variant with configuration — enables readEntity() to use registered MessageBodyReaders
-     * and ReaderInterceptors (spec §4.2, §6.5).
+     * and ReaderInterceptors (spec §4.2 §6.5).
      */
     static CyranoLightResponse of(CyranoClientResponseContext ctx, String body,
                                    CyranoClientConfiguration configuration) {
@@ -192,7 +192,6 @@ final class CyranoLightResponse extends Response {
     }
 
     private static UnsupportedOperationException nope() {
-        return new UnsupportedOperationException("M1 minimal : méthode non supportée");
+        return new UnsupportedOperationException("M1 minimal: method not supported");
     }
 }
-

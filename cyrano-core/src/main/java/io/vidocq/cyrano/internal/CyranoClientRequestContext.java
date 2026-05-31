@@ -35,15 +35,15 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * Contexte {@link ClientRequestContext} (JAX-RS §6.3 + MicroProfile Rest Client §4.2)
- * exposé aux {@link jakarta.ws.rs.client.ClientRequestFilter} enregistrés via le builder.
+ * Context {@link ClientRequestContext} (JAX-RS §6.3 + MicroProfile Rest Client §4.2)
+ * exposed to {@link jakarta.ws.rs.client.ClientRequestFilter} registered via the builder.
  *
- * <p>Couvre les méthodes effectivement utilisées par le TCK MP Rest Client 4.0 :
- * URI/méthode HTTP/headers/properties/entity/abortWith/Configuration. Le
- * {@link #getClient()} renvoie {@code null} (Cyrano n'expose pas le JAX-RS {@code Client}).</p>
+ * <p>Covers the methods actually used by TCK MP Rest Client 4.0:
+ * URI/ HTTP method/headers/properties/entity/abortWith/Configuration. The
+ * {@link #getClient()} returns {@code null} (Cyrano does not expose the JAX-RS {@code Client}).</p>
  *
- * <p>État mutable — les filtres peuvent modifier URI, méthode, headers, entity, ou
- * appeler {@link #abortWith(Response)} pour court-circuiter le transport.</p>
+ * <p>Mutable state — filters can modify the URI, method, headers, entity, or
+ * call {@link #abortWith(Response)} to short-circuit the transport.</p>
  */
 final class CyranoClientRequestContext implements ClientRequestContext {
 
@@ -68,7 +68,7 @@ final class CyranoClientRequestContext implements ClientRequestContext {
         this.configuration = configuration;
     }
 
-    // ---- état observable pour le moteur ----
+    //---- Observable condition for engine ----
 
     boolean isAborted() { return abortResponse != null; }
     Response abortResponse() { return abortResponse; }
@@ -206,7 +206,7 @@ final class CyranoClientRequestContext implements ClientRequestContext {
         if (mediaType != null) headers.putSingle("Content-Type", mediaType.toString());
     }
 
-    /** Setter interne — utilisé par le handler pour pré-remplir avant les filtres. */
+    /** Internal setter — used by the handler to pre-populate before filters. */
     void setEntityInternal(Object entity, Class<?> cls, Type type) {
         this.entity = entity;
         this.entityClass = cls;

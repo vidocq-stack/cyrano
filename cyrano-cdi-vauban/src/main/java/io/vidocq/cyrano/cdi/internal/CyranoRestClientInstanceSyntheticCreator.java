@@ -24,10 +24,11 @@ import java.lang.reflect.Type;
 import java.util.Iterator;
 
 /**
- * Bean synthétique pour @RestClient Instance<T>.
+ * Synthetic bean for {@code @RestClient Instance<T>}.
  *
- * <p>Vauban ne résout pas correctement ce cas pour certains tests TCK (retour EventImpl).
- * On injecte une Instance qui relance explicitement une sélection CDI de type T + @RestClient.</p>
+ * <p>Vauban does not resolve this case correctly for some TCK tests (backed by EventImpl).
+ * The injected instance explicitly re-runs a CDI selection of type {@code T} qualified
+ * with {@code @RestClient}.</p>
  */
 public final class CyranoRestClientInstanceSyntheticCreator implements SyntheticBeanCreator<Object> {
 
@@ -46,7 +47,7 @@ public final class CyranoRestClientInstanceSyntheticCreator implements Synthetic
                 return c;
             }
         }
-        throw new UnsatisfiedResolutionException("@RestClient Instance<T> doit etre parametre avec une interface client");
+        throw new UnsatisfiedResolutionException("@RestClient Instance<T> must be parameterized with a client interface");
     }
 
     private static final class RestClientInstanceAdapter implements Instance<Object> {

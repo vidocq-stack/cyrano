@@ -115,7 +115,7 @@ class CyranoM45Test {
     void feature_registered_on_interface_is_invoked_at_build_time() {
         AnnotatedFeatureApi client = new CyranoRestClientBuilder().baseUri(baseUri).build(AnnotatedFeatureApi.class);
 
-        assertTrue(TestFeature.invoked, "Feature.configure(...) doit être invoqué pendant build()");
+        assertTrue(TestFeature.invoked, "Feature.configure(...) must be invoked during build()");
         assertEquals("pong", client.ping());
     }
 

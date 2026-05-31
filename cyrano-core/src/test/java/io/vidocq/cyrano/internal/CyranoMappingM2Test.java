@@ -53,15 +53,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests d'intégration M2 — mapping complet des requêtes/réponses : tous les types de
- * paramètre (header, cookie, form, matrix, bean, body JSON), {@code @DefaultValue},
+ * M2 integration tests — complete mapping of queries/responses: all types of
+ * parameter (header, cookie, form, matrix, bean, body JSON), {@code @DefaultValue},
  * {@code @Consumes}/{@code @Produces}, {@code @ClientHeaderParam} (statique + dynamique),
- * désérialisation POJO/{@link Optional}/{@link List}/{@link Set} via JSON-B,
- * {@link ResponseExceptionMapper} et default mapper (HTTP ≥ 400 → {@link WebApplicationException}).
+ * POJO/{@link Optional}/{@link List}/{@link Set} via JSON-B,
+ * {@link ResponseExceptionMapper} and default mapper (HTTP ≥ 400 → {@link WebApplicationException}).
  */
 class CyranoMappingM2Test {
 
-    // ----- POJO partagé pour les tests JSON-B -----
+    //----- POJO shared for JSON-B tests -----
     public static final class Item {
         public String name;
         public int qty;
@@ -127,7 +127,7 @@ class CyranoMappingM2Test {
         @ClientHeaderParam(name = "X-Dyn", value = "{computeHeader}")
         String dyn();
 
-        // méthode default invoquée par @ClientHeaderParam(value="{computeHeader}")
+        //default method invoked by @ClientHeaderParam(value="{computeHeader}")
         default String computeHeader() {
             return "computed-42";
         }
@@ -220,7 +220,7 @@ class CyranoMappingM2Test {
         return new CyranoRestClientBuilder().baseUri(baseUri).register(provider).build(SvcClient.class);
     }
 
-    // -------- §3.1 binding tests --------
+    //-------- §3.1 binding tests ---------
 
     @Test
     void header_param_is_sent_spec_section3_1() {
@@ -268,7 +268,7 @@ class CyranoMappingM2Test {
         SvcClient c = newClient();
         c.matrix("v1");
         assertTrue(lastEx.get().getRequestURI().toString().contains(";x=v1"),
-                "URI doit contenir le segment matrix ;x=v1 — était " + lastEx.get().getRequestURI());
+                "URI must contain the matrix segment ;x=v1 — was " + lastEx.get().getRequestURI());
     }
 
     @Test
@@ -284,7 +284,7 @@ class CyranoMappingM2Test {
         Filter f = new Filter();
         f.q = "hello";
         f.region = "eu";
-        // limit non set → @DefaultValue("10") s'applique
+        //limit no set → @DefaultValue("10") applies
         c.beanParam(f);
         var ex = lastEx.get();
         assertEquals("eu", ex.getRequestHeaders().getFirst("X-Region"));
@@ -293,7 +293,7 @@ class CyranoMappingM2Test {
         assertTrue(rq.contains("limit=10"), rq);
     }
 
-    // -------- §4.2 / §5 JSON-B body / response --------
+    //------- §4.2 / §5 JSON-B body / response --------
 
     @Test
     void post_body_serialized_via_jsonb_spec_section4_2() {
@@ -312,7 +312,7 @@ class CyranoMappingM2Test {
         Item it = c.getItem(42);
         assertEquals("item-42", it.name);
         assertEquals(3, it.qty);
-        // Accept header présent (@Produces)
+        //Accept header present (@Produces)
         assertEquals("application/json", lastEx.get().getRequestHeaders().getFirst("Accept"));
     }
 
@@ -346,7 +346,7 @@ class CyranoMappingM2Test {
         assertTrue(opt.isEmpty());
     }
 
-    // -------- §7/§8 exception mapping --------
+    //-------- §7/§8 exception mapping ---------
 
     @Test
     void default_exception_mapper_throws_WebApplicationException_spec_section8() {
@@ -364,10 +364,10 @@ class CyranoMappingM2Test {
 
     @Test
     void smoke_check_invariants() {
-        // Garantit que le serveur fonctionne pour les autres tests même quand exécutés isolément.
+        //Ensures that the server works for other tests even when executed in isolation.
         SvcClient c = newClient();
         assertNotNull(c);
-        assertNull(lastEx.get(), "Aucun appel n'a encore eu lieu");
+        assertNull(lastEx.get(), "No call has happened yet");
         c.echo(1L, "z");
         assertNotNull(lastEx.get());
         assertFalse(lastBody.get() == null);

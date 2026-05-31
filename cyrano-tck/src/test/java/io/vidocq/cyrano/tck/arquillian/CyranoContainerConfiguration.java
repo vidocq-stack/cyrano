@@ -10,21 +10,21 @@ import org.jboss.arquillian.container.spi.ConfigurationException;
 import org.jboss.arquillian.container.spi.client.container.ContainerConfiguration;
 
 /**
- * Configuration Arquillian du container Cyrano TCK — POJO sans propriété requise.
+ * Arquillian configuration of container Cyrano TCK — POJO without property required.
  *
- * <p>Cyrano étant un <strong>client REST</strong> (et non un serveur), aucun
- * port ni hôte ne doit être configuré : le TCK MicroProfile Rest Client 4.0
- * démarre lui-même un backend <strong>WireMock</strong> dans la JVM de test
- * via {@code WiremockArquillianTest.setupServer()} ; le rôle du
- * {@link CyranoDeployableContainer} se réduit à accepter les déploiements
- * Arquillian et à exécuter les tests en local (protocole Arquillian
+ * <p>Cyrano being a <strong> client REST</strong> (not a server), none
+ * port and host should not be configured: the TCK MicroProfile Rest Client 4.0
+ * starts a <strong>WireMock</strong> backend in the test JVM
+ * via {@code WiremockArquillianTest.setupServer()}; the role of
+ * {@link CyranoDeployableContainer} reduces itself to accepting deployments
+ * Arquillian and to perform the tests in local (Arquillian protocol)
  * {@code Local}).</p>
  */
 public class CyranoContainerConfiguration implements ContainerConfiguration {
 
     @Override
     public void validate() throws ConfigurationException {
-        // rien à valider : aucune propriété requise.
+        //nothing to validate: no property required.
     }
 }
 

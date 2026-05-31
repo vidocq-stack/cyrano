@@ -1,8 +1,8 @@
 /**
- * Repackage JPMS explicite de l'API MicroProfile Rest Client 4.0.
+ * Explicit JPMS repackage of the MicroProfile Rest Client 4.0 API.
  *
- * <p>Le JAR upstream est un module automatique, inutilisable avec jlink.
- * Ce module republie les memes packages API avec un module-info explicite.</p>
+ * <p>The upstream JAR is an automatic module, unusable with jlink.
+ * This module republishes the same API packages with an explicit module-info.</p>
  */
 module io.vidocq.cyrano.mp.rest.client.api {
     requires java.logging;
