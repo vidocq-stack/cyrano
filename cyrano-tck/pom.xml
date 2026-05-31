@@ -39,7 +39,7 @@
         <cyrano.version>0.1.0-SNAPSHOT</cyrano.version>
         <microprofile.rest.client.version>4.0</microprofile.rest.client.version>
         <cassini.version>0.1.0-SNAPSHOT</cassini.version>
-        <chappe.version>0.1.0-SNAPSHOT</chappe.version>
+        <chappe.version>0.2.0-SNAPSHOT</chappe.version>
     </properties>
 
     <repositories>
