@@ -60,6 +60,21 @@
     <build>
         <plugins>
             <!--
+                Vauban codegen : META-INF/vauban-beans.list + _ClientProxy/_Factory pour la découverte
+                runtime (scanClasspath). BCE dans un package exporté → pas d'opens. Weld-safe (cf. knock).
+            -->
+            <plugin>
+                <groupId>io.vidocq.vauban</groupId>
+                <artifactId>vauban-maven-plugin</artifactId>
+                <version>0.1.0-SNAPSHOT</version>
+                <executions>
+                    <execution>
+                        <id>generate</id>
+                        <goals><goal>generate</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
                 JPMS workaround cyrano-cdi-vauban : même problème que cyrano-core.
                 vauban-core est test-scope, absent de target/javamodules/ ; si
                 module-info.class est dans target/classes, Maven active JPMS pour
