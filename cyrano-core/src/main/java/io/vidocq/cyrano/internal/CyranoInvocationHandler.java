@@ -71,6 +71,8 @@ import java.util.concurrent.Executor;
  */
 public class CyranoInvocationHandler {
 
+    private static final System.Logger LOG = System.getLogger(CyranoInvocationHandler.class.getName());
+
     private final URI baseUri;
     private final List<RequestSpec> specs;
     private final CyranoHttpTransport transport;
@@ -143,7 +145,7 @@ public class CyranoInvocationHandler {
         //5. Pipeline ClientRequestFilter (top-up priorities)
         var reqFilters = configuration.getRequestFilters();
         if (Boolean.getBoolean("cyrano.debug.providers")) {
-            System.err.println("[CyranoDebug] req filters for " + spec.method().getName()
+            LOG.log(System.Logger.Level.DEBUG, () -> "req filters for " + spec.method().getName()
                     + " (" + reqFilters.size() + ") = "
                     + reqFilters.stream().map(f -> f.getClass().getSimpleName()).toList());
         }
@@ -965,7 +967,7 @@ public class CyranoInvocationHandler {
                 }
                 if (resolved instanceof Jsonb jsonb) {
                     if (debug) {
-                        System.err.println("[CyranoDebug] Jsonb via ContextResolver="
+                        LOG.log(System.Logger.Level.DEBUG, () -> "Jsonb via ContextResolver="
                                 + inst.getClass().getName() + " for " + targetType.getName());
                     }
                     return jsonb;
@@ -973,7 +975,7 @@ public class CyranoInvocationHandler {
             }
         }
         if (debug) {
-            System.err.println("[CyranoDebug] Jsonb par defaut pour " + targetType.getName()
+            LOG.log(System.Logger.Level.DEBUG, () -> "Jsonb default for " + targetType.getName()
                     + " (instances=" + configuration.getInstances().size() + ")");
         }
         return JsonbHolder.get();

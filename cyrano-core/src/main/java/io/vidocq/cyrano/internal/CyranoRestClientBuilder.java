@@ -52,6 +52,8 @@ import java.util.concurrent.TimeUnit;
  */
 public final class CyranoRestClientBuilder implements RestClientBuilder {
 
+    private static final System.Logger LOG = System.getLogger(CyranoRestClientBuilder.class.getName());
+
     private final CyranoClientConfiguration configuration = new CyranoClientConfiguration();
     private URI baseUri;
     private ExecutorService executorService;
@@ -302,7 +304,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         //Spec §10.2 — RestClientListener.onNewClient() is invoked via ServiceLoader before build
         var restClientListeners = loadServices(org.eclipse.microprofile.rest.client.spi.RestClientListener.class, clazz.getClassLoader());
         if (Boolean.getBoolean("cyrano.debug.listeners")) {
-            System.err.println("[CyranoDebug] RestClientListener count=" + restClientListeners.size()
+            LOG.log(System.Logger.Level.DEBUG, () -> "RestClientListener count=" + restClientListeners.size()
                     + " for " + clazz.getName());
         }
         for (var listener : restClientListeners) {
@@ -328,7 +330,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         if (builderListenersApplied) return;
         var builderListeners = loadServices(org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener.class, preferredLoader);
         if (Boolean.getBoolean("cyrano.debug.listeners")) {
-            System.err.println("[CyranoDebug] RestClientBuilderListener count=" + builderListeners.size());
+            LOG.log(System.Logger.Level.DEBUG, () -> "RestClientBuilderListener count=" + builderListeners.size());
         }
         for (var listener : builderListeners) {
             try {
