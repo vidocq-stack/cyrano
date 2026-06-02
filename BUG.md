@@ -10,7 +10,7 @@ minimal repro, root cause hypothesis, status.
 
 - **Opened**: 2026-05-25
 - **Last revisited**: 2026-06-03
-- **Status**: ⚠️ OPEN — active workaround (root cause refined)
+- **Status**: ⚠️ OPEN — narrowed workaround (1 module instead of the whole reactor)
 
 ### Symptom
 
@@ -64,6 +64,10 @@ and fails with `module not found`.
 3. ⏳ Alternative: switch the affected `requires static` to non-static where
    feasible (would force the Jakarta APIs onto the compile-scope, raising
    the runtime footprint but simplifying the build).
-4. ⏳ Alternative: keep the workaround but narrow it to `cyrano-mp-rest-client-api`
-   only (the rest of the reactor builds fine without it — to be verified
-   module-by-module).
+4. ✅ ~~Narrow the workaround to `cyrano-mp-rest-client-api` only~~ —
+   applied 2026-06-03. The `<build>` block that copied compile-scope JARs
+   into `target/javamodules` for the whole reactor has been moved into
+   `cyrano-mp-rest-client-api/pom.xml`. Verified: `cyrano-api`,
+   `cyrano-core`, and `cyrano-cdi-vauban` build cleanly without it
+   (BUILD SUCCESS, 69/69 tests pass). Only the repackage module retains
+   the workaround.

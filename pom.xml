@@ -162,48 +162,11 @@
         </dependencies>
     </dependencyManagement>
 
-    <build>
-        <!--
-            JPMS build helper : copie des dépendances compile-scope dans target/javamodules/
-            pour stabiliser le module-path utilisé par javac sur tous les modules du reactor.
-            Le module de repackage cyrano-mp-rest-client-api fournit un module explicite
-            pour la spec MP Rest Client (jlink-compatible).
-
-            Pourquoi encore nécessaire (vérifié 2026-06-03, voir BUG.md CYR-001) :
-            maven-compiler-plugin 3.13.0 ne place pas automatiquement les dépendances
-            'requires static' (jakarta.cdi/jakarta.inject/jakarta.annotation dans
-            cyrano-mp-rest-client-api/module-info.java) sur le module-path pendant
-            le testCompile, alors que ces JARs ont pourtant un vrai module-info.class.
-            Symptôme sans workaround : "module not found: jakarta.annotation" etc.
-        -->
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.8.1</version>
-                <executions>
-                    <execution>
-                        <id>copy-compile-deps-to-module-path</id>
-                        <phase>initialize</phase>
-                        <goals><goal>copy-dependencies</goal></goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/javamodules</outputDirectory>
-                            <includeScope>compile</includeScope>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <release>25</release>
-                    <compilerArgs>
-                        <arg>--module-path</arg>
-                        <arg>${project.build.directory}/javamodules</arg>
-                    </compilerArgs>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <!--
+        CYR-001 (2026-06-03) : le workaround JPMS qui vivait ici a été déplacé
+        dans cyrano-mp-rest-client-api/pom.xml où il est strictement nécessaire
+        (requires static jakarta.cdi/inject/annotation mal routés par
+        maven-compiler-plugin 3.13.0 + Maven 3.9.16 au testCompile).
+        Les autres modules du reactor n'en ont pas besoin.
+    -->
 </project>
