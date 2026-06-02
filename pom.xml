@@ -168,6 +168,13 @@
             pour stabiliser le module-path utilisé par javac sur tous les modules du reactor.
             Le module de repackage cyrano-mp-rest-client-api fournit un module explicite
             pour la spec MP Rest Client (jlink-compatible).
+
+            Pourquoi encore nécessaire (vérifié 2026-06-03, voir BUG.md CYR-001) :
+            maven-compiler-plugin 3.13.0 ne place pas automatiquement les dépendances
+            'requires static' (jakarta.cdi/jakarta.inject/jakarta.annotation dans
+            cyrano-mp-rest-client-api/module-info.java) sur le module-path pendant
+            le testCompile, alors que ces JARs ont pourtant un vrai module-info.class.
+            Symptôme sans workaround : "module not found: jakarta.annotation" etc.
         -->
         <plugins>
             <plugin>

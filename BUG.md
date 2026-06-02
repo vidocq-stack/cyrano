@@ -9,17 +9,14 @@ minimal repro, root cause hypothesis, status.
 ## CYR-001 — JPMS bypassed via manual copy of compile-scope JARs
 
 - **Opened**: 2026-05-25
-- **Status**: ⚠️ OPEN — active workaround
+- **Last revisited**: 2026-06-03
+- **Status**: ⚠️ OPEN — active workaround (root cause refined)
 
 ### Symptom
 
 The root `pom.xml` of cyrano uses `maven-dependency-plugin` (phase `initialize`) to
 copy all compile-scope JARs into `target/javamodules/`, then passes
 `--module-path ${project.build.directory}/javamodules` manually to the compiler.
-
-This workaround indicates that Maven's native JPMS resolution does not work for
-certain compile-scope dependencies of cyrano, notably `microprofile-rest-client-api`,
-`vauban-core`/`vauban-classloader-spi`, `champollion-jsonp`/`champollion-jsonb`.
 
 ### Minimal Repro
 
@@ -28,24 +25,45 @@ grep -n "javamodules\|module-path" cyrano/pom.xml
 # reveals the two manually configured plugins
 ```
 
-Without the workaround (removing the `maven-dependency-plugin` config), `javac` fails with:
+Without the workaround (removing the `<build>` block), `./mvnw -ntp clean install`
+fails on `cyrano-mp-rest-client-api` at the testCompile phase with:
 
 ```
-error: module not found: org.eclipse.microprofile.rest.client
+[ERROR] module not found: jakarta.annotation
+[ERROR] module not found: jakarta.inject
+[ERROR] module not found: jakarta.cdi
+[ERROR] module not found: jakarta.ws.rs
 ```
 
-### Root Cause Hypothesis
+### Root Cause (refined 2026-06-03)
 
-The affected JARs do not have a proper `module-info.class` — they only expose an
-`Automatic-Module-Name` in their `MANIFEST.MF`. Version 4.x of `maven-compiler-plugin`
-does not automatically place them on `--module-path` for projects with an explicit
-`module-info.java`. Copying to `target/javamodules/` allows javac to resolve them
-as automatic modules by deriving their name from the JAR filename.
+Initial hypothesis (missing `Automatic-Module-Name`) was wrong for most deps:
+
+- ✅ `microprofile-rest-client-api` — initial issue (automatic module only),
+  now resolved by the internal repackage module `cyrano-mp-rest-client-api`
+  which publishes a real `module-info.class`.
+- ✅ `vauban-core`, `vauban-classloader-spi`, `champollion-jsonp`,
+  `champollion-jsonb` — **already ship a real `module-info.class`** in their
+  published JARs (verified via `unzip -l ~/.m2/repository/.../*.jar`).
+
+The actual remaining cause is **`maven-compiler-plugin` 3.13.0 + Maven 3.9.16
+not placing `requires static` dependencies on the `--module-path` automatically**
+during the `testCompile` phase. `cyrano-mp-rest-client-api/module-info.java`
+declares `requires static jakarta.cdi / jakarta.inject / jakarta.annotation`
+(plus `requires transitive jakarta.ws.rs`); without the workaround,
+javac receives those API JARs on the classpath instead of the module-path
+and fails with `module not found`.
 
 ### Resolution Path
 
-1. Check whether an upstream version of `microprofile-rest-client-api` publishes a
-   `module-info.class`. If so, bump the version and remove the workaround.
-2. Contact / PR upstream Eclipse MicroProfile to add a modular descriptor.
-3. Otherwise, wrap via an internal Cyrano module (`cyrano-mp-rest-client-api`) that provides
-   the missing `module-info.class` — a pattern already used for `ravel-mp-config-api`.
+1. ✅ ~~Repackage `microprofile-rest-client-api` with an explicit
+   `module-info.class`~~ — done via `cyrano-mp-rest-client-api`.
+2. ⏳ **Upgrade** `maven-compiler-plugin` to a version that correctly routes
+   `requires static` JPMS deps to `--module-path` during testCompile.
+   Track Apache `MCOMPILER` JIRA for the matching fix.
+3. ⏳ Alternative: switch the affected `requires static` to non-static where
+   feasible (would force the Jakarta APIs onto the compile-scope, raising
+   the runtime footprint but simplifying the build).
+4. ⏳ Alternative: keep the workaround but narrow it to `cyrano-mp-rest-client-api`
+   only (the rest of the reactor builds fine without it — to be verified
+   module-by-module).
