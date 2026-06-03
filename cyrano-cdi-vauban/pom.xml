@@ -75,19 +75,24 @@
                 </executions>
             </plugin>
             <!--
-                JPMS workaround cyrano-cdi-vauban : même problème que cyrano-core.
-                vauban-core est test-scope, absent de target/javamodules/ ; si
-                module-info.class est dans target/classes, Maven active JPMS pour
-                testCompile et ne trouve pas les modules test sur le module-path.
-                Même solution en trois temps (voir cyrano-core/pom.xml).
+                JPMS workaround cyrano-cdi-vauban : same problem as cyrano-core.
+                vauban-core is test-scope, absent from target/javamodules/ ; if a
+                module-info.class is in target/classes, Maven enables JPMS at
+                default-compile and fails to find the provided jakarta.* modules
+                on the module-path.
+
+                Phase must run BEFORE `compile` (not before testCompile only) so
+                a non-clean `install -DskipTests` invocation (used by TCK runners
+                that don't run `clean`) also gets a fresh slate. `initialize` is
+                the earliest stable phase to drop the stale module-info.class.
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-clean-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>remove-module-info-before-testcompile</id>
-                        <phase>generate-test-sources</phase>
+                        <id>remove-stale-module-info</id>
+                        <phase>initialize</phase>
                         <goals><goal>clean</goal></goals>
                         <configuration>
                             <excludeDefaultDirectories>true</excludeDefaultDirectories>

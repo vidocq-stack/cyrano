@@ -87,12 +87,17 @@ class CyranoTckSmokeTest {
                 .baseUri(URI.create("http://127.0.0.1:1"))
                 .build(SampleClient.class);
         assertNotNull(client);
-        assertNotNull(client.getClass().getName());
-        //The proxy must be named Cyrano$<SimpleName> (Class-File API JEP 484, not Proxy)
+        String name = client.getClass().getName();
+        assertNotNull(name);
+        // The proxy must be a Class-File API (JEP 484) class named `Cyrano$<binaryWithoutPkg>`,
+        // where nested-class `$` separators are flattened to `_` to keep a single legible
+        // `Cyrano$` discriminator (see CyranoProxyGenerator). For a nested interface
+        // `CyranoTckSmokeTest.SampleClient` this resolves to
+        // `Cyrano$CyranoTckSmokeTest_SampleClient` — not `Cyrano$SampleClient`.
         org.junit.jupiter.api.Assertions.assertTrue(
-                client.getClass().getName().endsWith("Cyrano$SampleClient"),
-                "The proxy must be generated via the Class-File API and named Cyrano$SampleClient "
-                        + "— was " + client.getClass().getName());
+                name.contains("Cyrano$") && name.endsWith("SampleClient"),
+                "The proxy must be generated via the Class-File API with a single `Cyrano$` "
+                        + "prefix and end with the interface simple name — was " + name);
     }
 }
 
