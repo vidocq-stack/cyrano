@@ -34,6 +34,14 @@
             <artifactId>jakarta.annotation-api</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- Compile-only: supplies the VaubanComponentProvider service type referenced by the
+             APT-generated _VaubanComponents. Provided scope: no runtime dependency on Vauban. -->
+        <dependency>
+            <groupId>io.vidocq.vauban</groupId>
+            <artifactId>vauban-api</artifactId>
+            <version>0.2.0-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -59,21 +67,6 @@
 
     <build>
         <plugins>
-            <!--
-                Vauban codegen : META-INF/vauban-beans.list + _ClientProxy/_Factory pour la découverte
-                runtime (scanClasspath). BCE dans un package exporté → pas d'opens. Weld-safe (cf. knock).
-            -->
-            <plugin>
-                <groupId>io.vidocq.vauban</groupId>
-                <artifactId>vauban-maven-plugin</artifactId>
-                <version>0.2.0-SNAPSHOT</version>
-                <executions>
-                    <execution>
-                        <id>generate</id>
-                        <goals><goal>generate</goal></goals>
-                    </execution>
-                </executions>
-            </plugin>
             <!--
                 JPMS workaround cyrano-cdi-vauban : same problem as cyrano-core.
                 vauban-core is test-scope, absent from target/javamodules/ ; if a
@@ -111,12 +104,43 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!--
+                        Vauban codegen now runs as an ANNOTATION PROCESSOR on this module's own
+                        beans (the Maven plugin is reserved for freezing external, non-APT-processed
+                        dependency jars). During the main compile it generates _ClientProxy/_Factory,
+                        META-INF/vauban-beans.list (runtime discovery, both class path and module path)
+                        and an in-module _VaubanComponents per package (instantiation / producer
+                        invocation, no `opens … to io.vidocq.vauban.core`). Build-time only: adds no
+                        compile/runtime dependency on Vauban, and the output stays inert under Weld.
+                    -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>io.vidocq.vauban</groupId>
+                            <artifactId>vauban-processor</artifactId>
+                            <version>0.2.0-SNAPSHOT</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
                 <executions>
+                    <!-- Test fixtures are not application beans (the integration test bootstraps a
+                         container on the class path and resolves its often-nested test beans
+                         reflectively). Running the APT over them would emit a provider for nested
+                         fixtures (bogus package / cannot find symbol). -->
+                    <execution>
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <proc>none</proc>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>compile-module-info</id>
                         <phase>prepare-package</phase>
                         <goals><goal>compile</goal></goals>
                         <configuration>
+                            <!-- No annotation processing on the separate module-info compile
+                                 (the beans were already processed in the main compile). -->
+                            <proc>none</proc>
                             <compileSourceRoots>
                                 <compileSourceRoot>${project.basedir}/src/main/module-info</compileSourceRoot>
                             </compileSourceRoots>

@@ -25,6 +25,8 @@ module io.vidocq.cyrano.cdi.vauban {
     requires static jakarta.cdi;
     requires static jakarta.inject;
     requires static jakarta.annotation;
+    // Compile-only (optional at runtime): supplies the VaubanComponentProvider service type.
+    requires static io.vidocq.vauban.api;
 
     exports io.vidocq.cyrano.cdi.internal;
 
@@ -35,5 +37,12 @@ module io.vidocq.cyrano.cdi.vauban {
     //M4-3 — ProviderInstantiator CDI-aware (outs @RegisterProvider via BeanManager).
     provides io.vidocq.cyrano.runtime.ProviderInstantiator
             with io.vidocq.cyrano.cdi.internal.CyranoCdiProviderInstantiator;
+
+    // In-module instantiation and producer invocation of this package's beans (the @Produces in
+    // CyranoRestClientInstanceProducer and the synthetic creators/disposers), generated as
+    // _VaubanComponents co-located in io.vidocq.cyrano.cdi.internal — so the container needs no
+    // `opens … to io.vidocq.vauban.core`. APT-generated, inert under Weld.
+    provides io.vidocq.vauban.api.VaubanComponentProvider
+            with io.vidocq.cyrano.cdi.internal._VaubanComponents;
 }
 
