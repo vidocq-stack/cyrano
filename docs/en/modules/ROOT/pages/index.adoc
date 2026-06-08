@@ -52,7 +52,7 @@ A type-safe REST client does exactly the same thing: the application calls `user
 | CDI integration | `cyrano-cdi-vauban` — BCE `@Enhancement` on `@RegisterRestClient`, `@Synthesis` produces the `@RestClient`-qualified bean
 | jlink-ready | ✅ (the `cyrano-mp-rest-client-api` repackage neutralises the upstream automatic module)
 | MicroProfile Rest Client 4.0 TCK | 140 / 168 (~83 %) excluding SSL / timeouts / SSE — see xref:tck.adoc[TCK status]
-| License | Apache License 2.0
+| License | EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later
 |===
 
 == Three identity traits
@@ -109,4 +109,4 @@ The core implementation (`cyrano-core`) and the CDI integration (`cyrano-cdi-vau
 
 == License
 
-Apache License, Version 2.0 — see https://codeberg.org/Vidocq/cyrano/src/branch/main/LICENSE[LICENSE].
+EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later — see https://codeberg.org/Vidocq/cyrano/src/branch/main/LICENSE[LICENSE].

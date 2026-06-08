@@ -52,7 +52,7 @@ Un client REST typé fait exactement le même geste : le code applicatif appelle
 | Intégration CDI | `cyrano-cdi-vauban` — BCE `@Enhancement` sur `@RegisterRestClient`, `@Synthesis` produit le bean qualifié `@RestClient`
 | Prête pour jlink | ✅ (le repackage `cyrano-mp-rest-client-api` neutralise le module automatique upstream)
 | TCK MicroProfile Rest Client 4.0 | 140 / 168 (~83 %) hors SSL / timeouts / SSE — voir xref:tck.adoc[état TCK]
-| Licence | Apache License 2.0
+| Licence | EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later
 |===
 
 == Trois traits identitaires
@@ -109,4 +109,4 @@ L'implémentation core (`cyrano-core`) et l'intégration CDI (`cyrano-cdi-vauban
 
 == Licence
 
-Apache License, Version 2.0 — voir https://codeberg.org/Vidocq/cyrano/src/branch/main/LICENSE[LICENSE].
+EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later — voir https://codeberg.org/Vidocq/cyrano/src/branch/main/LICENSE[LICENSE].
