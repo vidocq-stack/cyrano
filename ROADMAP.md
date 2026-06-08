@@ -305,7 +305,7 @@ Rest Client 4.0 TCK **100% PASS** via `./run-official-tck-mp-rest-client-4.0.sh 
 | `docs/integration-cassini.md` documentation | Use Cyrano to call external Cassini services | [x] |
 | `docs/integration-vidocq.md` documentation | Cyrano configuration in vidocq, base URL via Ravel | [x] |
 | ADR-001 proxy generation strategy (Class-File API vs reflection) | Rationale, AOT, jlink, GraalVM | [x] |
-| Module wrapper `vidocq-runtime-cyrano-extension` in `vidocq` | Activates Cyrano through a single dependency, with no additional Java code — to be delivered in the `vidocq` repository | [ ] |
+| Module wrapper `vidocq-runtime-cyrano-rest-client-extension` in `vidocq` | Activates Cyrano through a single dependency, with no additional Java code — to be delivered in the `vidocq` repository | [ ] |
 | ServiceLoader BCE (`META-INF/services/...BuildCompatibleExtension`) | `CyranoRestClientCdiExtension` exposed through the standard CDI 4.1 contract, covered by `CyranoRestClientCdiExtensionDiscoveryTest` | [x] |
 | `module-info.java` `provides ... with` | JPMS for service files, validated by the BCE discovery test | [x] |
 

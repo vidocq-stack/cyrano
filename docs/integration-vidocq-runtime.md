@@ -54,7 +54,7 @@ UsersClient usersClient;
 - Architecture ADR: `docs/adr/ADR-001-classfile-proxy-strategy.md`.
 - On the Cyrano side, the BCE `CyranoRestClientCdiExtension` is already published via
   `META-INF/services/...BuildCompatibleExtension` and `module-info.java provides ... with`.
-- Wrapper module `vidocq-runtime-cyrano-extension`: to be implemented in the `vidocq` repo.
+- Wrapper module `vidocq-runtime-cyrano-rest-client-extension`: to be implemented in the `vidocq` repo.
 
 ## Rollout Checklist
 
