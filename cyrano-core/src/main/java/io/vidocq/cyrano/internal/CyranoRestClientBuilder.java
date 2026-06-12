@@ -324,16 +324,21 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         }
         applyTckListenerFallback(clazz, restClientListeners.isEmpty());
         applyFeatures();
-        final CyranoProxyCache.Entry entry;
+        // Codegen rule (audit CG-01): generated artifacts first (ServiceLoader, then
+        // the $$CyranoClient naming convention); runtime Class-File generation is the
+        // documented fallback for interfaces compiled without the Cyrano processor.
+        final io.vidocq.cyrano.internal.gen.ClientProxyRegistry.Resolved resolved;
         try {
-            entry = CyranoProxyCache.getOrGenerate(clazz);
+            resolved = io.vidocq.cyrano.internal.gen.ClientProxyRegistry.resolve(clazz);
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new RestClientDefinitionException(
                     "Invalid client interface: " + clazz.getName() + " — " + e.getMessage(), e);
         }
         var transport = new CyranoHttpTransport(configuration);
-        var handler = new CyranoInvocationHandler(baseUri, entry.specs(), transport, configuration);
-        return CyranoProxyGenerator.instantiate(entry.proxyClass(), handler);
+        var handler = new CyranoInvocationHandler(baseUri, resolved.specs(), transport, configuration);
+        @SuppressWarnings("unchecked")
+        T proxy = (T) resolved.instantiator().apply(handler);
+        return proxy;
     }
 
     private void applyBuilderListeners(ClassLoader preferredLoader) {

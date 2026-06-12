@@ -67,5 +67,10 @@ module io.vidocq.cyrano.core {
     //M4-3 — SPI for instantization of providers (filters, mappers, etc.): allows
     // adapters such as cyrano-cdi-vauban to provide CDI-managed instances.
     uses io.vidocq.cyrano.runtime.ProviderInstantiator;
+
+    //CG-01 — generated $$CyranoClient factories (Cyrano annotation processor):
+    //a strict-JPMS user module declares `provides ClientProxyFactory with ...`
+    //and keeps its client package fully encapsulated.
+    uses io.vidocq.cyrano.spi.gen.ClientProxyFactory;
 }
 

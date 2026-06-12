@@ -79,7 +79,7 @@ import java.util.concurrent.Executor;
  * §4.2 (MessageBody), §5 (providers), §6.5 ({@code @ClientHeaderParam}),
  * §8 (default exception mapping).</p>
  */
-public class CyranoInvocationHandler {
+public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientInvoker {
 
     private static final System.Logger LOG = System.getLogger(CyranoInvocationHandler.class.getName());
 
@@ -111,10 +111,12 @@ public class CyranoInvocationHandler {
      * @param args arguments passed by the caller
      */
     /** Spec §8.1 — called by the synthetic close() of the proxy. */
+    @Override
     public void markClosed() {
         this.closed = true;
     }
 
+    @Override
     public Object invoke(Object proxy, int methodIndex, Object[] args) throws Exception {
         RequestSpec spec = specs.get(methodIndex);
         return io.vidocq.cyrano.runtime.ProviderInstantiator.current().aroundInvoke(
@@ -1050,9 +1052,10 @@ public class CyranoInvocationHandler {
         ResolvedBindings r = resolveBindings(spec, args);
         URI subUri = buildUri(spec, r);
         Class<?> subIface = spec.returnType();
-        var entry = CyranoProxyCache.getOrGenerate(subIface);
-        var subHandler = new CyranoInvocationHandler(subUri, entry.specs(), transport, configuration);
-        return CyranoProxyGenerator.instantiate(entry.proxyClass(), subHandler);
+        // Sub-resource proxies follow the same generated-first resolution chain (CG-01).
+        var resolved = io.vidocq.cyrano.internal.gen.ClientProxyRegistry.resolve(subIface);
+        var subHandler = new CyranoInvocationHandler(subUri, resolved.specs(), transport, configuration);
+        return resolved.instantiator().apply(subHandler);
     }
 
     /** Placeholder to help usage analysis — removable. */
