@@ -17,18 +17,15 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later
  */
-/**
- * Cyrano API: controlled re-exposure of the MicroProfile Rest Client 4.0 spec
- * and stable public SPI. The content will be expanded over the milestones (M1+).
- *
- * <p><strong>JPMS note — jlink compatibility</strong>: the MP Rest Client spec is
- * imported via {@code io.vidocq.cyrano.mp.rest.client.api}, an explicit repackage
- * module that avoids the use of an automatic module in the graph.</p>
- */
-module io.vidocq.cyrano.api {
-    requires transitive io.vidocq.cyrano.mp.rest.client.api;
-    requires transitive jakarta.ws.rs;
+package io.vidocq.cyrano.spi.gen;
 
-    exports io.vidocq.cyrano.spi;
-    exports io.vidocq.cyrano.spi.gen;
+/**
+ * Dynamic header {@code @ClientHeaderParam(value = "{methodName}")} —
+ * MP Rest Client 4.0 §6.5.
+ *
+ * @param methodName name of the {@code default}/{@code static} compute method
+ * @param required   {@code true} (default) propagates compute failures;
+ *                   {@code false} silently omits the header on failure
+ */
+public record DynamicHeaderDescriptor(String methodName, boolean required) {
 }
