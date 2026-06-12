@@ -80,6 +80,7 @@
     <modules>
         <module>cyrano-mp-rest-client-api</module>
         <module>cyrano-api</module>
+        <module>cyrano-processor</module>
         <module>cyrano-core</module>
         <module>cyrano-cdi-vauban</module>
     </modules>
@@ -167,6 +168,11 @@
             <dependency>
                 <groupId>io.vidocq.cyrano</groupId>
                 <artifactId>cyrano-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.vidocq.cyrano</groupId>
+                <artifactId>cyrano-processor</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
