@@ -7,7 +7,7 @@
 
 **MicroProfile Rest Client 4.0** implementation in the Vidocq style:
 zero third-party libraries, JDK 25, virtual threads, strict JPMS, proxy generation
-via the Class-File API (JEP 484), JDK `java.net.http.HttpClient` transport, CDI integration
+via APT source generation (cyrano-processor), Class-File API (JEP 484) runtime fallback, JDK `java.net.http.HttpClient` transport, CDI integration
 via Vauban, JSON serialisation via Champollion (Jakarta JSON-B).
 
 ## Modules
@@ -15,7 +15,8 @@ via Vauban, JSON serialisation via Champollion (Jakarta JSON-B).
 | Module | Role |
 |---|---|
 | `cyrano-api` | Re-exports the `org.eclipse.microprofile.rest.client` spec + public SPI |
-| `cyrano-core` | Standalone implementation: interface scanning, Class-File API proxy generation, JDK HttpClient transport, JSON-B mapping |
+| `cyrano-processor` | APT processor generating `$$CyranoClient` sources at compile time (primary proxy path) |
+| `cyrano-core` | Standalone implementation: proxy resolution chain, interface scanning + Class-File API proxy generation (runtime fallback), JDK HttpClient transport, JSON-B mapping |
 | `cyrano-cdi-vauban` | Vauban BCE discovering `@RegisterRestClient` interfaces |
 | `cyrano-tck` | Official MicroProfile Rest Client 4.0 TCK runner (out-of-reactor) |
 
@@ -48,7 +49,7 @@ sdk env   # java=25-tem, maven=3.9.16
 
 ```
 @Inject @RestClient MyService client
-  → proxy Cyrano$MyService (Class-File API, JEP 484)
+  → proxy MyService$$CyranoClient (APT) ou Cyrano$MyService (fallback Class-File API, JEP 484)
   → CyranoInvocationHandler
   → HttpRequest (java.net.http)
   → CyranoHttpTransport (virtual thread)

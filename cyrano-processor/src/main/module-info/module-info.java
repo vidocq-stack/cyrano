@@ -36,12 +36,12 @@
  */
 module io.vidocq.cyrano.processor {
     requires java.compiler;
+    // Transitively provides io.vidocq.cyrano.mp.rest.client.api and jakarta.ws.rs.
     requires io.vidocq.cyrano.api;
-    requires io.vidocq.cyrano.mp.rest.client.api;
     requires jakarta.ws.rs;
 
-    exports io.vidocq.cyrano.processor;
-
+    // No exports: an APT processor is consumed exclusively through the
+    // javax.annotation.processing.Processor SPI below (javac ServiceLoader).
     provides javax.annotation.processing.Processor
             with io.vidocq.cyrano.processor.CyranoClientProcessor;
 }

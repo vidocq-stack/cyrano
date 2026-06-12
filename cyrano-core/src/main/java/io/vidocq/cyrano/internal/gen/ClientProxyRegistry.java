@@ -100,6 +100,24 @@ public final class ClientProxyRegistry {
     }
 
     private static Resolved tryServiceLoader(Class<?> iface) {
+        // Module path first: a strict-JPMS user module declares its factory via
+        // `provides ClientProxyFactory with ...` only — that declaration is honoured
+        // by the layer overload, NOT by ServiceLoader.load(type, classLoader) which
+        // reads META-INF/services files alone (the processor emits one for the
+        // classpath case, but a hand-written module-info must work too).
+        ModuleLayer layer = iface.getModule().getLayer();
+        if (layer != null) {
+            try {
+                for (ClientProxyFactory factory : ServiceLoader.load(layer, ClientProxyFactory.class)) {
+                    if (factory.clientInterface() == iface) {
+                        return fromFactory(Source.SERVICE_LOADER, factory);
+                    }
+                }
+            } catch (java.util.ServiceConfigurationError e) {
+                LOG.log(System.Logger.Level.DEBUG,
+                        () -> "ClientProxyFactory layer scan failed: " + e);
+            }
+        }
         for (ClassLoader loader : candidateLoaders(iface)) {
             try {
                 for (ClientProxyFactory factory : ServiceLoader.load(ClientProxyFactory.class, loader)) {

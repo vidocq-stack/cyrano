@@ -8,9 +8,11 @@
 - Strict JPMS architecture: `cyrano-api` re-exports the spec, `cyrano-core` stays standalone SE
   (depends on `jakarta.ws.rs` / `jakarta.json.bind` for annotations and serialization),
   `cyrano-cdi-vauban` is an optional CDI adapter, `cyrano-tck` remains out-of-reactor.
-- **Proxy generation via Class-File API (JEP 484)**: no `java.lang.reflect.Proxy`,
-  no ASM/Byte Buddy. Cyrano generates named classes (`Cyrano$<Interface>`) via
-  `ClassFile` + `MethodHandles.Lookup.defineClass` — AOT-compatible, readable stack traces.
+- **APT-first proxy generation (codegen audit CG-01)**: `cyrano-processor` generates
+  `$$CyranoClient` sources at compile time (primary path); the Class-File API (JEP 484)
+  runtime generator is the documented fallback. No `java.lang.reflect.Proxy`,
+  no ASM/Byte Buddy anywhere — the fallback emits named classes (`Cyrano$<Interface>`)
+  via `ClassFile` + `MethodHandles.Lookup.defineClass` — AOT-compatible, readable stack traces.
 - **Transport via JDK `java.net.http.HttpClient`** with `VirtualThreadPerTaskExecutor` —
   no external network dependency.
 - Prefer `ROADMAP.md` to track project progress rather than updating this file,
@@ -24,7 +26,7 @@
 - Milestones marked ✅ are complete; others are pending or in progress.
 - The target flow in `cyrano-core`:
   `RestClientBuilder.newBuilder().baseUri(uri).build(MyService.class)` →
-  `CyranoProxyCache.getOrGenerate(MyService.class)` (Class-File API, lazy, thread-safe) →
+  `ClientProxyRegistry.resolve(MyService.class)` (generated tier first, runtime Class-File fallback, cached) →
   proxy instance `Cyrano$MyService` →
   method calls intercepted via `CyranoInvocationHandler` →
   `CyranoHttpTransport` (JDK HttpClient, virtual thread) →
@@ -40,8 +42,9 @@
 - `cyrano-core` depends only on `jakarta.ws.rs` (JAX-RS annotations, spec API) and
   `jakarta.json.bind` (JSON-B spec API); CDI stays in `cyrano-cdi-vauban`. Transport
   is `java.net.http` (JDK). Champollion is the runtime JSON-B implementation.
-- **No `java.lang.reflect.Proxy`**: all proxies must go through Class-File API JEP 484.
-  Use the `classfile-codegen` agent for any review of the bytecode generator.
+- **No `java.lang.reflect.Proxy`**: generated-source proxies first (cyrano-processor),
+  Class-File API for the runtime fallback only.
+  Use the `classfile-codegen` agent for any review of the bytecode fallback generator.
 - Keep `io.vidocq.cyrano.internal.*` unexported; all extensions go through the SPI.
 - No `synchronized`, no `ThreadLocal` — virtual-thread-friendly.
   `CyranoProxyCache` uses `ConcurrentHashMap.computeIfAbsent`.
@@ -85,13 +88,13 @@ sdk env
 ## What an Agent Should Assume for Upcoming Tasks
 
 - `cyrano-core` is the foundation: `CyranoRestClientBuilder`, `CyranoProxyGenerator`
-  (Class-File API), `CyranoHttpTransport` (JDK HttpClient), `CyranoInvocationHandler`.
+  (runtime Class-File fallback), `CyranoClientProcessor` (APT), `CyranoHttpTransport` (JDK HttpClient), `CyranoInvocationHandler`.
   None of these components should import CDI classes, internal Cassini classes,
   or third-party libraries.
 - `cyrano-cdi-vauban` is an optional adapter: BCE `CyranoRestClientExtension` that
   discovers `@RegisterRestClient` interfaces and produces the corresponding CDI beans.
   Base URL configuration goes through MicroProfile Config (Ravel) when available.
 - The TCK requires both a programmatic `RestClientBuilder.newBuilder()` and CDI injection
-  `@Inject @RestClient`. Both paths must lead to the same Class-File API proxy.
+  `@Inject @RestClient`. Both paths must go through the same ClientProxyRegistry resolution chain.
 - Before any structural modification to `cyrano-core` or `cyrano-cdi-vauban`, reason
   against the final contract: **MicroProfile Rest Client 4.0 TCK at 100% PASS**.
