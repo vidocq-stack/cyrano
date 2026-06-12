@@ -28,10 +28,53 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- End-to-end test only: drive RestClientBuilder over a compiled fixture and
+             assert the generated tier is used (counters in ClientProxyRegistry). -->
+        <dependency>
+            <groupId>io.vidocq.cyrano</groupId>
+            <artifactId>cyrano-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vidocq.champollion</groupId>
+            <artifactId>champollion-jsonb</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vidocq.champollion</groupId>
+            <artifactId>champollion-jsonp</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- Same JPMS workaround as cyrano-core: module-info.java lives in
+                 src/main/module-info so testCompile runs on the classpath (the e2e test
+                 reads jdk.httpserver and drives cyrano-core test-scope), and the
+                 module descriptor is compiled alone at prepare-package. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>remove-module-info-before-testcompile</id>
+                        <phase>generate-test-sources</phase>
+                        <goals><goal>clean</goal></goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.outputDirectory}</directory>
+                                    <includes>
+                                        <include>module-info.class</include>
+                                    </includes>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -39,6 +82,25 @@
                     <!-- Disable annotation processing during the processor's own compilation
                          to avoid circular bootstrap issues. -->
                     <proc>none</proc>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>compile-module-info</id>
+                        <phase>prepare-package</phase>
+                        <goals><goal>compile</goal></goals>
+                        <configuration>
+                            <compileSourceRoots>
+                                <compileSourceRoot>${project.basedir}/src/main/module-info</compileSourceRoot>
+                            </compileSourceRoots>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <useModulePath>false</useModulePath>
                 </configuration>
             </plugin>
         </plugins>
