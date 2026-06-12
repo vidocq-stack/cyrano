@@ -27,19 +27,11 @@ import io.vidocq.cyrano.spi.gen.ClientProxyFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import javax.tools.DiagnosticCollector;
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileObject;
-import javax.tools.StandardJavaFileManager;
-import javax.tools.StandardLocation;
-import javax.tools.ToolProvider;
 import java.io.File;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -56,68 +48,15 @@ class CyranoClientProcessorTest {
     Path tempDir;
 
     // ------------------------------------------------------------------
-    // Harness
+    // Harness (shared: ProcessorTestHarness)
     // ------------------------------------------------------------------
 
-    private record Compilation(URLClassLoader loader, File outputDir,
-                               List<javax.tools.Diagnostic<? extends JavaFileObject>> diagnostics) {
-    }
-
-    private Compilation compileWithProcessor(File... sources) throws Exception {
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        assertNotNull(compiler, "javax.tools.JavaCompiler not available in this JDK");
-
-        File outputDir = Files.createDirectories(tempDir.resolve("classes-" + System.nanoTime())).toFile();
-
-        List<File> cpFiles = new ArrayList<>();
-        String cpProp = System.getProperty("java.class.path", "");
-        for (String entry : cpProp.split(File.pathSeparator)) {
-            if (!entry.isBlank()) cpFiles.add(new File(entry));
-        }
-        ClassLoader cl = getClass().getClassLoader();
-        while (cl != null) {
-            if (cl instanceof URLClassLoader ucl) {
-                for (java.net.URL url : ucl.getURLs()) {
-                    if ("file".equals(url.getProtocol())) cpFiles.add(new File(url.toURI()));
-                }
-            }
-            cl = cl.getParent();
-        }
-        ModuleLayer layer = getClass().getModule().getLayer();
-        if (layer != null) {
-            layer.configuration().modules().forEach(rm -> rm.reference().location().ifPresent(uri -> {
-                if ("file".equals(uri.getScheme())) cpFiles.add(new File(uri));
-            }));
-        }
-        List<File> dedupCp = cpFiles.stream().distinct().filter(File::exists).toList();
-
-        DiagnosticCollector<JavaFileObject> diags = new DiagnosticCollector<>();
-        StandardJavaFileManager fm = compiler.getStandardFileManager(diags, Locale.ROOT, null);
-        fm.setLocation(StandardLocation.CLASS_OUTPUT, List.of(outputDir));
-        fm.setLocation(StandardLocation.CLASS_PATH, dedupCp);
-        fm.setLocation(StandardLocation.ANNOTATION_PROCESSOR_PATH, dedupCp);
-
-        Iterable<? extends JavaFileObject> units = fm.getJavaFileObjects(sources);
-        List<String> options = List.of("--release", "25", "-proc:full");
-        boolean success = compiler.getTask(null, fm, diags, options, null, units).call();
-        if (!success) {
-            StringBuilder sb = new StringBuilder("Compilation failed:\n");
-            for (var d : diags.getDiagnostics()) {
-                sb.append(d.getKind()).append(": ").append(d.getMessage(Locale.ROOT)).append('\n');
-            }
-            fail(sb.toString());
-        }
-        fm.close();
-        return new Compilation(
-                new URLClassLoader(new java.net.URL[] { outputDir.toURI().toURL() }, getClass().getClassLoader()),
-                outputDir, diags.getDiagnostics());
+    private ProcessorTestHarness.Compilation compileWithProcessor(File... sources) throws Exception {
+        return ProcessorTestHarness.compileWithProcessor(tempDir, sources);
     }
 
     private File writeSource(String relativePath, String content) throws Exception {
-        Path file = tempDir.resolve(relativePath);
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, content);
-        return file.toFile();
+        return ProcessorTestHarness.writeSource(tempDir, relativePath, content);
     }
 
     /** Recording double for the generated proxy's only runtime dependency. */
@@ -140,9 +79,9 @@ class CyranoClientProcessorTest {
         }
     }
 
-    private static ClientProxyFactory factoryOf(Compilation compilation, String ifaceFqn) throws Exception {
-        Class<?> factoryClass = compilation.loader().loadClass(ifaceFqn + "$$CyranoClient$Factory");
-        return (ClientProxyFactory) factoryClass.getDeclaredConstructor().newInstance();
+    private static ClientProxyFactory factoryOf(ProcessorTestHarness.Compilation compilation,
+                                                String ifaceFqn) throws Exception {
+        return compilation.factoryOf(ifaceFqn);
     }
 
     // ------------------------------------------------------------------
