@@ -50,7 +50,7 @@ public interface BlogClient {
 | Annotation | Sémantique côté client
 
 | `@PathParam("id")`
-| Remplace `{id}` dans le template de path.
+| Remplace `\{id}` dans le template de path.
 
 | `@QueryParam("limit")`
 | Ajoute `?limit=...` à l'URL.

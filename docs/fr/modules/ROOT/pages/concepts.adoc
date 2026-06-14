@@ -86,7 +86,7 @@ Enregistrement déclaratif : `@RegisterProvider(MyMapper.class)` ou `@RegisterPr
 == Headers — statiques et dynamiques
 
 * `@HeaderParam("X-Foo")` — la valeur est un paramètre de méthode.
-* `@ClientHeaderParam(name = "X-Trace", value = "{computeTrace}")` — la valeur vient d'une **méthode `default`** de l'interface (statique si la chaîne est littérale, dynamique si elle est entre accolades).
+* `@ClientHeaderParam(name = "X-Trace", value = "\{computeTrace}")` — la valeur vient d'une **méthode `default`** de l'interface (statique si la chaîne est littérale, dynamique si elle est entre accolades).
 * `@RegisterClientHeaders` — branche un `ClientHeadersFactory` qui peut consulter la requête entrante (utile en propagation de contexte serveur → client).
 
 == Async via `CompletionStage<T>`

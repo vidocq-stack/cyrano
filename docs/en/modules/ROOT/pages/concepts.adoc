@@ -86,7 +86,7 @@ Declarative registration: `@RegisterProvider(MyMapper.class)` or `@RegisterProvi
 == Headers — static and dynamic
 
 * `@HeaderParam("X-Foo")` — the value comes from a method parameter.
-* `@ClientHeaderParam(name = "X-Trace", value = "{computeTrace}")` — the value comes from a **`default` method** of the interface (static if the string is literal, dynamic if it is wrapped in braces).
+* `@ClientHeaderParam(name = "X-Trace", value = "\{computeTrace}")` — the value comes from a **`default` method** of the interface (static if the string is literal, dynamic if it is wrapped in braces).
 * `@RegisterClientHeaders` — attaches a `ClientHeadersFactory` that can consult the inbound request (useful for server-to-client context propagation).
 
 == Async via `CompletionStage<T>`
