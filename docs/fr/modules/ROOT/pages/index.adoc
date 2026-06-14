@@ -1,10 +1,8 @@
 = Cyrano
 :description: Implémentation MicroProfile Rest Client 4.0, client REST typé zéro dépendance externe, proxy généré au build via Class-File API, transport JDK HttpClient, Java 25.
 
-////
 [.text-center]
 image::cyrano-logo.png[Cyrano,300,role=module-logo]
-////
 
 [.lead]
 Cyrano est l'implémentation MicroProfile Rest Client 4.0 de l'écosystème Vidocq. Elle transforme une simple interface Java annotée (`@Path`, `@GET`, `@RegisterRestClient`) en un proxy typé qui parle HTTP à votre place : la requête, les paramètres, les headers, la sérialisation JSON-B et la désérialisation typée sont assurés depuis l'ombre, sans réflexion dynamique, sans librairie tierce, et sur des virtual threads natifs du JDK 25.

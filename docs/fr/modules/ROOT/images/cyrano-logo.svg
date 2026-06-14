@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" width="400" height="560"
+     role="img" aria-label="CYRANO — MICROPROFILE REST CLIENT 4.0">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#faf3e3"/><stop offset="100%" stop-color="#ede0c2"/>
+    </linearGradient>
+    <radialGradient id="medGrad" cx="0.42" cy="0.38" r="0.75">
+      <stop offset="0%" stop-color="#fbf6ea"/><stop offset="100%" stop-color="#e6d7b4"/>
+    </radialGradient>
+    <linearGradient id="goldV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e7c552"/><stop offset="55%" stop-color="#c9a227"/>
+      <stop offset="100%" stop-color="#a07010"/>
+    </linearGradient>
+    <linearGradient id="navyV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#243a6e"/><stop offset="100%" stop-color="#101e3c"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="560" fill="url(#bgGrad)"/>
+  <rect x="5" y="5" width="390" height="550" rx="2" fill="none" stroke="#1c2f5e" stroke-width="2.5"/>
+  <rect x="10" y="10" width="380" height="540" rx="1" fill="none" stroke="#1c2f5e" stroke-width="0.7"/>
+  <polygon points="5,17 14,8 23,17 14,26" fill="#c9a227"/>
+  <polygon points="377,17 386,8 395,17 386,26" fill="#c9a227"/>
+  <polygon points="5,543 14,534 23,543 14,552" fill="#c9a227"/>
+  <polygon points="377,543 386,534 395,543 386,552" fill="#c9a227"/>
+  <text x="200" y="34" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="7" letter-spacing="2.5" fill="#1c2f5e" opacity="0.72">MICROPROFILE REST CLIENT 4.0</text>
+  <circle cx="200" cy="250" r="144" fill="#160902" opacity="0.10"/>
+  <circle cx="200" cy="250" r="138" fill="url(#medGrad)" stroke="#1c2f5e" stroke-width="2"/>
+  <circle cx="200" cy="250" r="131" fill="none" stroke="#c9a227" stroke-width="1.2" opacity="0.85"/>
+  <circle cx="200" cy="250" r="127" fill="none" stroke="#a07010" stroke-width="0.5" opacity="0.6"/>
+<g transform="translate(200.0,115.0) rotate(0.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(241.7172942406179,121.60737030015429) rotate(18.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(279.3510090594839,140.7827057593821) rotate(36.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(309.2172942406179,170.64899094051611) rotate(54.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(328.3926296998457,208.2827057593821) rotate(72.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(335.0,250.0) rotate(90.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(328.3926296998457,291.7172942406179) rotate(108.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(309.2172942406179,329.3510090594839) rotate(126.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(279.3510090594839,359.2172942406179) rotate(144.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(241.7172942406179,378.3926296998457) rotate(162.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(200.0,385.0) rotate(180.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(158.28270575938205,378.3926296998457) rotate(198.00000000000003)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(120.64899094051614,359.2172942406179) rotate(216.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(90.78270575938211,329.3510090594839) rotate(234.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(71.60737030015429,291.7172942406179) rotate(252.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(65.0,250.00000000000003) rotate(270.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(71.60737030015426,208.2827057593821) rotate(288.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(90.7827057593821,170.64899094051614) rotate(306.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(120.64899094051611,140.7827057593821) rotate(324.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<g transform="translate(158.28270575938208,121.60737030015429) rotate(342.0)" opacity="0.8"><ellipse cx="0" cy="0" rx="3.6" ry="2.23" fill="none" stroke="#a07010" stroke-width="0.9"/><path d="M -2.81 -0.65 Q 0 1.15 2.81 -0.65" fill="none" stroke="#a07010" stroke-width="0.9"/></g>
+<text x="200" y="244" text-anchor="middle" font-family="Georgia, serif" font-size="34" font-weight="bold" fill="#1c2f5e" opacity="0.1">V</text><circle cx="114" cy="242" r="9" fill="none" stroke="#1c2f5e" stroke-width="2.4"/>
+    <circle cx="114" cy="242" r="3" fill="#1c2f5e"/>
+    <rect x="274" y="232" width="22" height="24" rx="2.5" fill="none" stroke="#1c2f5e" stroke-width="2.4"/>
+    <line x1="274" y1="240" x2="296" y2="240" stroke="#1c2f5e" stroke-width="1.4"/>
+    <line x1="274" y1="248" x2="296" y2="248" stroke="#1c2f5e" stroke-width="1.4"/><g>
+      <path d="M 128 232 L 258 232" stroke="#2a6a20" stroke-width="2.4"/>
+      <polygon points="258,228 266,232 258,236" fill="#2a6a20"/>
+      <path d="M 258 258 L 128 258" stroke="#a07010" stroke-width="2.4"/>
+      <polygon points="128,254 120,258 128,262" fill="#a07010"/></g><g transform="translate(198,244)">
+      <path d="M -30 -28 Q -36 -8 -30 8 Q -26 22 -18 32 L -18 42 L -3 42 L -3 28
+        Q -1 32 1 34 Q 5 30 4 24 Q 9 22 13 18 L 9 13 Q 10 11 12 10
+        L 33 5 Q 36 4 33 1 L 15 -3 Q 16 -12 12 -18 Q 6 -27 -8 -29 Q -22 -31 -30 -28 Z"
+        fill="url(#navyV)" stroke="#1c2f5e" stroke-width="1.4"/>
+      <path d="M 12 14 Q 20 12 27 14 Q 20 17 13 17 Z" fill="#1c2f5e"/>
+      <ellipse cx="-8" cy="-14" rx="3" ry="2" fill="#fbf6ea" opacity="0.85"/>
+      <circle cx="-8" cy="-14" r="1.4" fill="#1c2f5e"/>
+      <path d="M -44 -26 Q -8 -42 40 -30 Q 0 -34 -30 -28 Q -38 -28 -44 -26 Z"
+        fill="url(#goldV)" stroke="#1c2f5e" stroke-width="1"/>
+      <path d="M -16 -30 Q -14 -44 -2 -50 Q -22 -42 -28 -29 Z"
+        fill="url(#goldV)" stroke="#1c2f5e" stroke-width="0.8"/></g><g transform="translate(200,316)">
+      <rect x="-74" y="-9" width="148" height="18" rx="3" fill="#1c2f5e"/>
+      <text x="0" y="4.5" text-anchor="middle" font-family="'Courier New', monospace"
+        font-size="9" fill="#e8f0ff">@RegisterRestClient</text></g>
+  <text x="200" y="477" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="52" font-weight="bold" letter-spacing="6" fill="#1c2f5e">CYRANO</text>
+  <line x1="40" y1="491" x2="168" y2="491" stroke="#c9a227" stroke-width="1.5"/>
+  <circle cx="200" cy="491" r="5.5" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+  <circle cx="200" cy="491" r="2.2" fill="#c9a227"/>
+  <line x1="232" y1="491" x2="360" y2="491" stroke="#c9a227" stroke-width="1.5"/>
+  <text x="200" y="514" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="10" letter-spacing="2.5" fill="#1c2f5e">REST CLIENT · VIDOCQ</text>
+  <line x1="65" y1="527" x2="335" y2="527" stroke="#1c2f5e" stroke-width="0.5" opacity="0.38"/>
+  <g fill="#c9a227" opacity="0.82">
+    <polygon points="188,537 192,541 188,545 184,541"/>
+    <polygon points="198,536 203,541 198,546 193,541"/>
+    <polygon points="208,537 212,541 208,545 204,541"/>
+  </g>
+</svg>
