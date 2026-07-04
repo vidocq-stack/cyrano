@@ -10,23 +10,23 @@ Cette page liste l'ensemble des artefacts publiés par Cyrano, les modules JPMS 
 |===
 | Artefact | Scope conseillé | Rôle
 
-| `io.vidocq.cyrano:cyrano-mp-rest-client-api:0.1.0-SNAPSHOT`
+| `io.vidocq.cyrano:cyrano-mp-rest-client-api:0.2.0`
 | `compile` (transitif via `cyrano-api`)
 | Repackage JPMS explicite de `microprofile-rest-client-api` 4.0 — neutralise le module automatique upstream.
 
-| `io.vidocq.cyrano:cyrano-api:0.1.0-SNAPSHOT`
+| `io.vidocq.cyrano:cyrano-api:0.2.0`
 | `compile`
 | Re-exposition contrôlée de la spec + SPI publique stable (`io.vidocq.cyrano.spi`).
 
-| `io.vidocq.cyrano:cyrano-core:0.1.0-SNAPSHOT`
+| `io.vidocq.cyrano:cyrano-core:0.2.0`
 | `runtime`
 | Implémentation : `CyranoRestClientBuilder`, `CyranoInterfaceScanner`, `CyranoProxyGenerator` (Class-File API), `CyranoInvocationHandler`, `CyranoHttpTransport`.
 
-| `io.vidocq.cyrano:cyrano-cdi-vauban:0.1.0-SNAPSHOT`
+| `io.vidocq.cyrano:cyrano-cdi-vauban:0.2.0`
 | `runtime` (optionnel)
 | BCE Vauban `CyranoRestClientExtension` — découverte `@RegisterRestClient`, bean synthétique qualifié `@RestClient`, résolution MP Config.
 
-| `io.vidocq.cyrano:cyrano-tck:0.1.0-SNAPSHOT`
+| `io.vidocq.cyrano:cyrano-tck:0.2.0`
 | `test` (hors reactor, POM Model 4.0.0)
 | Runner TCK officiel MicroProfile Rest Client 4.0 — invoqué via `run-official-tck-mp-rest-client-4.0.sh`.
 |===

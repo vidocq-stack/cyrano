@@ -3,7 +3,7 @@
 
 [CAUTION]
 ====
-Cyrano is at `0.1.0-SNAPSHOT`. A real application migration is premature until TCK coverage clears M5 (see xref:tck.adoc[TCK status]). This page documents the model correspondences and known pitfalls in preparation for the transition.
+Cyrano is at `0.2.0`. A real application migration is premature until TCK coverage clears M5 (see xref:tck.adoc[TCK status]). This page documents the model correspondences and known pitfalls in preparation for the transition.
 ====
 
 [.lead]
