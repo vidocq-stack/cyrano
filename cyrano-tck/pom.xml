@@ -9,7 +9,7 @@
     Cyrano (version implicite via parent).
 
     Dépendances internes (cyrano-core, cyrano-cdi-vauban) sont gelées sur la
-    version 0.1.0-SNAPSHOT installée dans le repository Maven local.
+    version 0.3.0-SNAPSHOT installée dans le repository Maven local.
 
     Le lancement passe par le script :
         ./run-official-tck-mp-rest-client-4.0.sh                      (smoke test)
@@ -27,7 +27,7 @@
 
     <groupId>io.vidocq.cyrano</groupId>
     <artifactId>cyrano-tck</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.3.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Cyrano :: TCK Runner</name>
@@ -36,10 +36,10 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>25</maven.compiler.release>
-        <cyrano.version>0.1.0-SNAPSHOT</cyrano.version>
+        <cyrano.version>0.3.0-SNAPSHOT</cyrano.version>
         <microprofile.rest.client.version>4.0</microprofile.rest.client.version>
-        <cassini.version>0.1.0-SNAPSHOT</cassini.version>
-        <chappe.version>0.2.0-SNAPSHOT</chappe.version>
+        <cassini.version>0.3.0-SNAPSHOT</cassini.version>
+        <chappe.version>0.3.0-SNAPSHOT</chappe.version>
     </properties>
 
     <repositories>
@@ -315,13 +315,13 @@
                 <dependency>
                     <groupId>io.vidocq.champollion</groupId>
                     <artifactId>champollion-jsonp</artifactId>
-                    <version>0.1.0-SNAPSHOT</version>
+                    <version>0.3.0-SNAPSHOT</version>
                     <scope>test</scope>
                 </dependency>
                 <!--
                     Vauban CDI container : utilisé par VaubanTckBootstrap pour démarrer
                     un container CDI Lite par déploiement Arquillian (tests cditests.*).
-                    Version alignée sur cyrano.version (tous en 0.1.0-SNAPSHOT).
+                    Version alignée sur cyrano.version (tous en 0.3.0-SNAPSHOT).
                 -->
                 <dependency>
                     <groupId>io.vidocq.vauban</groupId>
