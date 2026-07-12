@@ -19,6 +19,10 @@
  */
 package io.vidocq.cyrano.spi;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+
 /**
  * Cyrano implementation metadata — constants accessible from TCK tests
  * and runtime integration.
@@ -34,10 +38,27 @@ public final class Cyrano {
     /** MicroProfile Rest Client spec version implemented. */
     public static final String SPEC_VERSION = "4.0";
 
-    /** Current Cyrano implementation version. */
-    public static final String IMPLEMENTATION_VERSION = "0.1.0-SNAPSHOT";
+    /**
+     * Current Cyrano implementation version, filtered by the Maven build into a
+     * same-module resource. Not a compile-time constant on purpose: consumers
+     * always read the version of the artifact actually on their module path.
+     */
+    public static final String IMPLEMENTATION_VERSION = loadVersion();
 
     private Cyrano() {
         // utility — no instantiation
+    }
+
+    private static String loadVersion() {
+        try (InputStream in = Cyrano.class.getResourceAsStream("version.properties")) {
+            if (in == null) {
+                return "unknown";
+            }
+            Properties props = new Properties();
+            props.load(in);
+            return props.getProperty("version", "unknown");
+        } catch (IOException e) {
+            return "unknown";
+        }
     }
 }
