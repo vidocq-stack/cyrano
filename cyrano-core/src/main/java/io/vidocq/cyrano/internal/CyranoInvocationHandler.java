@@ -170,6 +170,21 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
             if (reqCtx.isAborted()) break;
         }
 
+        //SSE — MP Rest Client 4.0 §10: org.reactivestreams.Publisher<T> return
+        //type streams the text/event-stream response (Accept already seeded
+        //from @Produces). The class is matched by NAME so the reactive-streams
+        //jar stays optional at runtime — only SseReturnSupport imports it.
+        if (isReactiveStreamsPublisher(spec.returnType())) {
+            if (reqCtx.isAborted()) {
+                int abortStatus = reqCtx.abortResponse() != null
+                        ? reqCtx.abortResponse().getStatus() : 200;
+                return io.vidocq.cyrano.internal.sse.SseReturnSupport.abortedPublisher(abortStatus);
+            }
+            HttpRequest sseReq = buildHttpRequest(reqCtx);
+            return io.vidocq.cyrano.internal.sse.SseReturnSupport.createPublisher(
+                    transport, sseReq, innerType(spec.genericReturnType()), configuration);
+        }
+
         //6. Either we've been aborted or we're actually sending the request.
         if (asyncReturn) {
             Type asyncGenericType = innerType(spec.genericReturnType());
@@ -849,6 +864,15 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         //Spec §8: default mapper priority 1 → WebApplicationException based on Response.
         return new WebApplicationException("HTTP " + respCtx.getStatus(),
                 CyranoLightResponse.of(respCtx, body));
+    }
+
+    /**
+     * SSE detection (spec §10) — by NAME, not by {@code Class} reference:
+     * cyrano-core must not hard-require the reactive-streams jar
+     * ({@code requires static org.reactivestreams} in module-info).
+     */
+    private static boolean isReactiveStreamsPublisher(Class<?> returnType) {
+        return "org.reactivestreams.Publisher".equals(returnType.getName());
     }
 
     private static Type innerType(Type t) {

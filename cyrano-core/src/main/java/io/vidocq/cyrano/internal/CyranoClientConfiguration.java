@@ -61,9 +61,56 @@ public final class CyranoClientConfiguration implements Configuration {
     private String proxyHost;
     private int proxyPort = -1;
     private ExecutorService executorService;
+    private javax.net.ssl.SSLContext sslContext;
+    private java.security.KeyStore trustStore;
+    private java.security.KeyStore keyStore;
+    private String keyStorePassword;
+    private javax.net.ssl.HostnameVerifier hostnameVerifier;
 
     void putProperty(String name, Object value) {
         properties.put(name, value);
+    }
+
+    void setSslContext(javax.net.ssl.SSLContext sslContext) {
+        this.sslContext = sslContext;
+    }
+
+    javax.net.ssl.SSLContext getSslContext() {
+        return sslContext;
+    }
+
+    void setTrustStore(java.security.KeyStore trustStore) {
+        this.trustStore = trustStore;
+    }
+
+    java.security.KeyStore getTrustStore() {
+        return trustStore;
+    }
+
+    void setKeyStore(java.security.KeyStore keyStore, String keyStorePassword) {
+        this.keyStore = keyStore;
+        this.keyStorePassword = keyStorePassword;
+    }
+
+    java.security.KeyStore getKeyStore() {
+        return keyStore;
+    }
+
+    String getKeyStorePassword() {
+        return keyStorePassword;
+    }
+
+    void setHostnameVerifier(javax.net.ssl.HostnameVerifier hostnameVerifier) {
+        this.hostnameVerifier = hostnameVerifier;
+    }
+
+    javax.net.ssl.HostnameVerifier getHostnameVerifier() {
+        return hostnameVerifier;
+    }
+
+    /** True when any SSL option requires a custom transport SSL setup. */
+    boolean hasSslConfiguration() {
+        return sslContext != null || trustStore != null || keyStore != null || hostnameVerifier != null;
     }
 
     void addBuilderHeader(String name, Object value) {

@@ -29,25 +29,38 @@ The report is generated in `cyrano-tck/target/tck-report.txt`; the raw Maven out
 WireMock must therefore start earlier — that is the role of the static block in
 `WireMockProbeListener` (loaded via `META-INF/services/org.testng.ITestNGListener`).
 
-## Suites Excluded at M4 (initial)
+## Suites Excluded at M4 (historical)
 
-| Pattern | Reason | Re-activation |
-|---|---|---|
-| `**/ssl/**` | Requires `RestClientBuilder.trustStore(...)` / `keyStore(...)` — not yet implemented | Next M4 iteration |
-| `**/sse/**` | SSE out of scope M0-M5 (see ROADMAP `Open Decisions`) | Post-M5 if requested |
+The `**/ssl/**` and `**/sse/**` suites were excluded from M4 to 2026-07-13
+(no `trustStore`/`keyStore` wiring, no SSE support). Both are implemented and
+**re-enabled** since 2026-07-13 — no suite exclusion remains.
 
 ## Current Score
 
 ```
-Tests run: 168, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 235, Failures: 0, Errors: 0, Skipped: 9
 ```
 
-**Tests passed: 168/168 — 100% PASS** (report from 2026-05-24).
+**Tests passed: 235/235 — 100% PASS, full suite, zero exclusions**
+(report from 2026-07-13). The 9 skips are self-skips of the official Reactive
+Streams `PublisherVerification` harness itself (its `untested_*` rules and the
+optional failed-publisher cases when `createFailedPublisher()` is not
+provided by the TCK) — not Cyrano exclusions.
 
 ```text
-# Tests passed: 168/168
+# Tests passed: 235/235
 RESULT: PASS
 ```
+
+## SSL + SSE Re-activation (2026-07-13)
+
+| Item | Implementation |
+|---|---|
+| `trustStore`/`keyStore`/`sslContext` | `CyranoSslSupport` builds the transport `SSLContext` (mutual TLS included) |
+| `hostnameVerifier` | Endpoint identification disabled + delegating `X509ExtendedTrustManager` applying the verifier during the handshake, with a chain-aware `SSLSession` view (`getPeerCertificates()` works in-verifier) |
+| MP Config SSL keys | `<fqn>/mp-rest/trustStore[Type,Password]`, `keyStore…`, `hostnameVerifier` — `classpath:`/URL locations (`CyranoSslConfigResolver`) |
+| SSE | `Publisher<InboundSseEvent|String|T>` return types: WHATWG stream parser, `SubmissionPublisher`-based publisher (Reactive Streams-conformant), streaming transport (`BodyHandlers.ofPublisher`), lazy connect |
+| TCK harness | `VaubanTckBootstrap` materializes the archive resources on a deployment TCCL (`classpath:` stores, `certificates-dir.txt`); fixture deps: wiremock (plain — brings Jetty 11 + httpclient5, do not redeclare versions), `jetty-servlets` (EventSourceServlet), `reactive-streams-tck` |
 
 ## Fixes Applied in this M4 Iteration
 
@@ -75,13 +88,8 @@ RESULT: PASS
 
 - `FollowRedirectsTest,CDIFollowRedirectsTest`: **PASS (16/16)**.
 - `TimeoutTest,TimeoutViaMPConfigTest,TimeoutViaMPConfigWithConfigKeyTest,TimeoutBuilderIndependentOfMPConfigTest`: **PASS (8/8)**.
-- The `**/timeout/**` suites are re-enabled in `cyrano-tck/pom.xml`; only `ssl/**` and `sse/**` remain excluded.
+- The `**/timeout/**` suites are re-enabled in `cyrano-tck/pom.xml` (ssl/sse followed on 2026-07-13).
 
 ## Known Challenges
 
-| Suite | Status | Justification |
-|---|---|---|
-| `**/ssl/**` | **excluded** | Requires `RestClientBuilder.trustStore/keyStore` — out of current scope. |
-| `**/sse/**` | **excluded** | SSE (Server-Sent Events) out of scope (see ROADMAP `Open Decisions`). |
-
-The remaining 168 tests pass at 100%. No open functional challenges.
+None — the full suite (235 tests) passes at 100% with no exclusions.

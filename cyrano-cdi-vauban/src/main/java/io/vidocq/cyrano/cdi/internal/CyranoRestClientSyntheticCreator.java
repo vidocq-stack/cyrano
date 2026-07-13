@@ -98,6 +98,9 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
         //Spec §5 — providers via MP Config (comma-separated FQNs)
         registerConfigProviders(interfaceFqn, configKey, configLookup, builder);
 
+        //Spec §5.6 — trustStore/keyStore/hostnameVerifier via MP Config
+        CyranoSslConfigResolver.applySslConfig(interfaceFqn, configKey, configLookup, builder);
+
         return builder.build(iface);
     }
 

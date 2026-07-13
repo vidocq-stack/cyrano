@@ -29,12 +29,15 @@ import jakarta.json.bind.JsonbBuilder;
  *
  * <p>No {@code synchronized}: initialization via the holder pattern (lazy class
  * init is guaranteed thread-safe by the JVM).</p>
+ *
+ * <p>Public (but in the unexported {@code internal} package) so that the SSE
+ * support in {@code io.vidocq.cyrano.internal.sse} can share the instance.</p>
  */
-final class JsonbHolder {
+public final class JsonbHolder {
 
     private JsonbHolder() {}
 
-    static Jsonb get() {
+    public static Jsonb get() {
         return Lazy.INSTANCE;
     }
 

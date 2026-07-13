@@ -215,17 +215,6 @@
                             </includes>
                             <excludes>
                                 <exclude>**/CyranoTckSmokeTest.class</exclude>
-                                <!--
-                                    Suites désactivées temporairement à M4 — voir TCK.md :
-                                    * ssl/* : requièrent un keystore + l'option `RestClientBuilder.trustStore(...)`
-                                      pas encore implémentée dans Cyrano.
-                                -->
-                                <exclude>**/ssl/**</exclude>
-                                <!--
-                                    SSE : hors scope M0-M5 (cf. ROADMAP.md « Décisions ouvertes »).
-                                    Sera réévalué post-TCK selon les besoins vidocq.
-                                -->
-                                <exclude>**/sse/**</exclude>
                             </excludes>
                             <trimStackTrace>false</trimStackTrace>
                             <redirectTestOutputToFile>false</redirectTestOutputToFile>
@@ -345,6 +334,30 @@
                     <groupId>org.wiremock</groupId>
                     <artifactId>wiremock</artifactId>
                     <version>3.10.0</version>
+                    <scope>test</scope>
+                </dependency>
+                <!--
+                    Fixtures of the ssl/** and sse/** TCK suites (test-JVM side,
+                    never runtime wiring). The TCK's HttpsServer/HttpSseServer
+                    are Jetty 11 servers and SslContextTest uses httpcore5's
+                    SSLContextBuilder — both already provided transitively by
+                    wiremock (jetty-bom 11.0.24 + httpclient5); do NOT redeclare
+                    them here with explicit versions, a mismatched httpcore5
+                    downgrade broke WireMock's admin client. Only the
+                    EventSourceServlet host (jetty-servlets, absent from
+                    wiremock's transitive set) and the official Reactive Streams
+                    PublisherVerification are added.
+                -->
+                <dependency>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-servlets</artifactId>
+                    <version>11.0.24</version>
+                    <scope>test</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.reactivestreams</groupId>
+                    <artifactId>reactive-streams-tck</artifactId>
+                    <version>1.0.3</version>
                     <scope>test</scope>
                 </dependency>
             </dependencies>

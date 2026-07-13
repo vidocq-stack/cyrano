@@ -54,6 +54,13 @@ module io.vidocq.cyrano.core {
     // Transport HTTP via le JDK (java.net.http)
     requires java.net.http;
 
+    //SSE (MP Rest Client 4.0 §10) — org.reactivestreams.Publisher return types.
+    //`static`: only resolved when a client module actually declares Publisher
+    //return types (that module requires org.reactivestreams itself); the
+    //invocation handler matches the type by name and never loads the SSE
+    //bridge otherwise. Interface-only de-facto spec jar (Automatic-Module-Name).
+    requires static org.reactivestreams;
+
     //SPI runtime exported — stable entry point for adapters (cyrano-cdi-vauban).
     //The io.vidocq.cyrano.internal package remains voluntarily unexported
     //(JPMS border of the project).

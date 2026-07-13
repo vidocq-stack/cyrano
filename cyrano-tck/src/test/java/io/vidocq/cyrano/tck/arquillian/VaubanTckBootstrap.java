@@ -59,7 +59,18 @@ final class VaubanTckBootstrap {
      *
      * @param archive the ShrinkWrap archive provided by the TCK test's {@code @Deployment}
      */
+    private static ClassLoader previousTccl;
+    private static java.net.URLClassLoader deploymentLoader;
+    private static java.nio.file.Path deploymentRoot;
+
     static void deploy(Archive<?> archive) {
+        // 0. Materialize the archive resources (non-class assets) on disk and
+        // install a deployment class loader as TCCL: the ssl/** TCK suites
+        // configure trust/key stores as classpath:/META-INF/... locations
+        // packed inside the ShrinkWrap archive, and AbstractSslTest reads
+        // META-INF/certificates-dir.txt through the context class loader.
+        materializeResources(archive);
+
         // 1. Extract config properties from the archive
         Properties configProps = extractConfig(archive);
 
@@ -91,10 +102,61 @@ final class VaubanTckBootstrap {
     }
 
     /**
+     * Copies every non-class asset of the archive (WEB-INF/classes normalized
+     * to the root) into a temp directory and installs a URLClassLoader over it
+     * as the context class loader for the deployment's lifetime.
+     */
+    private static void materializeResources(Archive<?> archive) {
+        try {
+            java.nio.file.Path root = java.nio.file.Files.createTempDirectory("cyrano-tck-deployment-");
+            for (var entry : archive.getContent().entrySet()) {
+                var node = entry.getValue();
+                if (node == null || node.getAsset() == null) {
+                    continue;
+                }
+                String relative = entry.getKey().get();
+                if (relative.startsWith("/")) {
+                    relative = relative.substring(1);
+                }
+                if (relative.startsWith("WEB-INF/classes/")) {
+                    relative = relative.substring("WEB-INF/classes/".length());
+                }
+                if (relative.isEmpty() || relative.endsWith(".class")) {
+                    continue;
+                }
+                java.nio.file.Path target = root.resolve(relative).normalize();
+                if (!target.startsWith(root)) {
+                    continue;
+                }
+                java.nio.file.Files.createDirectories(target.getParent());
+                try (var in = node.getAsset().openStream()) {
+                    java.nio.file.Files.copy(in, target,
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            deploymentRoot = root;
+            previousTccl = Thread.currentThread().getContextClassLoader();
+            deploymentLoader = new java.net.URLClassLoader(
+                    "cyrano-tck-deployment", new java.net.URL[] {root.toUri().toURL()}, previousTccl);
+            Thread.currentThread().setContextClassLoader(deploymentLoader);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Cannot materialize the TCK archive resources", e);
+        }
+    }
+
+    /**
      * Stop the current Vauban container and clean the config properties system.
      */
     static void undeploy() {
         TckConfigBridge.clear();
+        if (previousTccl != null) {
+            Thread.currentThread().setContextClassLoader(previousTccl);
+            previousTccl = null;
+        }
+        if (deploymentLoader != null) {
+            try { deploymentLoader.close(); } catch (Exception ignored) {}
+            deploymentLoader = null;
+        }
         VaubanContainer existing = VaubanContainer.current();
         if (existing != null && existing.isRunning()) {
             try { existing.close(); } catch (Exception ignored) {}

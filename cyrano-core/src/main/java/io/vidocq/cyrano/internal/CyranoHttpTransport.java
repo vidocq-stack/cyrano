@@ -26,8 +26,11 @@ import java.time.Duration;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Flow;
 
 /**
  * Cyrano HTTP Transport — uses {@link HttpClient} from the JDK with a
@@ -64,6 +67,15 @@ public final class CyranoHttpTransport implements AutoCloseable {
             builder.proxy(ProxySelector.of(new InetSocketAddress(
                     configuration.getProxyHost(), configuration.getProxyPort())));
         }
+        // SSL options (spec §5.6): trustStore / keyStore / sslContext /
+        // hostnameVerifier — see CyranoSslSupport for the verifier handling.
+        var sslSetup = CyranoSslSupport.build(configuration);
+        if (sslSetup != null) {
+            builder.sslContext(sslSetup.context());
+            if (sslSetup.parameters() != null) {
+                builder.sslParameters(sslSetup.parameters());
+            }
+        }
         this.client = builder.build();
     }
 
@@ -80,6 +92,17 @@ public final class CyranoHttpTransport implements AutoCloseable {
     /** Asynchronous send — for {@link java.util.concurrent.CompletionStage} return types. */
     public CompletableFuture<HttpResponse<String>> sendAsync(HttpRequest req) {
         return client.sendAsync(req, HttpResponse.BodyHandlers.ofString());
+    }
+
+    /**
+     * Streaming send for Server-Sent Events (MP Rest Client 4.0 §10) — the
+     * returned future completes as soon as the response headers arrive (so the
+     * status can be checked before consuming), and the body is exposed as a
+     * {@link Flow.Publisher} of byte buffers that the SSE layer subscribes to.
+     * Runs on the client's virtual-thread executor like every other send.
+     */
+    public CompletableFuture<HttpResponse<Flow.Publisher<List<ByteBuffer>>>> sendForSse(HttpRequest req) {
+        return client.sendAsync(req, HttpResponse.BodyHandlers.ofPublisher());
     }
 
     @Override

@@ -69,6 +69,9 @@
         <jakarta.cdi.version>4.1.0</jakarta.cdi.version>
         <jakarta.inject.version>2.0.1</jakarta.inject.version>
         <jakarta.annotation.version>3.0.0</jakarta.annotation.version>
+
+        <!-- Reactive Streams (SSE, MP Rest Client 4.0 §10 — interface-only de-facto spec jar) -->
+        <reactive.streams.version>1.0.4</reactive.streams.version>
     </properties>
 
     <!--
@@ -113,6 +116,19 @@
                 <groupId>jakarta.json</groupId>
                 <artifactId>jakarta.json-api</artifactId>
                 <version>${jakarta.json.version}</version>
+            </dependency>
+
+            <!--
+                Reactive Streams — required by the MP Rest Client 4.0 SSE API
+                surface (spec §10: org.reactivestreams.Publisher return types).
+                Zero-dep waiver: interface-only de-facto spec jar (4 interfaces,
+                no implementation code), Automatic-Module-Name org.reactivestreams,
+                same standing as a Jakarta/MicroProfile spec API.
+            -->
+            <dependency>
+                <groupId>org.reactivestreams</groupId>
+                <artifactId>reactive-streams</artifactId>
+                <version>${reactive.streams.version}</version>
             </dependency>
 
             <!-- CDI -->
