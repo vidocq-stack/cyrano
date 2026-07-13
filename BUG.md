@@ -6,7 +6,7 @@ minimal repro, root cause hypothesis, status.
 
 ---
 
-## CYR-001 — JPMS bypassed via manual copy of compile-scope JARs
+## CYR-001 — Java Modules bypassed via manual copy of compile-scope JARs
 
 - **Opened**: 2026-05-25
 - **Last revisited**: 2026-06-03
@@ -59,7 +59,7 @@ and fails with `module not found`.
 1. ✅ ~~Repackage `microprofile-rest-client-api` with an explicit
    `module-info.class`~~ — done via `cyrano-mp-rest-client-api`.
 2. ⏳ **Upgrade** `maven-compiler-plugin` to a version that correctly routes
-   `requires static` JPMS deps to `--module-path` during testCompile.
+   `requires static` Java Modules deps to `--module-path` during testCompile.
    Track Apache `MCOMPILER` JIRA for the matching fix.
 3. ⏳ Alternative: switch the affected `requires static` to non-static where
    feasible (would force the Jakarta APIs onto the compile-scope, raising
@@ -85,5 +85,5 @@ and fails with `module not found`.
 - **Investigations** :
   - 2026-07-12 : found by grepping for stale version strings after the issue #3 follow-up.
     Fixed: version.properties filtered by Maven next to the class, constant loaded at class
-    init (same-module JPMS resource, no opens). No longer compile-time-inlineable, which
+    init (same-module Java Modules resource, no opens). No longer compile-time-inlineable, which
     also protects future consumers from the javac inlining trap.

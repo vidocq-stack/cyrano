@@ -1,8 +1,8 @@
 = Référence
-:description: Artefacts Maven, modules JPMS, annotations supportées, clés MP Config, SPI publique.
+:description: Artefacts Maven, modules Java, annotations supportées, clés MP Config, SPI publique.
 
 [.lead]
-Cette page liste l'ensemble des artefacts publiés par Cyrano, les modules JPMS qu'ils exportent, les annotations MicroProfile Rest Client 4.0 supportées et la totalité des clés MicroProfile Config reconnues.
+Cette page liste l'ensemble des artefacts publiés par Cyrano, les modules Java qu'ils exportent, les annotations MicroProfile Rest Client 4.0 supportées et la totalité des clés MicroProfile Config reconnues.
 
 == Artefacts Maven
 
@@ -12,7 +12,7 @@ Cette page liste l'ensemble des artefacts publiés par Cyrano, les modules JPMS 
 
 | `io.vidocq.cyrano:cyrano-mp-rest-client-api:0.2.0`
 | `compile` (transitif via `cyrano-api`)
-| Repackage JPMS explicite de `microprofile-rest-client-api` 4.0 — neutralise le module automatique upstream.
+| Repackage Java Modules explicite de `microprofile-rest-client-api` 4.0 — neutralise le module automatique upstream.
 
 | `io.vidocq.cyrano:cyrano-api:0.2.0`
 | `compile`
@@ -33,7 +33,7 @@ Cette page liste l'ensemble des artefacts publiés par Cyrano, les modules JPMS 
 
 NOTE: `cyrano-tck` est **volontairement hors reactor** (POM Model 4.0.0 standalone, sans `<parent>`). Raison : ShrinkWrap Maven Resolver 3.3 — transitive du TCK — ne sait pas parser un POM Model 4.1.0. Ne pas le réintégrer aux `<modules>` parent.
 
-== Modules JPMS exportés
+== Modules Java Modules exportés
 
 [cols="2,3"]
 |===
@@ -207,7 +207,7 @@ Le package `io.vidocq.cyrano.spi` expose des hooks stables :
 == Pré-requis runtime
 
 * JDK 25+ — pour la Class-File API et virtual threads.
-* JPMS : un `module-info.java` par module Maven applicatif consommant Cyrano.
+* Java Modules : un `module-info.java` par module Maven applicatif consommant Cyrano.
 * Implémentation JSON-B : xref:champollion::index.adoc[Champollion] (déclarée séparément, scope `runtime`).
 * Optionnel — implémentation MP Config (xref:ravel::index.adoc[Ravel]) pour `<clé>/mp-rest/*`.
 

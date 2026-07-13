@@ -35,14 +35,14 @@
  * <p>JSON serialization is performed via Jakarta JSON-B (jakarta.json.bind);
  * champollion is the reference implementation provided at runtime.</p>
  *
- * <p><strong>JPMS note — testCompile workaround</strong>:
+ * <p><strong>Java Modules note — testCompile workaround</strong>:
  * {@code module-info.java} lives under {@code src/main/module-info/} (not
  * {@code src/main/java/}) so that the Maven Compiler Plugin does not pick up
- * JPMS during {@code testCompile}. {@code maven-clean-plugin} purges
+ * Java Modules during {@code testCompile}. {@code maven-clean-plugin} purges
  * {@code module-info.class} before {@code testCompile} (incremental builds).
  * A {@code prepare-package} execution recompiles {@code module-info.java}
  * alone before the JAR is assembled. Tests run on the classpath
- * ({@code useModulePath=false}) — the JPMS wiring is validated by the TCK.</p>
+ * ({@code useModulePath=false}) — the Java Modules wiring is validated by the TCK.</p>
  */
 module io.vidocq.cyrano.core {
     requires transitive io.vidocq.cyrano.api;
@@ -56,7 +56,7 @@ module io.vidocq.cyrano.core {
 
     //SPI runtime exported — stable entry point for adapters (cyrano-cdi-vauban).
     //The io.vidocq.cyrano.internal package remains voluntarily unexported
-    //(JPMS border of the project).
+    //(Java Modules border of the project).
     exports io.vidocq.cyrano.runtime;
 
     //SPI MicroProfile Rest Client: the solver is also declared via META-INF/services
@@ -69,7 +69,7 @@ module io.vidocq.cyrano.core {
     uses io.vidocq.cyrano.runtime.ProviderInstantiator;
 
     //CG-01 — generated $$CyranoClient factories (Cyrano annotation processor):
-    //a strict-JPMS user module declares `provides ClientProxyFactory with ...`
+    //a strict Java Modules user module declares `provides ClientProxyFactory with ...`
     //and keeps its client package fully encapsulated.
     uses io.vidocq.cyrano.spi.gen.ClientProxyFactory;
 }

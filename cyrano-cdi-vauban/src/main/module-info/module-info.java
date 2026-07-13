@@ -29,12 +29,12 @@
  * (low priority) and MicroProfile Config (Ravel, high priority,
  * {@code &lt;fqn&gt;/mp-rest/url}).</p>
  *
- * <p><strong>JPMS note — testCompile workaround</strong>:
+ * <p><strong>Java Modules note — testCompile workaround</strong>:
  * {@code module-info.java} lives under {@code src/main/module-info/} so the Maven
- * Compiler Plugin does not pick up JPMS during {@code testCompile} (vauban-core is
+ * Compiler Plugin does not pick up Java Modules during {@code testCompile} (vauban-core is
  * test-scope, absent from {@code target/javamodules/}).</p>
  *
- * <p>For strict JPMS deployment in production, plan to add
+ * <p>For strict Java Modules deployment in production, plan to add
  * {@code opens io.vidocq.cyrano.cdi.internal to io.vidocq.vauban.core} so that
  * Vauban can introspect the internal CDI beans (to be activated in M3).</p>
  */
@@ -49,7 +49,7 @@ module io.vidocq.cyrano.cdi.vauban {
 
     exports io.vidocq.cyrano.cdi.internal;
 
-    //ECB Cyrano — exposes Vauban via ServiceLoader + JPMS providers (spec MP Rest Client 4.0 6).
+    //ECB Cyrano — exposes Vauban via ServiceLoader + Java Modules providers (spec MP Rest Client 4.0 6).
     provides jakarta.enterprise.inject.build.compatible.spi.BuildCompatibleExtension
             with io.vidocq.cyrano.cdi.internal.CyranoRestClientCdiExtension;
 

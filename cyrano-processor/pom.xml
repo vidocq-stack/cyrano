@@ -49,7 +49,7 @@
 
     <build>
         <plugins>
-            <!-- Same JPMS workaround as cyrano-core: module-info.java lives in
+            <!-- Same Java Modules workaround as cyrano-core: module-info.java lives in
                  src/main/module-info so testCompile runs on the classpath (the e2e test
                  reads jdk.httpserver and drives cyrano-core test-scope), and the
                  module descriptor is compiled alone at prepare-package. -->

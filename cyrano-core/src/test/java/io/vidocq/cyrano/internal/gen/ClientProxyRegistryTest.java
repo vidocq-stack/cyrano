@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Resolution chain of {@link ClientProxyRegistry} (codegen audit CG-01) —
  * generated artifacts first, runtime Class-File generation strictly as fallback:
  * <ol>
- *   <li>ServiceLoader of {@code ClientProxyFactory} (JPMS-friendly),</li>
+ *   <li>ServiceLoader of {@code ClientProxyFactory} (Java Modules-friendly),</li>
  *   <li>naming convention {@code Class.forName(iface + "$$CyranoClient")},</li>
  *   <li>runtime {@code CyranoProxyGenerator} (documented fallback).</li>
  * </ol>

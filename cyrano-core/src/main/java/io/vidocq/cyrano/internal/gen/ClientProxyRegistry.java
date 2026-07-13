@@ -38,7 +38,7 @@ import java.util.function.Function;
  *
  * <ol>
  *   <li><strong>ServiceLoader</strong> of {@link ClientProxyFactory} — the
- *       JPMS-friendly path: a strict module declares
+ *       Java Modules-friendly path: a strict module declares
  *       {@code provides ClientProxyFactory with com.acme.MyApi$$CyranoClient$Factory}
  *       and keeps the client package fully encapsulated.</li>
  *   <li><strong>Naming convention</strong> —
@@ -100,7 +100,7 @@ public final class ClientProxyRegistry {
     }
 
     private static Resolved tryServiceLoader(Class<?> iface) {
-        // Module path first: a strict-JPMS user module declares its factory via
+        // Module path first: a strict Java Modules user module declares its factory via
         // `provides ClientProxyFactory with ...` only — that declaration is honoured
         // by the layer overload, NOT by ServiceLoader.load(type, classLoader) which
         // reads META-INF/services files alone (the processor emits one for the

@@ -82,7 +82,7 @@ class CyranoTckSmokeTest {
     @Test
     void rest_client_builder_is_resolved_via_service_loader_spec_section10() {
         //§10 (SPI): RestClientBuilder.newBuilder() must return a builder via
-        //ServiceLoader — here Cyrano via META-INF/services + provides JPMS.
+        //ServiceLoader — here Cyrano via META-INF/services + provides Java Modules.
         RestClientBuilder builder = RestClientBuilder.newBuilder();
         assertNotNull(builder, "The RestClientBuilderResolver SPI must provide a builder");
         assertEquals("io.vidocq.cyrano.internal.CyranoRestClientBuilder",

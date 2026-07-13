@@ -66,9 +66,9 @@
     <build>
         <plugins>
             <!--
-                JPMS workaround cyrano-cdi-vauban : same problem as cyrano-core.
+                Java Modules workaround cyrano-cdi-vauban : same problem as cyrano-core.
                 vauban-core is test-scope, absent from target/javamodules/ ; if a
-                module-info.class is in target/classes, Maven enables JPMS at
+                module-info.class is in target/classes, Maven enables Java Modules at
                 default-compile and fails to find the provided jakarta.* modules
                 on the module-path.
 

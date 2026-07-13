@@ -48,10 +48,10 @@
     <build>
         <plugins>
             <!--
-                JPMS workaround cyrano-core.
+                Java Modules workaround cyrano-core.
 
-                Problème : Maven Compiler Plugin 4.0.0-beta-4 détecte le mode JPMS dès que
-                module-info.class est présent dans target/classes. En mode JPMS pour
+                Problème : Maven Compiler Plugin 4.0.0-beta-4 détecte le mode Java Modules dès que
+                module-info.class est présent dans target/classes. En mode Java Modules pour
                 testCompile, il reconstruit un module-path incompatible avec les dépendances
                 test-scope (tests exécutés sur classpath).
 
@@ -59,7 +59,7 @@
 
                 1. module-info.java hors de src/main/java (dans src/main/module-info) :
                    default-compile ne le voit pas → pas de module-info.class dans
-                   target/classes → Maven ne détecte pas JPMS pour testCompile.
+                   target/classes → Maven ne détecte pas Java Modules pour testCompile.
 
                 2. maven-clean-plugin (generate-test-sources) supprime l'éventuel
                    module-info.class stale de target/classes avant testCompile.
@@ -68,7 +68,7 @@
                    dans target/classes avant l'assemblage du JAR.
 
                 Conséquence : les tests de cyrano-core s'exécutent sur le classpath
-                (useModulePath=false). Le câblage JPMS sera validé par le smoke TCK.
+                (useModulePath=false). Le câblage Java Modules sera validé par le smoke TCK.
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -10,7 +10,7 @@
 
     <artifactId>cyrano-mp-rest-client-api</artifactId>
     <name>Cyrano :: MP Rest Client API Repackage</name>
-    <description>Repackage JPMS explicite de microprofile-rest-client-api pour compatibilite jlink</description>
+    <description>Repackage Java Modules explicite de microprofile-rest-client-api pour compatibilite jlink</description>
 
     <dependencies>
         <dependency>

@@ -45,7 +45,7 @@ import java.util.concurrent.Callable;
  * BeanManager to obtain providers if they are managed beans. »</em></p>
  *
  * <p>Discovered via {@code META-INF/services/io.vidocq.cyrano.runtime.ProviderInstantiator}
- * and JPMS {@code provides}.</p>
+ * and Java Modules {@code provides}.</p>
  *
  * @since 0.1.0 (M4-3)
  */

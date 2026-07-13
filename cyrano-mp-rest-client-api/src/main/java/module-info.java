@@ -18,7 +18,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later
  */
 /**
- * Explicit JPMS repackage of the MicroProfile Rest Client 4.0 API.
+ * Explicit Java Modules repackage of the MicroProfile Rest Client 4.0 API.
  *
  * <p>The upstream JAR is an automatic module, unusable with jlink.
  * This module republishes the same API packages with an explicit module-info.</p>

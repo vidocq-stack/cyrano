@@ -6,7 +6,7 @@
 > remote services.
 
 **MicroProfile Rest Client 4.0** implementation in the Vidocq style:
-zero third-party libraries, JDK 25, virtual threads, strict JPMS, proxy generation
+zero third-party libraries, JDK 25, virtual threads, strict Java Modules, proxy generation
 via APT source generation (cyrano-processor), Class-File API (JEP 484) runtime fallback, JDK `java.net.http.HttpClient` transport, CDI integration
 via Vauban, JSON serialisation via Champollion (Jakarta JSON-B).
 
