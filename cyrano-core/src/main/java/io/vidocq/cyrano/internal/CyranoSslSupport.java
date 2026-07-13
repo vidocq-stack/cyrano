@@ -148,12 +148,7 @@ final class CyranoSslSupport {
             // the handshake before the user's verifier could accept it. The
             // verifier is the sole authority on the hostname question.
             delegate.checkServerTrusted(chain, authType);
-            SSLSession session = engine != null ? engine.getHandshakeSession() : null;
-            String host = session != null ? session.getPeerHost() : null;
-            if (!verifier.verify(host, session)) {
-                throw new CertificateException(
-                        "Hostname verification rejected the server certificate for host '" + host + "'");
-            }
+            verifyHostname(engine != null ? engine.getHandshakeSession() : null, chain);
         }
 
         @Override
@@ -161,12 +156,23 @@ final class CyranoSslSupport {
                 throws CertificateException {
             delegate.checkServerTrusted(chain, authType);
             if (socket instanceof javax.net.ssl.SSLSocket ssl) {
-                SSLSession session = ssl.getHandshakeSession();
-                String host = session != null ? session.getPeerHost() : null;
-                if (!verifier.verify(host, session)) {
-                    throw new CertificateException(
-                            "Hostname verification rejected the server certificate for host '" + host + "'");
-                }
+                verifyHostname(ssl.getHandshakeSession(), chain);
+            }
+        }
+
+        private void verifyHostname(SSLSession handshakeSession, X509Certificate[] chain)
+                throws CertificateException {
+            String host = handshakeSession != null ? handshakeSession.getPeerHost() : null;
+            // The in-handshake session does not expose the peer certificates yet
+            // (getPeerCertificates throws SSLPeerUnverifiedException); verifiers
+            // commonly read them, so hand out a view backed by the chain being
+            // validated (the TCK's SslHostnameVerifierTest does exactly that).
+            SSLSession session = handshakeSession != null
+                    ? new ChainAwareSession(handshakeSession, chain)
+                    : null;
+            if (!verifier.verify(host, session)) {
+                throw new CertificateException(
+                        "Hostname verification rejected the server certificate for host '" + host + "'");
             }
         }
 
@@ -196,5 +202,51 @@ final class CyranoSslSupport {
         public X509Certificate[] getAcceptedIssuers() {
             return delegate.getAcceptedIssuers();
         }
+    }
+
+    /**
+     * Handshake-session view that exposes the certificate chain under
+     * validation through {@link #getPeerCertificates()} — the underlying
+     * in-handshake session throws {@code SSLPeerUnverifiedException} until the
+     * handshake completes, after the verifier has already run.
+     */
+    private static final class ChainAwareSession implements SSLSession {
+
+        private final SSLSession delegate;
+        private final X509Certificate[] chain;
+
+        ChainAwareSession(SSLSession delegate, X509Certificate[] chain) {
+            this.delegate = delegate;
+            this.chain = chain != null ? chain.clone() : new X509Certificate[0];
+        }
+
+        @Override
+        public java.security.cert.Certificate[] getPeerCertificates() {
+            return chain.clone();
+        }
+
+        @Override
+        public java.security.Principal getPeerPrincipal() {
+            return chain.length > 0 ? chain[0].getSubjectX500Principal() : null;
+        }
+
+        @Override public byte[] getId() { return delegate.getId(); }
+        @Override public javax.net.ssl.SSLSessionContext getSessionContext() { return delegate.getSessionContext(); }
+        @Override public long getCreationTime() { return delegate.getCreationTime(); }
+        @Override public long getLastAccessedTime() { return delegate.getLastAccessedTime(); }
+        @Override public void invalidate() { delegate.invalidate(); }
+        @Override public boolean isValid() { return delegate.isValid(); }
+        @Override public void putValue(String name, Object value) { delegate.putValue(name, value); }
+        @Override public Object getValue(String name) { return delegate.getValue(name); }
+        @Override public void removeValue(String name) { delegate.removeValue(name); }
+        @Override public String[] getValueNames() { return delegate.getValueNames(); }
+        @Override public java.security.cert.Certificate[] getLocalCertificates() { return delegate.getLocalCertificates(); }
+        @Override public java.security.Principal getLocalPrincipal() { return delegate.getLocalPrincipal(); }
+        @Override public String getCipherSuite() { return delegate.getCipherSuite(); }
+        @Override public String getProtocol() { return delegate.getProtocol(); }
+        @Override public String getPeerHost() { return delegate.getPeerHost(); }
+        @Override public int getPeerPort() { return delegate.getPeerPort(); }
+        @Override public int getPacketBufferSize() { return delegate.getPacketBufferSize(); }
+        @Override public int getApplicationBufferSize() { return delegate.getApplicationBufferSize(); }
     }
 }

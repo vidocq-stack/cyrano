@@ -219,6 +219,12 @@ class CyranoSslTransportTest {
         assertEquals(BODY, api.get());
         assertEquals("localhost", seenHost.get());
         assertNotNull(seenSession.get(), "the verifier must receive the handshake SSLSession");
+        try {
+            assertNotNull(seenSession.get().getPeerCertificates(),
+                    "the session handed to the verifier must expose the peer certificates");
+        } catch (javax.net.ssl.SSLPeerUnverifiedException e) {
+            throw new AssertionError("getPeerCertificates() must not throw during verification", e);
+        }
     }
 
     // ------------------------------------------------------------------
