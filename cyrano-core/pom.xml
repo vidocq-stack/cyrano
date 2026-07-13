@@ -43,6 +43,25 @@
             <artifactId>champollion-jsonp</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+            MP Config (API + ravel impl), test scope only: exercises the
+            reflective MP Config lookup of
+            microprofile.rest.client.disable.default.mapper (spec §8.1) —
+            cyrano-core itself stays free of any compile-scope MP Config
+            dependency.
+        -->
+        <dependency>
+            <groupId>org.eclipse.microprofile.config</groupId>
+            <artifactId>microprofile-config-api</artifactId>
+            <version>3.1.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vidocq.ravel</groupId>
+            <artifactId>ravel-core</artifactId>
+            <version>0.3.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

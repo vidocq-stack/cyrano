@@ -298,7 +298,41 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         return this;
     }
 
-    @Override
+    private static final String DISABLE_DEFAULT_MAPPER_PROPERTY =
+            "microprofile.rest.client.disable.default.mapper";
+
+    /**
+     * Spec §8.1 — {@code microprofile.rest.client.disable.default.mapper} may be
+     * provided through MicroProfile Config; an explicit builder property wins.
+     * The lookup is reflective so cyrano-core keeps zero compile-scope MP Config
+     * dependency (same pattern as cyrano-cdi-vauban's CyranoBaseUriResolver);
+     * when no Config implementation is assembled, builder and system properties
+     * remain the only sources.
+     */
+    private void resolveDefaultMapperFromMpConfig() {
+        if (configuration.getProperty(DISABLE_DEFAULT_MAPPER_PROPERTY) != null) {
+            return;
+        }
+        try {
+            ClassLoader tccl = Thread.currentThread().getContextClassLoader();
+            ClassLoader loader = tccl != null ? tccl : CyranoRestClientBuilder.class.getClassLoader();
+            Class<?> providerClass = Class.forName(
+                    "org.eclipse.microprofile.config.ConfigProvider", true, loader);
+            Class<?> configClass = Class.forName(
+                    "org.eclipse.microprofile.config.Config", true, loader);
+            Object config = providerClass.getMethod("getConfig").invoke(null);
+            @SuppressWarnings("unchecked")
+            var value = (java.util.Optional<Boolean>) configClass
+                    .getMethod("getOptionalValue", String.class, Class.class)
+                    .invoke(config, DISABLE_DEFAULT_MAPPER_PROPERTY, Boolean.class);
+            if (value != null) {
+                value.ifPresent(v -> property(DISABLE_DEFAULT_MAPPER_PROPERTY, v));
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            //MP Config absent from the runtime — not an error.
+        }
+    }
+
     public <T> T build(Class<T> clazz) throws IllegalStateException, RestClientDefinitionException {
         if (baseUri == null) {
             throw new IllegalStateException(
@@ -308,6 +342,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             throw new RestClientDefinitionException(
                     "The type passed to build() must be an interface: " + clazz.getName());
         }
+        resolveDefaultMapperFromMpConfig();
         applyBuilderListeners(clazz.getClassLoader());
         //Spec §5.2 — @RegisterProvider annotations on the interface are self-registered
         applyRegisterProviders(clazz);
