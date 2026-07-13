@@ -53,8 +53,12 @@ import java.util.Set;
  *
  * <p>Only covers methods that may be called by M1 tests:
  * {@link #getStatus()}, {@link #readEntity(Class)} for {@link String}.</p>
+ *
+ * <p>Public (but in the unexported {@code internal} package) so that the SSE
+ * support in {@code io.vidocq.cyrano.internal.sse} can build delegate-free
+ * error responses.</p>
  */
-final class CyranoLightResponse extends Response {
+public final class CyranoLightResponse extends Response {
 
     private final int status;
     private final String body;
@@ -74,6 +78,16 @@ final class CyranoLightResponse extends Response {
         this.headers = headers;
         this.stringHeaders = stringHeaders;
         this.configuration = configuration;
+    }
+
+    /**
+     * Status-only response — no {@code RuntimeDelegate}, no body. Used by the
+     * SSE support to surface error statuses (spec §8 default mapping) without
+     * consuming the streamed body.
+     */
+    public static CyranoLightResponse ofStatus(int status) {
+        return new CyranoLightResponse(status, null, null,
+                new MultivaluedHashMap<>(), new MultivaluedHashMap<>(), null);
     }
 
     static CyranoLightResponse of(HttpResponse<String> resp) {

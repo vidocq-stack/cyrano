@@ -26,6 +26,20 @@
             <groupId>jakarta.json</groupId>
             <artifactId>jakarta.json-api</artifactId>
         </dependency>
+        <!--
+            Reactive Streams — required by the MP Rest Client 4.0 SSE API
+            surface (spec §10: org.reactivestreams.Publisher<T> return types on
+            client interfaces). Interface-only de-facto spec jar (4 interfaces
+            + the FlowAdapters bridge, no implementation code), shipped with
+            Automatic-Module-Name org.reactivestreams — treated like a
+            Jakarta/MicroProfile spec API under the zero-dep rule. Declared
+            `requires static` in module-info: only clients that actually use
+            Publisher return types need it on their module path.
+        -->
+        <dependency>
+            <groupId>org.reactivestreams</groupId>
+            <artifactId>reactive-streams</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
