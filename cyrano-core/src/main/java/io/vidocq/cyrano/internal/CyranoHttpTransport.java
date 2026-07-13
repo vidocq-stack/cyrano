@@ -64,6 +64,15 @@ public final class CyranoHttpTransport implements AutoCloseable {
             builder.proxy(ProxySelector.of(new InetSocketAddress(
                     configuration.getProxyHost(), configuration.getProxyPort())));
         }
+        // SSL options (spec §5.6): trustStore / keyStore / sslContext /
+        // hostnameVerifier — see CyranoSslSupport for the verifier handling.
+        var sslSetup = CyranoSslSupport.build(configuration);
+        if (sslSetup != null) {
+            builder.sslContext(sslSetup.context());
+            if (sslSetup.parameters() != null) {
+                builder.sslParameters(sslSetup.parameters());
+            }
+        }
         this.client = builder.build();
     }
 

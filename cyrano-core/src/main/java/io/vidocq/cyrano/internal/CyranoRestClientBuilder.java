@@ -51,10 +51,10 @@ import java.util.concurrent.TimeUnit;
 /**
  * Cyrano implementation of {@link RestClientBuilder} — MicroProfile Rest Client 4.0 §5.
  *
- * <p>M1: only {@link #baseUri(URI)} / {@link #baseUrl(URL)} and {@link #build(Class)} are
- * actually wired into the pipeline. The other setters accept their values (stored in
- * {@link CyranoClientConfiguration}) but are not yet applied to transport.
- * Full wiring (timeouts, SSL, providers) follows in M2 / M3.</p>
+ * <p>All builder options are wired into the pipeline: URIs, timeouts, redirects,
+ * proxy, providers, and the SSL options (spec §5.6 — {@code trustStore},
+ * {@code keyStore}, {@code sslContext}, {@code hostnameVerifier}) applied by
+ * {@link CyranoSslSupport} on the JDK HttpClient transport.</p>
  *
  * <p>The builder is <strong>non thread-safe</strong> (created on the fly by
  * {@code RestClientBuilder.newBuilder()}), but the proxy it produces is: the generated class
@@ -67,11 +67,6 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     private final CyranoClientConfiguration configuration = new CyranoClientConfiguration();
     private URI baseUri;
     private ExecutorService executorService;
-    private SSLContext sslContext;
-    private KeyStore trustStore;
-    private KeyStore keyStore;
-    private String keyStorePassword;
-    private HostnameVerifier hostnameVerifier;
     private String proxyHost;
     private int proxyPort = -1;
     private QueryParamStyle queryParamStyle;
@@ -241,26 +236,25 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
 
     @Override
     public RestClientBuilder sslContext(SSLContext sslContext) {
-        this.sslContext = sslContext;
+        configuration.setSslContext(sslContext);
         return this;
     }
 
     @Override
     public RestClientBuilder trustStore(KeyStore trustStore) {
-        this.trustStore = trustStore;
+        configuration.setTrustStore(trustStore);
         return this;
     }
 
     @Override
     public RestClientBuilder keyStore(KeyStore keyStore, String keystorePassword) {
-        this.keyStore = keyStore;
-        this.keyStorePassword = keystorePassword;
+        configuration.setKeyStore(keyStore, keystorePassword);
         return this;
     }
 
     @Override
     public RestClientBuilder hostnameVerifier(HostnameVerifier hostnameVerifier) {
-        this.hostnameVerifier = hostnameVerifier;
+        configuration.setHostnameVerifier(hostnameVerifier);
         return this;
     }
 
