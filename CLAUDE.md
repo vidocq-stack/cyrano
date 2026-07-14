@@ -202,7 +202,7 @@ The `CyranoDeployableContainer` (custom Arquillian, ~300 LOC, test-scope only):
 - **Zero third-party libraries**: Jakarta EE and MicroProfile specs are the only
   dependencies allowed in `provided`/`compile` scope. If an implementation library
   seems necessary, the decomposition is wrong.
-- Use agents **`jpms-guardian`**, **`virtual-threads-reviewer`**,
+- Use agents **`java-modules-guardian`**, **`virtual-threads-reviewer`**,
   **`dependency-gatekeeper`**, **`classfile-codegen`** proactively on any `module-info.java`
   modification, concurrent code, `pom.xml`, or bytecode generator.
 - If the rules in this file need updating, remember to align `AGENTS.md` accordingly
