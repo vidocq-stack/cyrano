@@ -43,7 +43,7 @@ Un client REST typé fait exactement le même geste : le code applicatif appelle
 | Spec implémentée | https://download.eclipse.org/microprofile/microprofile-rest-client-4.0/microprofile-rest-client-spec-4.0.html[MicroProfile Rest Client 4.0]
 | Repo | https://codeberg.org/Vidocq/cyrano[Vidocq/cyrano] (miroirs : GitHub, Forgejo)
 | Java | 25 (LTS)
-| Modules JPMS | `io.vidocq.cyrano.mp.rest.client.api`, `io.vidocq.cyrano.api`, `io.vidocq.cyrano.core`, `io.vidocq.cyrano.cdi.vauban`
+| Modules Java Modules | `io.vidocq.cyrano.mp.rest.client.api`, `io.vidocq.cyrano.api`, `io.vidocq.cyrano.core`, `io.vidocq.cyrano.cdi.vauban`
 | Dépendances runtime | `microprofile-rest-client-api` (repackagée), `jakarta.ws.rs-api`, `jakarta.json.bind-api` (impl runtime : xref:champollion::index.adoc[Champollion])
 | Transport HTTP | `java.net.http.HttpClient` (JDK pur, HTTP/1.1 + H/2, virtual threads)
 | Génération de proxy | Class-File API (JEP 484) à la première utilisation — classes nommées `Cyrano$<Interface>`, pas de `java.lang.reflect.Proxy`
@@ -100,7 +100,7 @@ L'implémentation core (`cyrano-core`) et l'intégration CDI (`cyrano-cdi-vauban
 * xref:getting-started.adoc[Démarrage rapide] — premier appel typé en moins de cinquante lignes.
 * xref:concepts.adoc[Concepts] — vocabulaire MP Rest Client (`@RegisterRestClient`, `RestClientBuilder`, qualifier `@RestClient`, providers).
 * xref:usage.adoc[Cas d'usage] — paramètres, headers, async, exception mappers, builder programmatique.
-* xref:reference.adoc[Référence] — coordonnées Maven, modules JPMS, clés MP Config supportées.
+* xref:reference.adoc[Référence] — coordonnées Maven, modules Java, clés MP Config supportées.
 * xref:internals.adoc[Fonctionnement interne] — scan d'interface, génération de proxy via Class-File API, transport, intégration BCE Vauban.
 * xref:tck.adoc[TCK] — score officiel, périmètre testé, challenges déclarés.
 * xref:migration.adoc[Migration] — depuis SmallRye Rest Client / RESTEasy Client.

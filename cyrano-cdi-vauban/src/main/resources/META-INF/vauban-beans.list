@@ -1,5 +1,5 @@
 # Liste des classes Cyrano CDI découvertes par Vauban
-# (complément au ServiceLoader pour les environnements JPMS stricts).
+# (complément au ServiceLoader pour les environnements Java Modules stricts).
 # Vauban lit ce fichier via ClassLoader.getResources("META-INF/vauban-beans.list").
 io.vidocq.cyrano.cdi.internal.CyranoRestClientCdiExtension
 

@@ -57,7 +57,7 @@ class CyranoRestClientCdiExtensionDiscoveryTest {
                     .anyMatch(provides -> BuildCompatibleExtension.class.getName().equals(provides.service())
                             && provides.providers().contains(CyranoRestClientCdiExtension.class.getName()));
             assertTrue(providesExtension,
-                    "The JPMS module must publish BuildCompatibleExtension via provides ... with");
+                    "The Java module must publish BuildCompatibleExtension via provides ... with");
         }
     }
 }

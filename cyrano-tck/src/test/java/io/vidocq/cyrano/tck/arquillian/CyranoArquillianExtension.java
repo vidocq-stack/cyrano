@@ -29,7 +29,7 @@ import org.jboss.arquillian.test.spi.TestEnricher;
  * in Arquillian consults this SPI (and not a direct {@code ServiceLoader} on
  * {@link DeployableContainer}) to discover the available containers.
  *
- * <p>JPMS-free declaration: exposed via
+ * <p>Java Modules-free declaration: exposed via
  * {@code META-INF/services/org.jboss.arquillian.core.spi.LoadableExtension}.</p>
  */
 public class CyranoArquillianExtension implements LoadableExtension {

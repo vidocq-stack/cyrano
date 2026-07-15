@@ -1,7 +1,7 @@
 # Cyrano — Attack plan
 
 > MicroProfile Rest Client 4.0 implementation in the Vidocq style: zero third-party libraries
-> (Jakarta EE / MicroProfile specs allowed), JDK 25, virtual threads, strict JPMS,
+> (Jakarta EE / MicroProfile specs allowed), JDK 25, virtual threads, strict Java Modules,
 > proxy generation via Class-File API (JEP 484), JDK `java.net.http.HttpClient` transport,
 > optional CDI integration via Vauban.
 
@@ -13,7 +13,7 @@
 | Allowed Jakarta / MicroProfile specs | `cyrano-cdi-vauban` may depend on `jakarta.enterprise.cdi-api`, `jakarta.inject-api`, `jakarta.annotation-api`. `cyrano-core` is limited to `jakarta.ws.rs` + `jakarta.json.bind`. |
 | Class-File API (JEP 484) | No `java.lang.reflect.Proxy`. Generate real classes named `Cyrano$<Interface>` via the JDK 25 `ClassFile` API. Cached in `CyranoProxyCache` (ConcurrentHashMap, lazy-init). Compatible with GraalVM, Leyden CDS, readable stack traces. |
 | Virtual threads | No `synchronized`, no `ThreadLocal`. `HttpClient.newBuilder().executor(Executors.newVirtualThreadPerTaskExecutor())`. `CompletionStage<T>` handled via `HttpClient.sendAsync` on virtual threads. |
-| Strict JPMS | `module-info.java` everywhere, non-exported `internal.*` packages, SPI via `provides/uses`. No unjustified `opens`. |
+| Strict Java Modules | `module-info.java` everywhere, non-exported `internal.*` packages, SPI via `provides/uses`. No unjustified `opens`. |
 | Strict TDD | Red → Green → Refactor. Tests written before production code. Systematic citation of the MicroProfile Rest Client 4.0 spec section in test JavaDoc. |
 | 100% PASS TCK | Hard contract on the MicroProfile Rest Client 4.0 TCK before any structural merge. |
 | AOT-friendly | No dynamic proxy `java.lang.reflect.Proxy`, no `setAccessible(true)`. Named classes generated via Class-File API → referenceable in GraalVM `reflect-config.json` (but the goal is to avoid any manual AOT config). |
@@ -84,17 +84,17 @@ public interface UserService {
 - [x] `.gitignore`, `.mvn/maven.config`
 - [x] `pom.xml` parent (Model 4.1.0, multi-module, dependency management Jakarta + MicroProfile Rest Client)
 - [x] `CLAUDE.md`, `AGENTS.md`, `ROADMAP.md` (this file) ✅
-- [x] JPMS validation: `microprofile-rest-client-api:4.0` has **neither** `Automatic-Module-Name`
+- [x] Java Modules validation: `microprofile-rest-client-api:4.0` has **neither** `Automatic-Module-Name`
       **nor** `module-info.class`. Introduced an explicit repackage module
       `cyrano-mp-rest-client-api` (`io.vidocq.cyrano.mp.rest.client.api`) to keep
-      a `jlink`-compatible JPMS graph.
+      a `jlink`-compatible Java Modules graph.
 - [x] Creation of modules with skeleton `pom.xml` + `module-info.java`:
       `cyrano-api`, `cyrano-core`, `cyrano-cdi-vauban` + `cyrano-tck` (outside reactor)
 - [x] `run-official-tck-mp-rest-client-4.0.sh`
 - [x] Validation `./mvnw -ntp install -DskipTests` succeeds (reactor + standalone cyrano-tck)
 - [x] Smoke test `CyranoTckSmokeTest` : 3 tests PASS
 
-**Deliverable:** green build, strict JPMS validated on all skeleton modules, smoke TCK compilable. ✅
+**Deliverable:** green build, strict Java Modules validated on all skeleton modules, smoke TCK compilable. ✅
 
 ---
 
@@ -115,7 +115,7 @@ public interface UserService {
 | TDD unit tests `CyranoInterfaceScannerTest` | 6 tests — spec coverage §3 / §3.1 | [x] |
 | TDD unit tests `CyranoProxyGeneratorTest` | 4 tests — verifies class name, interface implementation, delegation to handler | [x] |
 | Integration tests with JDK `com.sun.net.httpserver.HttpServer` | 7 `CyranoEndToEndTest` tests — GET path-param, GET query-param, POST, primitive return, proxy cache | [x] |
-| SPI `RestClientBuilderResolver` + `META-INF/services` + JPMS `provides` | `CyranoRestClientBuilderResolver` exported via `io.vidocq.cyrano.runtime` | [x] |
+| SPI `RestClientBuilderResolver` + `META-INF/services` + Java Modules `provides` | `CyranoRestClientBuilderResolver` exported via `io.vidocq.cyrano.runtime` | [x] |
 
 **M1 decisions:**
 - `ClassFile.of().build(...)` to generate bytecode; `MethodHandles.privateLookupIn(iface, ...)`
@@ -201,8 +201,8 @@ functional exception mapping for HTTP error codes. Validated by **34/34 tests** 
   via `withParam(...)` and resolves the base URI at bean instantiation time
   (runtime, not build-time — allows MP Config override without rebuild).
 - **Vauban discovery**: the BCE is published both through `META-INF/services/...BuildCompatibleExtension`
-  (classpath) and through `provides ... with` in `module-info.java` (strict JPMS). A
-  `META-INF/vauban-beans.list` file completes support for jlink/JPMS environments where
+  (classpath) and through `provides ... with` in `module-info.java` (strict Java Modules). A
+  `META-INF/vauban-beans.list` file completes support for jlink/Java Modules environments where
   ServiceLoader classpath discovery is not enough — same pattern as ravel-cdi-vauban.
 - **compile-module-info workaround**: `exports io.vidocq.cyrano.cdi` removed because the package
   contains only `package-info.java`, which the `prepare-package`/`compile-module-info`
@@ -307,13 +307,13 @@ Rest Client 4.0 TCK **100% PASS** via `./run-official-tck-mp-rest-client-4.0.sh 
 | ADR-001 proxy generation strategy (Class-File API vs reflection) | Rationale, AOT, jlink, GraalVM | [x] |
 | Module wrapper `vidocq-runtime-cyrano-rest-client-extension` in `vidocq` | Activates Cyrano through a single dependency, with no additional Java code — to be delivered in the `vidocq` repository | [ ] |
 | ServiceLoader BCE (`META-INF/services/...BuildCompatibleExtension`) | `CyranoRestClientCdiExtension` exposed through the standard CDI 4.1 contract, covered by `CyranoRestClientCdiExtensionDiscoveryTest` | [x] |
-| `module-info.java` `provides ... with` | JPMS for service files, validated by the BCE discovery test | [x] |
+| `module-info.java` `provides ... with` | Java Modules for service files, validated by the BCE discovery test | [x] |
 
 **Deliverable:** complete documentation, installable wrapper module, Cyrano available in
 any vidocq deployment through a single dependency.
 
 **Actual state in the Cyrano repo:** M5 is complete for the scope present here (documentation,
-ServiceLoader + JPMS exposure, non-regression test). The only remaining item lives in the
+ServiceLoader + Java Modules exposure, non-regression test). The only remaining item lives in the
 external `vidocq` repository: the aggregation wrapper module.
 
 ---

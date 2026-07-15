@@ -1,8 +1,8 @@
 = Reference
-:description: Maven artefacts, JPMS modules, supported annotations, MP Config keys, public SPI.
+:description: Maven artefacts, Java modules, supported annotations, MP Config keys, public SPI.
 
 [.lead]
-This page lists every artefact published by Cyrano, the JPMS modules they export, the MicroProfile Rest Client 4.0 annotations supported, and the full set of MicroProfile Config keys recognised.
+This page lists every artefact published by Cyrano, the Java modules they export, the MicroProfile Rest Client 4.0 annotations supported, and the full set of MicroProfile Config keys recognised.
 
 == Maven artefacts
 
@@ -12,7 +12,7 @@ This page lists every artefact published by Cyrano, the JPMS modules they export
 
 | `io.vidocq.cyrano:cyrano-mp-rest-client-api:0.2.0`
 | `compile` (transitive via `cyrano-api`)
-| Explicit JPMS repackage of `microprofile-rest-client-api` 4.0 — neutralises the upstream automatic module.
+| Explicit Java Modules repackage of `microprofile-rest-client-api` 4.0 — neutralises the upstream automatic module.
 
 | `io.vidocq.cyrano:cyrano-api:0.2.0`
 | `compile`
@@ -33,7 +33,7 @@ This page lists every artefact published by Cyrano, the JPMS modules they export
 
 NOTE: `cyrano-tck` is **deliberately out of reactor** (standalone POM Model 4.0.0, no `<parent>`). Reason: ShrinkWrap Maven Resolver 3.3 — pulled in transitively by the TCK — cannot parse a Model 4.1.0 POM. Do not add it back to the parent `<modules>`.
 
-== Exported JPMS modules
+== Exported Java modules
 
 [cols="2,3"]
 |===
@@ -207,7 +207,7 @@ The `io.vidocq.cyrano.spi` package exposes stable hooks:
 == Runtime prerequisites
 
 * JDK 25+ — for the Class-File API and virtual threads.
-* JPMS: one `module-info.java` per application Maven module consuming Cyrano.
+* Java Modules: one `module-info.java` per application Maven module consuming Cyrano.
 * A JSON-B implementation: xref:champollion::index.adoc[Champollion] (declared separately, `runtime` scope).
 * Optional — an MP Config implementation (xref:ravel::index.adoc[Ravel]) for `<key>/mp-rest/*`.
 

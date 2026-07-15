@@ -5,7 +5,7 @@
 - Cyrano implements **MicroProfile Rest Client 4.0** in Java 25 with **zero third-party
   implementation libraries**: only the MP Rest Client spec + Jakarta APIs as dependencies
   (`README.md`, `pom.xml`, `CLAUDE.md`).
-- Strict JPMS architecture: `cyrano-api` re-exports the spec, `cyrano-core` stays standalone SE
+- Strict Java Modules architecture: `cyrano-api` re-exports the spec, `cyrano-core` stays standalone SE
   (depends on `jakarta.ws.rs` / `jakarta.json.bind` for annotations and serialization),
   `cyrano-cdi-vauban` is an optional CDI adapter, `cyrano-tck` remains out-of-reactor.
 - **APT-first proxy generation (codegen audit CG-01)**: `cyrano-processor` generates
@@ -142,3 +142,9 @@ Follow Vauban's `index.adoc`: page title (`= <Project>`), `:description:`, a cen
 Provide `modules/ROOT/images/<project>-logo.png` (PNG), referenced from `index.adoc`.
 
 > When you change these documentation rules, keep `AGENTS.md` and `CLAUDE.md` in sync.
+
+## Terminology
+
+Use **Java Modules** (or **Java module** for a single module) when referring to
+the Java Platform Module System. Do **not** use the abbreviation **JPMS** — in
+prose, identifiers, or documentation.

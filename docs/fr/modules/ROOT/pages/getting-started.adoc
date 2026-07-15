@@ -8,7 +8,7 @@ Cette page montre comment déclarer une interface client typée, l'injecter via 
 
 * **Java 25** — Temurin recommandé. Module path activé.
 * **Maven 3.9.16** — épinglé via `.sdkmanrc` à la racine du repo (`sdk env`).
-* **JPMS strict** — un `module-info.java` par module Maven.
+* **Java Modules strict** — un `module-info.java` par module Maven.
 * Une implémentation JSON-B au classpath/module-path runtime — xref:champollion::index.adoc[Champollion] dans l'écosystème Vidocq.
 * Pour l'intégration CDI : xref:vauban::index.adoc[Vauban] côté container, xref:ravel::index.adoc[Ravel] pour MP Config.
 
@@ -51,7 +51,7 @@ Cette page montre comment déclarer une interface client typée, l'injecter via 
 </dependencies>
 ----
 
-NOTE: `cyrano-mp-rest-client-api` est tiré en transitif. Ce module **repackage** la spec MicroProfile Rest Client (qui ne fournit pas de `module-info` ni d'`Automatic-Module-Name` upstream) pour produire un module JPMS explicite `io.vidocq.cyrano.mp.rest.client.api`. Sans lui, jlink échoue.
+NOTE: `cyrano-mp-rest-client-api` est tiré en transitif. Ce module **repackage** la spec MicroProfile Rest Client (qui ne fournit pas de `module-info` ni d'`Automatic-Module-Name` upstream) pour produire un module Java Modules explicite `io.vidocq.cyrano.mp.rest.client.api`. Sans lui, jlink échoue.
 
 == `module-info.java`
 

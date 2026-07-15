@@ -15,7 +15,7 @@
     <packaging>pom</packaging>
 
     <name>Cyrano</name>
-    <description>Implémentation MicroProfile Rest Client 4.0 — zéro librairie tierce, virtual threads, JPMS strict, proxy via Class-File API (JEP 484)</description>
+    <description>Implémentation MicroProfile Rest Client 4.0 — zéro librairie tierce, virtual threads, Java Modules strict, proxy via Class-File API (JEP 484)</description>
     <url>https://codeberg.org/Vidocq/cyrano</url>
 
     <!--
@@ -53,7 +53,7 @@
         <!--
             MicroProfile Rest Client 4.0 upstream reste un module automatique.
             Cyrano le repacke dans cyrano-mp-rest-client-api (module explicite)
-            pour garder un graphe JPMS linkable par jlink.
+            pour garder un graphe Java Modules linkable par jlink.
         -->
         <microprofile.rest.client.version>4.0</microprofile.rest.client.version>
 
@@ -200,7 +200,7 @@
     </dependencyManagement>
 
     <!--
-        CYR-001 (2026-06-03) : le workaround JPMS qui vivait ici a été déplacé
+        CYR-001 (2026-06-03) : le workaround Java Modules qui vivait ici a été déplacé
         dans cyrano-mp-rest-client-api/pom.xml où il est strictement nécessaire
         (requires static jakarta.cdi/inject/annotation mal routés par
         maven-compiler-plugin 3.13.0 + Maven 3.9.16 au testCompile).

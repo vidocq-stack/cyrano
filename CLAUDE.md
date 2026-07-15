@@ -12,7 +12,7 @@
 - The MicroProfile Rest Client 4.0 TCK is a **public Maven Central** artifact:
   `org.eclipse.microprofile.rest.client:microprofile-rest-client-tck:4.0`
   (unlike Jakarta TCKs, no need to install manually).
-- **JPMS note:** verify at M0 whether `microprofile-rest-client-api` has an
+- **Java Modules note:** verify at M0 whether `microprofile-rest-client-api` has an
   `Automatic-Module-Name` or a `module-info.class`. If not, create a
   `cyrano-mp-rest-client-api` repackage module (same pattern as `ravel-mp-config-api`).
 
@@ -43,7 +43,7 @@
 
 Cyrano is a MicroProfile Rest Client 4.0 implementation with **zero third-party libraries**
 (no RESTEasy Client, CXF, Jersey Client, OkHttp), only Jakarta EE / MicroProfile specs as
-dependencies, virtual threads, strict JPMS.
+dependencies, virtual threads, strict Java Modules.
 
 ```
 cyrano-api          ← Re-exposes the org.eclipse.microprofile.rest.client spec
@@ -70,7 +70,7 @@ source) or `Cyrano$MyService` (runtime fallback) → `CyranoInvocationHandler`
 
 **Proxy resolution — APT first, runtime generation as fallback (codegen audit CG-01):**
 `ClientProxyRegistry` resolves proxies in order (hit counters included, cassini pattern):
-1. **ServiceLoader of `ClientProxyFactory`** — module-layer aware; a strict-JPMS user
+1. **ServiceLoader of `ClientProxyFactory`** — module-layer aware; a strict Java Modules user
    module declares `provides ClientProxyFactory with com.acme.MyApi$$CyranoClient$Factory`
    and keeps its client package fully encapsulated.
 2. **Naming convention** — `Class.forName(iface.getName() + "$$CyranoClient")`, the class
@@ -114,12 +114,12 @@ skipped with a compiler NOTE — the fallback preserves exact spec behaviour.
    stack traces, no `setAccessible(true)`.
 4. **Transport via `java.net.http.HttpClient`** — zero-dep, native virtual thread executor
    (`HttpClient.newBuilder().executor(Executors.newVirtualThreadPerTaskExecutor())`).
-5. **Strict JPMS**: all modules have a `module-info.java`, `internal.*` packages
+5. **Strict Java Modules**: all modules have a `module-info.java`, `internal.*` packages
    not exported, SPI exposed only via `provides ... with`.
 6. **No `synchronized`, no `ThreadLocal`** — virtual-thread-friendly. `ScopedValue`
    if context propagation is needed (e.g. request tracing).
 7. **No `setAccessible(true)` in production** — use `MethodHandles.privateLookupIn`
-   if internal access is needed. Document any JPMS opening.
+   if internal access is needed. Document any Java Modules opening.
 8. **Champollion = only JSON lib** — no Jackson, Gson, standalone third-party Jsonb.
    `cyrano-core` declares `requires jakarta.json.bind` (spec); champollion provided at runtime.
 9. **MicroProfile Rest Client 4.0 TCK PASS at 100%** is a hard contract before any structural merge.
@@ -202,7 +202,7 @@ The `CyranoDeployableContainer` (custom Arquillian, ~300 LOC, test-scope only):
 - **Zero third-party libraries**: Jakarta EE and MicroProfile specs are the only
   dependencies allowed in `provided`/`compile` scope. If an implementation library
   seems necessary, the decomposition is wrong.
-- Use agents **`jpms-guardian`**, **`virtual-threads-reviewer`**,
+- Use agents **`java-modules-guardian`**, **`virtual-threads-reviewer`**,
   **`dependency-gatekeeper`**, **`classfile-codegen`** proactively on any `module-info.java`
   modification, concurrent code, `pom.xml`, or bytecode generator.
 - If the rules in this file need updating, remember to align `AGENTS.md` accordingly
@@ -251,3 +251,9 @@ Follow Vauban's `index.adoc`: page title (`= <Project>`), `:description:`, a cen
 Provide `modules/ROOT/images/<project>-logo.png` (PNG), referenced from `index.adoc`.
 
 > When you change these documentation rules, keep `AGENTS.md` and `CLAUDE.md` in sync.
+
+## Terminology
+
+Use **Java Modules** (or **Java module** for a single module) when referring to
+the Java Platform Module System. Do **not** use the abbreviation **JPMS** — in
+prose, identifiers, or documentation.

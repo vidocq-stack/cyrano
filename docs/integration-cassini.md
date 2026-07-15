@@ -98,7 +98,7 @@ Or via the interface FQN:
 com.acme.UsersClient/mp-rest/url=http://127.0.0.1:8080
 ```
 
-## JPMS notes
+## Java Modules notes
 
 - `cyrano-core` stays standalone, with no CDI dependency.
 - `cyrano-cdi-vauban` is optional.

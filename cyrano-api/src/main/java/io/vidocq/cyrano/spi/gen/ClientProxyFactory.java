@@ -22,7 +22,7 @@ package io.vidocq.cyrano.spi.gen;
 /**
  * SPI implemented by the {@code Factory} nested in each generated
  * {@code $$CyranoClient} class. cyrano-core discovers factories in order of
- * preference: {@code ServiceLoader} (JPMS-friendly, lets the user keep the client
+ * preference: {@code ServiceLoader} (Java Modules-friendly, lets the user keep the client
  * package fully encapsulated via {@code provides ... with}), then by naming
  * convention ({@code Class.forName(iface.getName() + "$$CyranoClient")}), and only
  * then falls back to runtime proxy generation.
