@@ -75,10 +75,14 @@
     </properties>
 
     <!--
-        cyrano-tck est volontairement HORS reactor (POM Model 4.0.0 standalone)
-        pour contourner ShrinkWrap Maven Resolver 3.3 qui ne sait pas parser
-        les POMs Model 4.1.0. Il sera invoqué par run-official-tck-mp-rest-client-4.0.sh
-        après installation locale du reactor.
+        cyrano-tck joins the reactor only under the `tck` profile (see <profiles>
+        below), mirroring the vidocq-runtime-tck-* pattern: a plain `mvn install`
+        neither downloads nor runs the TCK, and the release reactor never sees it.
+        The historical out-of-reactor constraint (ShrinkWrap Maven Resolver 3.3
+        vs Model 4.1.0 POMs) disappeared with the Maven 3.9.16 / Model 4.0.0
+        migration; the MP Rest Client TCK harness builds its Arquillian
+        deployments without the ShrinkWrap Maven resolver, so it runs safely
+        in-reactor (same verification as vidocq-runtime-tck-cyrano-restclient).
     -->
     <modules>
         <module>cyrano-mp-rest-client-api</module>
@@ -206,4 +210,24 @@
         maven-compiler-plugin 3.13.0 + Maven 3.9.16 au testCompile).
         Les autres modules du reactor n'en ont pas besoin.
     -->
+
+    <profiles>
+        <!--
+            TCK harmonisation (workspace-wide effort, recipe validated on dirac):
+            the official MicroProfile Rest Client 4.0 TCK runner joins the reactor
+            only when this profile is active, exactly like the in-reactor
+            vidocq-runtime-tck-* runners of the vidocq runtime.
+
+                ./mvnw -Ptck -pl cyrano-tck test                     # smoke
+                ./mvnw -Ptck,tck-official -pl cyrano-tck test        # full suite
+
+            run-official-tck-mp-rest-client-4.0.sh remains the friendly wrapper.
+        -->
+        <profile>
+            <id>tck</id>
+            <modules>
+                <module>cyrano-tck</module>
+            </modules>
+        </profile>
+    </profiles>
 </project>

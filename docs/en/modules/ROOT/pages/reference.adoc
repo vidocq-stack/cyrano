@@ -27,11 +27,11 @@ This page lists every artefact published by Cyrano, the Java modules they export
 | Vauban BCE `CyranoRestClientExtension` — `@RegisterRestClient` discovery, synthetic `@RestClient`-qualified bean, MP Config resolution.
 
 | `io.vidocq.cyrano:cyrano-tck:0.2.0`
-| `test` (out of reactor, POM Model 4.0.0)
+| `test` (in-reactor, `tck` Maven profile)
 | Official MicroProfile Rest Client 4.0 TCK runner — invoked through `run-official-tck-mp-rest-client-4.0.sh`.
 |===
 
-NOTE: `cyrano-tck` is **deliberately out of reactor** (standalone POM Model 4.0.0, no `<parent>`). Reason: ShrinkWrap Maven Resolver 3.3 — pulled in transitively by the TCK — cannot parse a Model 4.1.0 POM. Do not add it back to the parent `<modules>`.
+NOTE: `cyrano-tck` is **in-reactor, gated behind the `tck` Maven profile** (TCK harmonisation, `vidocq-runtime-tck-*` pattern): a plain `mvn install` neither downloads nor runs anything TCK-related. The historical out-of-reactor constraint (ShrinkWrap Maven Resolver 3.3 vs Model 4.1.0 POMs) disappeared with the Maven 3.9.16 / Model 4.0.0 migration. See xref:tck.adoc[TCK].
 
 == Exported Java modules
 

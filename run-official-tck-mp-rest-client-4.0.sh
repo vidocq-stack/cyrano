@@ -12,7 +12,9 @@
 #
 # Comportement :
 #   1. Installe en local (./mvnw install -DskipTests) cyrano-api/cyrano-core/cyrano-cdi-vauban
-#   2. Invoque mvn -f cyrano-tck/pom.xml -P<profile> test [args...]
+#   2. Invoque ./mvnw -Ptck,<profile> -pl cyrano-tck test [args...]
+#      (cyrano-tck est in-reactor, activé par le profil Maven `tck` —
+#      harmonisation TCK, même pattern que les runners vidocq-runtime-tck-*)
 #   3. Génère target/tck-report.txt avec le résumé PASS/FAIL/SKIP
 #
 # Vérification de la disponibilité du TCK sur Maven Central :
@@ -50,13 +52,13 @@ esac
 echo "==> Étape 1/2 : install local des artefacts Cyrano (./mvnw install -DskipTests)"
 ( cd "${ROOT_DIR}" && ./mvnw -ntp -pl cyrano-api,cyrano-core,cyrano-cdi-vauban -am install -DskipTests )
 
-echo "==> Étape 2/2 : exécution Maven sur cyrano-tck (profil=${profile})"
+echo "==> Étape 2/2 : exécution Maven sur cyrano-tck in-reactor (profils=tck,${profile})"
 mkdir -p "${TCK_DIR}/target"
 
 MVN="${ROOT_DIR}/mvnw"
 
 set +e
-"${MVN}" -ntp -f "${TCK_DIR}/pom.xml" -P"${profile}" test "$@" \
+( cd "${ROOT_DIR}" && "${MVN}" -ntp -P"tck,${profile}" -pl cyrano-tck test "$@" ) \
     | tee "${REPORT_FILE}.raw"
 status=$?
 set -e
