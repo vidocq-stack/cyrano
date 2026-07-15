@@ -63,7 +63,12 @@ Le score de 140/168 exclut volontairement trois familles de tests : SSL (`*Ssl*T
 
 == Architecture du runner TCK
 
-Le module `cyrano-tck` est **hors reactor** — POM `modelVersion 4.0.0` standalone, sans `<parent>`. Raison : la transitive ShrinkWrap Maven Resolver 3.3 ne sait pas parser un POM Model 4.1.0. Même contrainte que `cassini-tck`, `foy-tck`, `champollion-tck`, `ravel-tck`, `knock-tck`.
+Le module `cyrano-tck` est **in-reactor, activé par le profil Maven `tck`** (harmonisation TCK — même pattern que les runners `vidocq-runtime-tck-*` du runtime Vidocq) : un `mvn install` classique ne télécharge ni ne lance rien de lié au TCK, et le reactor de release ne voit jamais ce module.
+
+[NOTE]
+====
+Historiquement, `cyrano-tck` était un POM standalone hors reactor : ShrinkWrap Maven Resolver 3.3, transitive du TCK officiel, ne savait pas parser les POMs Model 4.1.0. Cette contrainte a disparu avec la migration du workspace vers Maven 3.9.16 / Model 4.0.0, et le harness TCK MP Rest Client construit ses déploiements Arquillian sans le resolver Maven de ShrinkWrap — il est donc sûr in-reactor, avec la même vérification que `vidocq-runtime-tck-cyrano-restclient`.
+====
 
 Le TCK MicroProfile Rest Client exige un backend HTTP qui joue le rôle de serveur cible. Le `CyranoDeployableContainer` (custom Arquillian, scope test uniquement) :
 
@@ -90,8 +95,16 @@ Le TCK MicroProfile Rest Client exige un backend HTTP qui joue le rôle de serve
 Le script :
 
 . installe d'abord le reactor en local (`./mvnw install -DskipTests -pl cyrano-api,cyrano-core,cyrano-cdi-vauban -am`) ;
-. invoque Maven sur `cyrano-tck/pom.xml` avec le profil `smoke` ou `tck-official` ;
+. invoque `./mvnw -Ptck,<profil> -pl cyrano-tck test` (profil `smoke` ou `tck-official`) ;
 . produit un rapport `cyrano-tck/target/tck-report.txt` avec la ligne `Tests run: N, Failures: F, Errors: E, Skipped: S` et le nombre de tests réussis.
+
+Invocation directe sans le script :
+
+[source,bash]
+----
+./mvnw -Ptck -pl cyrano-tck test                  # smoke
+./mvnw -Ptck,tck-official -pl cyrano-tck test     # suite complète
+----
 
 == Échecs résiduels (28 / 168)
 

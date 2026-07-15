@@ -223,7 +223,7 @@ in integration test with inline JDK mock server. Validated by **9/9 tests** in
 
 | Task | Notes | State |
 |---|---|---|
-| `cyrano-tck/pom.xml` standalone Model 4.0.0 | Same as `cassini-tck`/`knock-tck`/`ravel-tck` — outside reactor | [x] |
+| `cyrano-tck/pom.xml` standalone Model 4.0.0 | Same as `cassini-tck`/`knock-tck`/`ravel-tck` — outside reactor (superseded 2026-07-15: in-reactor behind the `tck` profile, see *Confirmed decisions*) | [x] |
 | Arquillian runner + official `microprofile-rest-client-tck:4.0` harness | `CyranoDeployableContainer` (Arquillian *Local* protocol) + `CyranoArquillianExtension` + `WireMockProbeListener` (boot WireMock via static block) | [x] |
 | TCK mock backend: embedded WireMock 3.10 | WireMock 127.0.0.1:8765 — JVM-static singleton started when the TestNG listener loads (before any `@BeforeMethod`) | [x] |
 | Cyrano → mock backend configuration | The TCK itself injects the target URI via `RestClientBuilder.baseUri(getServerURI())` and `WireMock.configureFor("127.0.0.1", 8765)` | [x] |
@@ -354,7 +354,14 @@ external `vidocq` repository: the aggregation wrapper module.
 - ✅ **`cyrano-cdi-vauban` separate**: optional module, not loaded if CDI is absent
 - ✅ **Strict TDD** on all production modules
 - ✅ **100% PASS TCK** as a hard contract
-- ✅ **TCK outside the reactor** (standalone POM Model 4.0.0) — ShrinkWrap Maven Resolver 3.3 constraint
+- ✅ **TCK in-reactor behind the `tck` Maven profile** (2026-07-15, TCK harmonisation —
+  mirroring the `vidocq-runtime-tck-*` pattern, recipe validated on dirac). Supersedes the
+  original out-of-reactor decision: the ShrinkWrap Maven Resolver 3.3 vs Model 4.1.0
+  constraint disappeared with the workspace migration to Maven 3.9.16 / Model 4.0.0, and
+  the MP Rest Client TCK harness builds its Arquillian deployments without the ShrinkWrap
+  Maven resolver. A plain `mvn install` neither downloads nor runs anything TCK-related;
+  `run-official-tck-mp-rest-client-4.0.sh` stays as a thin wrapper. Full suite re-verified
+  at `Tests run: 235, Failures: 0, Errors: 0, Skipped: 9` after the move.
 - ✅ **Virtual threads** for all HTTP calls (`sendAsync` + `VirtualThreadPerTaskExecutor`)
 
 ## Open decisions

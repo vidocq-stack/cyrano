@@ -7,7 +7,8 @@
   (`README.md`, `pom.xml`, `CLAUDE.md`).
 - Strict Java Modules architecture: `cyrano-api` re-exports the spec, `cyrano-core` stays standalone SE
   (depends on `jakarta.ws.rs` / `jakarta.json.bind` for annotations and serialization),
-  `cyrano-cdi-vauban` is an optional CDI adapter, `cyrano-tck` remains out-of-reactor.
+  `cyrano-cdi-vauban` is an optional CDI adapter, `cyrano-tck` is in-reactor behind
+  the `tck` Maven profile.
 - **APT-first proxy generation (codegen audit CG-01)**: `cyrano-processor` generates
   `$$CyranoClient` sources at compile time (primary path); the Class-File API (JEP 484)
   runtime generator is the documented fallback. No `java.lang.reflect.Proxy`,
@@ -37,8 +38,9 @@
 
 ## Boundaries Not to Break
 
-- Never put `cyrano-tck` back in the reactor: the parent `pom.xml` intentionally excludes it
-  due to ShrinkWrap Maven Resolver / Model 4.0.0 vs 4.1.0.
+- `cyrano-tck` joins the reactor only under the `tck` Maven profile (TCK harmonisation,
+  `vidocq-runtime-tck-*` pattern): never add it to the default `<modules>` — a plain
+  `mvn install` must neither download nor run anything TCK-related.
 - `cyrano-core` depends only on `jakarta.ws.rs` (JAX-RS annotations, spec API) and
   `jakarta.json.bind` (JSON-B spec API); CDI stays in `cyrano-cdi-vauban`. Transport
   is `java.net.http` (JDK). Champollion is the runtime JSON-B implementation.

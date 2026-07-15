@@ -18,7 +18,7 @@ via Vauban, JSON serialisation via Champollion (Jakarta JSON-B).
 | `cyrano-processor` | APT processor generating `$$CyranoClient` sources at compile time (primary proxy path) |
 | `cyrano-core` | Standalone implementation: proxy resolution chain, interface scanning + Class-File API proxy generation (runtime fallback), JDK HttpClient transport, JSON-B mapping |
 | `cyrano-cdi-vauban` | Vauban BCE discovering `@RegisterRestClient` interfaces |
-| `cyrano-tck` | Official MicroProfile Rest Client 4.0 TCK runner (out-of-reactor) |
+| `cyrano-tck` | Official MicroProfile Rest Client 4.0 TCK runner (in-reactor, gated by the `tck` Maven profile) |
 
 ## Prerequisites
 

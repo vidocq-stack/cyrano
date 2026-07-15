@@ -35,9 +35,12 @@
 ./run-official-tck-mp-rest-client-4.0.sh -Dtest=TestName
 ```
 
-> `cyrano-tck` is **out-of-reactor** (standalone POM Model 4.0.0) to work around
-> ShrinkWrap Maven Resolver 3.3 vs Model 4.1.0 — same constraint as `cassini-tck`,
-> `foy-tck`, `champollion-tck`, `ravel-tck`, and `knock-tck`. Do not change this model.
+> `cyrano-tck` is **in-reactor, gated behind the `tck` Maven profile** (TCK harmonisation —
+> mirroring the `vidocq-runtime-tck-*` pattern): a plain `mvn install` neither downloads
+> nor runs anything TCK-related. The historical out-of-reactor constraint (ShrinkWrap
+> Maven Resolver 3.3 vs Model 4.1.0) disappeared with the Maven 3.9.16 / Model 4.0.0
+> migration. Direct invocation: `./mvnw -Ptck -pl cyrano-tck test` (smoke) or
+> `./mvnw -Ptck,tck-official -pl cyrano-tck test` (full suite).
 
 ## Architecture
 
@@ -59,7 +62,8 @@ cyrano-core         ← Implementation: ClientProxyRegistry resolution chain, in
                      MessageBodyReader/Writer via Jakarta JSON-B (champollion)
 cyrano-cdi-vauban   ← CDI Vauban integration: BCE @RegisterRestClient, @Inject @RestClient,
                      base URL config via MicroProfile Config (Ravel)
-cyrano-tck          ← Official MicroProfile Rest Client 4.0 TCK runner (OUT OF REACTOR)
+cyrano-tck          ← Official MicroProfile Rest Client 4.0 TCK runner (in-reactor,
+                     gated by the `tck` Maven profile)
 ```
 
 **Client call flow:**
@@ -157,8 +161,8 @@ Concrete rules:
 
 ## TCK — Technology Compatibility Kit
 
-MicroProfile Rest Client TCK — run in an out-of-reactor module (`cyrano-tck`,
-POM Model 4.0.0) to work around ShrinkWrap Maven Resolver 3.3:
+MicroProfile Rest Client TCK — run in the in-reactor `cyrano-tck` module, gated
+by the `tck` Maven profile (TCK harmonisation, `vidocq-runtime-tck-*` pattern):
 
 | TCK | Artifact | Target |
 |---|---|---|

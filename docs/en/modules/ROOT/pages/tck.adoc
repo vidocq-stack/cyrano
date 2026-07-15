@@ -63,7 +63,12 @@ The 140/168 score deliberately excludes three families: SSL (`*Ssl*Test`), long-
 
 == TCK runner architecture
 
-The `cyrano-tck` module is **out of reactor** — standalone `modelVersion 4.0.0` POM, no `<parent>`. Reason: the transitive ShrinkWrap Maven Resolver 3.3 cannot parse a Model 4.1.0 POM. Same constraint as `cassini-tck`, `foy-tck`, `champollion-tck`, `ravel-tck`, `knock-tck`.
+The `cyrano-tck` module is **in-reactor, gated behind the `tck` Maven profile** (TCK harmonisation — mirroring the `vidocq-runtime-tck-*` pattern of the Vidocq runtime): a plain `mvn install` neither downloads nor runs anything TCK-related, and the release reactor never sees the module.
+
+[NOTE]
+====
+Historically `cyrano-tck` was a standalone out-of-reactor POM: ShrinkWrap Maven Resolver 3.3, transitive to the official TCK, could not parse Model 4.1.0 POMs. That constraint disappeared with the workspace-wide migration to Maven 3.9.16 / Model 4.0.0, and the MP Rest Client TCK harness builds its Arquillian deployments without the ShrinkWrap Maven resolver, so it is safe in-reactor — the same verification already backs `vidocq-runtime-tck-cyrano-restclient`.
+====
 
 The MicroProfile Rest Client TCK requires an HTTP backend that plays the role of the target server. The `CyranoDeployableContainer` (custom Arquillian, test scope only):
 
@@ -90,8 +95,16 @@ The MicroProfile Rest Client TCK requires an HTTP backend that plays the role of
 The script:
 
 . first installs the reactor locally (`./mvnw install -DskipTests -pl cyrano-api,cyrano-core,cyrano-cdi-vauban -am`);
-. invokes Maven on `cyrano-tck/pom.xml` with the `smoke` or `tck-official` profile;
+. invokes `./mvnw -Ptck,<profile> -pl cyrano-tck test` (`smoke` or `tck-official` profile);
 . produces a `cyrano-tck/target/tck-report.txt` report with the `Tests run: N, Failures: F, Errors: E, Skipped: S` line and the count of passed tests.
+
+Direct invocation without the script:
+
+[source,bash]
+----
+./mvnw -Ptck -pl cyrano-tck test                  # smoke
+./mvnw -Ptck,tck-official -pl cyrano-tck test     # full suite
+----
 
 == Remaining failures (28 / 168)
 
