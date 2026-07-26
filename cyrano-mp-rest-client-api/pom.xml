@@ -95,7 +95,17 @@
                                     <artifactId>microprofile-rest-client-api</artifactId>
                                     <version>${microprofile.rest.client.version}</version>
                                     <outputDirectory>${project.build.outputDirectory}</outputDirectory>
-                                    <includes>org/eclipse/microprofile/rest/client/**</includes>
+                                    <!--
+                                        Aligné sur ravel-mp-config-api / heisenberg-mp-ft-api :
+                                        on exclut le manifest et les méta Maven d'origine plutôt
+                                        que de whitelister l'arbre des classes.
+
+                                        L'ancienne whitelist <includes> écartait silencieusement
+                                        META-INF/LICENSE, alors que les .class dépaquetés restent
+                                        sous Apache-2.0 — dont la section 4(a) impose de joindre
+                                        la licence amont à toute redistribution.
+                                    -->
+                                    <excludes>META-INF/MANIFEST.MF,META-INF/maven/**</excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
