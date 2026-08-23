@@ -2,7 +2,7 @@
 :description: Conformance status of Cyrano against the official MicroProfile Rest Client 4.0 TCK, tested scope, declared challenges.
 
 [.lead]
-This page consolidates the state of the official MicroProfile Rest Client 4.0 TCK runs against Cyrano. The day-to-day source of truth is link:https://codeberg.org/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md] in the repo; this page reflects the reference snapshot.
+This page consolidates the state of the official MicroProfile Rest Client 4.0 TCK runs against Cyrano. The day-to-day source of truth is link:https://codefloe.com/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md] in the repo; this page reflects the reference snapshot.
 
 == Summary
 
@@ -147,7 +147,7 @@ No official challenge is open against the MP Rest Client spec to date. Every fai
 
 [NOTE]
 ====
-The release discipline is clear (see `CLAUDE.md`): **no structural merge** on `cyrano-core`/`cyrano-cdi-vauban` without a TCK PASS on the relevant scope. Any tests disabled for spec interpretation or upstream TCK bug are documented in link:https://codeberg.org/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md] with spec quote, test hash, and reactivation plan.
+The release discipline is clear (see `CLAUDE.md`): **no structural merge** on `cyrano-core`/`cyrano-cdi-vauban` without a TCK PASS on the relevant scope. Any tests disabled for spec interpretation or upstream TCK bug are documented in link:https://codefloe.com/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md] with spec quote, test hash, and reactivation plan.
 ====
 
 == TCK roadmap
@@ -181,5 +181,5 @@ The release discipline is clear (see `CLAUDE.md`): **no structural merge** on `c
 
 * xref:internals.adoc[Internals] — full pipeline of a call.
 * xref:reference.adoc#mp-config[Supported MP Config keys].
-* link:https://codeberg.org/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md — detailed repo status].
-* link:https://codeberg.org/Vidocq/cyrano/src/branch/main/ROADMAP.md[ROADMAP.md — milestones].
+* link:https://codefloe.com/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md — detailed repo status].
+* link:https://codefloe.com/Vidocq/cyrano/src/branch/main/ROADMAP.md[ROADMAP.md — milestones].

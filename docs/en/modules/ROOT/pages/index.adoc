@@ -41,7 +41,7 @@ A type-safe REST client does exactly the same thing: the application calls `user
 [cols="1,3"]
 |===
 | Implemented spec | https://download.eclipse.org/microprofile/microprofile-rest-client-4.0/microprofile-rest-client-spec-4.0.html[MicroProfile Rest Client 4.0]
-| Repo | https://codeberg.org/Vidocq/cyrano[Vidocq/cyrano] (mirrors: GitHub, Forgejo)
+| Repo | https://codefloe.com/Vidocq/cyrano[Vidocq/cyrano] (mirrors: GitHub, Forgejo)
 | Java | 25 (LTS)
 | Java modules | `io.vidocq.cyrano.mp.rest.client.api`, `io.vidocq.cyrano.api`, `io.vidocq.cyrano.core`, `io.vidocq.cyrano.cdi.vauban`
 | Runtime dependencies | `microprofile-rest-client-api` (repackaged), `jakarta.ws.rs-api`, `jakarta.json.bind-api` (runtime impl: xref:champollion::index.adoc[Champollion])
@@ -107,4 +107,4 @@ The core implementation (`cyrano-core`) and the CDI integration (`cyrano-cdi-vau
 
 == License
 
-EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later — see https://codeberg.org/Vidocq/cyrano/src/branch/main/LICENSE[LICENSE].
+EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later — see https://codefloe.com/Vidocq/cyrano/src/branch/main/LICENSE[LICENSE].

@@ -10,23 +10,23 @@ This page lists every artefact published by Cyrano, the Java modules they export
 |===
 | Artefact | Recommended scope | Role
 
-| `io.vidocq.cyrano:cyrano-mp-rest-client-api:0.2.0`
+| `io.vidocq.cyrano:cyrano-mp-rest-client-api:{project-version}`
 | `compile` (transitive via `cyrano-api`)
 | Explicit Java Modules repackage of `microprofile-rest-client-api` 4.0 — neutralises the upstream automatic module.
 
-| `io.vidocq.cyrano:cyrano-api:0.2.0`
+| `io.vidocq.cyrano:cyrano-api:{project-version}`
 | `compile`
 | Controlled re-export of the spec + stable public SPI (`io.vidocq.cyrano.spi`).
 
-| `io.vidocq.cyrano:cyrano-core:0.2.0`
+| `io.vidocq.cyrano:cyrano-core:{project-version}`
 | `runtime`
 | Implementation: `CyranoRestClientBuilder`, `CyranoInterfaceScanner`, `CyranoProxyGenerator` (Class-File API), `CyranoInvocationHandler`, `CyranoHttpTransport`.
 
-| `io.vidocq.cyrano:cyrano-cdi-vauban:0.2.0`
+| `io.vidocq.cyrano:cyrano-cdi-vauban:{project-version}`
 | `runtime` (optional)
 | Vauban BCE `CyranoRestClientExtension` — `@RegisterRestClient` discovery, synthetic `@RestClient`-qualified bean, MP Config resolution.
 
-| `io.vidocq.cyrano:cyrano-tck:0.2.0`
+| `io.vidocq.cyrano:cyrano-tck:{project-version}`
 | `test` (in-reactor, `tck` Maven profile)
 | Official MicroProfile Rest Client 4.0 TCK runner — invoked through `run-official-tck-mp-rest-client-4.0.sh`.
 |===

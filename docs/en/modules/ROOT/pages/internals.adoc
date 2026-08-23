@@ -183,4 +183,4 @@ After reception, `CyranoInvocationHandler`:
 * **No platform pool** — `Executors.newVirtualThreadPerTaskExecutor()` is sufficient and more efficient for I/O.
 * **`cyrano-mp-rest-client-api` repackage module** — the upstream spec ships without `module-info` and without `Automatic-Module-Name`, which prevents jlink. The repackage makes it explicitly `io.vidocq.cyrano.mp.rest.client.api`.
 
-The proxy generation strategy is documented in link:https://codeberg.org/Vidocq/cyrano/src/branch/main/docs/adr/[the ADRs] (`ADR-001-classfile-proxy-strategy.md`).
+The proxy generation strategy is documented in link:https://codefloe.com/Vidocq/cyrano/src/branch/main/docs/adr/[the ADRs] (`ADR-001-classfile-proxy-strategy.md`).
