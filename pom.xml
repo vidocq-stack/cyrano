@@ -16,7 +16,7 @@
 
     <name>Cyrano</name>
     <description>Implémentation MicroProfile Rest Client 4.0 — zéro librairie tierce, virtual threads, Java Modules strict, proxy via Class-File API (JEP 484)</description>
-    <url>https://codeberg.org/Vidocq/cyrano</url>
+    <url>https://codefloe.com/Vidocq/cyrano</url>
 
     <!--
         Disjunctive triple license: a recipient may use this software under
@@ -44,8 +44,8 @@
     </licenses>
 
     <scm>
-        <url>https://codeberg.org/Vidocq/cyrano</url>
-        <connection>scm:git:https://codeberg.org/Vidocq/cyrano.git</connection>
+        <url>https://codefloe.com/Vidocq/cyrano</url>
+        <connection>scm:git:https://codefloe.com/Vidocq/cyrano.git</connection>
         <developerConnection>scm:git:git@forge.vidocq.dev:vidocq/cyrano.git</developerConnection>
     </scm>
 
