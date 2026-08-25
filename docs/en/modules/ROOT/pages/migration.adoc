@@ -1,9 +1,9 @@
 = Migration
 :description: Migrating from SmallRye Rest Client, RESTEasy Client or Jakarta REST Client to Cyrano.
 
-[CAUTION]
+[NOTE]
 ====
-Cyrano is at `{project-version}`. A real application migration is premature until TCK coverage clears M5 (see xref:tck.adoc[TCK status]). This page documents the model correspondences and known pitfalls in preparation for the transition.
+Cyrano is at `{project-version}` and passes the retained perimeter of the official MicroProfile Rest Client 4.0 TCK at **168 / 168 — 100 %**; the `ssl/**` and `sse/**` suites are excluded at this version (see xref:tck.adoc[TCK status]). This page documents the model correspondences and known pitfalls for the transition.
 ====
 
 [.lead]
@@ -127,7 +127,6 @@ To preserve `jakarta.ws.rs.client.Client` usage in edge cases (e.g. fully dynami
 * **`module-info.java`** — remember to add `requires io.vidocq.cyrano.mp.rest.client.api;` and `opens com.example.dto to jakarta.json.bind;` for the DTOs. This is the number-one source of `InaccessibleObjectException`.
 * **Spec repackage** — do not import `microprofile-rest-client-api` directly (automatic module → jlink-incompatible). Always go through `cyrano-mp-rest-client-api`.
 * **MP Config is required for `<configKey>/mp-rest/url`** — without xref:ravel::index.adoc[Ravel] (or another impl), only `@RegisterRestClient(baseUri=...)` works.
-* **Async + CDI context** — `@RequestScoped` propagation in a `CompletionStage` is not yet complete (see xref:tck.adoc[TCK §AsyncMethodTest]). Prefer synchronous calls on a virtual thread until M4-6 ships.
 
 == Going further
 

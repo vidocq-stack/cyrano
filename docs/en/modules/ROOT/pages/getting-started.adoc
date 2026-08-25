@@ -2,7 +2,7 @@
 :description: First typed MicroProfile Rest Client interface wired with Cyrano in fewer than fifty lines.
 
 [.lead]
-This page shows how to declare a typed client interface, inject it through CDI, and invoke a remote HTTP service. No dynamic proxy, no hot reflection: the invocation class is generated on first use by the Class-File API.
+This page shows how to declare a typed client interface, inject it through CDI, and invoke a remote HTTP service. No dynamic proxy, no hot reflection: the invocation class is generated **at compile time** by the `cyrano-processor` annotation processor (`<Interface>$$CyranoClient`); the Class-File API only serves as a runtime fallback for interfaces compiled without the processor.
 
 == Prerequisites
 
@@ -35,7 +35,8 @@ This page shows how to declare a typed client interface, inject it through CDI, 
     <artifactId>cyrano-api</artifactId>
   </dependency>
 
-  <!-- Runtime implementation: scanning, Class-File API proxy, HttpClient transport -->
+  <!-- Runtime implementation: proxy resolution chain, HttpClient transport,
+       Class-File API generator as runtime fallback -->
   <dependency>
     <groupId>io.vidocq.cyrano</groupId>
     <artifactId>cyrano-core</artifactId>
@@ -49,7 +50,29 @@ This page shows how to declare a typed client interface, inject it through CDI, 
     <scope>runtime</scope>
   </dependency>
 </dependencies>
+
+<!-- Compile-time client generation (APT-first): generates <Interface>$$CyranoClient
+     sources for every @RegisterRestClient interface -->
+<build>
+  <plugins>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-compiler-plugin</artifactId>
+      <configuration>
+        <annotationProcessorPaths>
+          <path>
+            <groupId>io.vidocq.cyrano</groupId>
+            <artifactId>cyrano-processor</artifactId>
+            <version>{project-version}</version>
+          </path>
+        </annotationProcessorPaths>
+      </configuration>
+    </plugin>
+  </plugins>
+</build>
 ----
+
+NOTE: `cyrano-processor` registers itself through `META-INF/services/javax.annotation.processing.Processor`, so declaring it as a `provided`-scope dependency also triggers it (javac ServiceLoader discovery). It is optional: without it, `cyrano-core` generates the proxy at runtime through the Class-File API — the compile-time path is simply faster to boot and AOT-safe (GraalVM `native-image`, Leyden CDS).
 
 NOTE: `cyrano-mp-rest-client-api` is pulled in transitively. This module **repackages** the MicroProfile Rest Client spec (which ships with no `module-info` and no `Automatic-Module-Name` upstream) to produce an explicit Java module `io.vidocq.cyrano.mp.rest.client.api`. Without it, jlink fails.
 
@@ -134,7 +157,7 @@ public class UserService {
 }
 ----
 
-At bootstrap, the `CyranoRestClientExtension` BCE detects `UsersClient` via `@Enhancement(withAnnotations = RegisterRestClient.class)`, synthesises a `@RestClient`-qualified bean, and delegates instantiation to `RestClientBuilder.newBuilder().baseUri(...).build(UsersClient.class)`. On the first invocation, `CyranoProxyGenerator` emits `Cyrano$UsersClient` via the Class-File API.
+At bootstrap, the `CyranoRestClientCdiExtension` BCE detects `UsersClient` via `@Enhancement(types = Object.class, withAnnotations = RegisterRestClient.class, withSubtypes = true)`, synthesises a `@RestClient`-qualified bean (`@Synthesis`), and delegates instantiation to `RestClientBuilder.newBuilder().baseUri(...).build(UsersClient.class)`. The builder resolves the proxy through `ClientProxyRegistry`: the APT-generated `UsersClient$$CyranoClient` (compiled with the client interface) is picked up first; only when no generated client exists does `CyranoProxyGenerator` emit a `Cyrano$UsersClient` class at runtime via the Class-File API.
 
 == Variant without CDI — `RestClientBuilder`
 

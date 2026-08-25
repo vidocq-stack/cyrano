@@ -1,5 +1,5 @@
 = Internals
-:description: Cyrano pipeline — interface scanning, proxy generation through the Class-File API, JDK HttpClient transport, Vauban BCE integration.
+:description: Cyrano pipeline — APT-generated clients, three-tier proxy resolution, runtime Class-File API fallback, JDK HttpClient transport, Vauban BCE integration.
 
 [.lead]
 This page describes the full pipeline of a Cyrano REST call, from the moment the interface is annotated to the moment the typed value is returned. Everything is build-time-friendly: no dynamic reflection, no hot classpath scan, no `synchronized` on the hot path.
@@ -9,30 +9,31 @@ This page describes the full pipeline of a Cyrano REST call, from the moment the
 [mermaid]
 ....
 flowchart TD
+  APT["cyrano-processor (APT, compile time)<br/>UsersClient$$CyranoClient + Factory + literal descriptor"]
   Annotated["Annotated interface<br/>@RegisterRestClient<br/>@Path / @GET / @PathParam"]
-  BCE["CyranoRestClientExtension (Vauban BCE)<br/>@Enhancement(withAnnotations=RegisterRestClient.class)"]
+  BCE["CyranoRestClientCdiExtension (Vauban BCE)<br/>@Enhancement(types=Object.class, withAnnotations=RegisterRestClient.class, withSubtypes=true)"]
   Synth["@Synthesis<br/>@RestClient-qualified SyntheticBean<br/>creator = CyranoRestClientSyntheticCreator"]
   Inject["@Inject @RestClient UsersClient"]
   Resolver["CyranoBaseUriResolver<br/>annotation < MP Config <fqn>/mp-rest/url < <configKey>/mp-rest/url"]
   Builder["CyranoRestClientBuilder<br/>.baseUri(...).build(UsersClient.class)"]
-  Scanner["CyranoInterfaceScanner<br/>RequestSpec[] (verb, path template, param bindings)"]
-  Gen["CyranoProxyGenerator (Class-File API, JEP 484)<br/>Cyrano$UsersClient extends iface"]
-  Cache["CyranoProxyCache<br/>ConcurrentHashMap<Class<?>, Entry>"]
-  Handler["CyranoInvocationHandler.invoke(methodIndex, args)<br/>RequestSpec[methodIndex] + args -> HttpRequest"]
+  Registry["ClientProxyRegistry<br/>1. ServiceLoader(ClientProxyFactory)<br/>2. naming convention $$CyranoClient<br/>3. runtime Class-File fallback"]
+  Fallback["CyranoInterfaceScanner + CyranoProxyGenerator<br/>(Class-File API, JEP 484) Cyrano$UsersClient"]
+  Handler["CyranoInvocationHandler.invoke(proxy, methodIndex, args)<br/>RequestSpec[methodIndex] + args -> HttpRequest"]
   HttpC["java.net.http.HttpClient<br/>virtual thread executor"]
   Remote["Remote HTTP service"]
   JSONB["Jakarta JSON-B (Champollion)"]
   Result["Typed value"]
 
+  Annotated -.compile time.-> APT
+  APT -.tiers 1-2.-> Registry
   Annotated --> BCE
   BCE --> Synth
   Synth --> Inject
   Inject --> Resolver
   Resolver --> Builder
-  Builder --> Scanner
-  Scanner --> Gen
-  Gen --> Cache
-  Cache --> Handler
+  Builder --> Registry
+  Registry -.tier 3 only.-> Fallback
+  Registry --> Handler
   Handler --> HttpC
   HttpC --> Remote
   Remote --> HttpC
@@ -45,29 +46,31 @@ flowchart TD
 
 Bootstrap starts at `process-classes` when xref:vauban::index.adoc[Vauban] runs the Build Compatible Extensions registered through `META-INF/services/jakarta.enterprise.inject.build.compatible.spi.BuildCompatibleExtension`.
 
-`CyranoRestClientExtension` (in `cyrano-cdi-vauban`) declares two hooks:
+`CyranoRestClientCdiExtension` (in `cyrano-cdi-vauban`) declares exactly two hooks — `@Enhancement` and `@Synthesis`:
 
 [source,java]
 ----
-@Enhancement(types = Object.class, withAnnotations = RegisterRestClient.class)
-public void enhanceClient(ClassConfig cfg, MessagerLogger log) {
-    log.info("Discovered REST client interface: " + cfg.info().name());
-    // memoise for @Synthesis
+@Enhancement(types = Object.class, withAnnotations = RegisterRestClient.class, withSubtypes = true)
+public void discoverRegisterRestClient(ClassConfig classConfig, Messages messages) {
+    // rejects @RegisterRestClient on non-interfaces via messages.error(...) (spec §3.1),
+    // reads baseUri/configKey/scope, memoises for @Synthesis
 }
 
 @Synthesis
-public void synthesize(SyntheticComponents syn) {
-    for (Class<?> iface : discoveredClients) {
-        syn.addBean(iface)
-           .type(iface)
-           .qualifier(RestClient.Literal.INSTANCE)
-           .scope(ApplicationScoped.class)
-           .createWith(CyranoRestClientSyntheticCreator.class);
+public void synthesizeRestClientBeans(SyntheticComponents components) {
+    for (DiscoveredInterface d : discovered.values()) {
+        components.addBean(iface)
+            .type(iface)
+            .qualifier(RestClient.class)
+            .scope(scopeClass)   // scope annotation on the interface, or @Dependent (spec §6.3)
+            .withParam(...)      // interface FQN, baseUri, configKey
+            .createWith(CyranoRestClientSyntheticCreator.class)
+            .disposeWith(CyranoRestClientSyntheticDisposer.class);
     }
 }
 ----
 
-`@Validation` (optional) checks that a base URL is resolvable at build time if the spec requires it.
+Diagnostics go through the standard BCE `Messages` facility (`jakarta.enterprise.inject.build.compatible.spi.Messages`), injected into the `@Enhancement` method. The extension declares no other hook — base-URL resolution failures surface at bean instantiation, not at build time.
 
 == 2. Creation: `CyranoRestClientSyntheticCreator`
 
@@ -79,59 +82,86 @@ On the first CDI resolution of `@Inject @RestClient UsersClient`, the synthetic 
 
 NOTE: MP Config is consulted **reflectively** on `org.eclipse.microprofile.config.ConfigProvider`. `cyrano-cdi-vauban` declares no compile dependency on `microprofile-config-api` — if the API is not loadable at runtime, `defaultMpConfigLookup()` returns `key -> Optional.empty()` (graceful degradation documented in AGENTS.md).
 
-== 3. Interface scanning
+== 3. Request model: `RequestSpec` and `ParamBinding`
 
-`CyranoInterfaceScanner` reads the JAX-RS annotations on the interface and its methods via `java.lang.reflect` (annotation-only — no reflection on the hot path).
+Whatever the resolution tier, each client method ends up described by an immutable `io.vidocq.cyrano.internal.RequestSpec`. On the APT path the specs are rebuilt from the literal `ClientDescriptor` embedded in the generated class (`DescriptorConverter`, targeted `getMethod` resolution only); on the runtime-fallback path `CyranoInterfaceScanner` reads the JAX-RS annotations on the interface and its methods (annotation-only reflection — nothing on the hot path).
 
-For each method, an immutable `RequestSpec` is built:
+The real record components:
 
 [source,java]
 ----
 public record RequestSpec(
-    String httpMethod,                    // "GET", "POST", ...
-    String pathTemplate,                  // "/users/{id}"
-    List<ParamBinding> params,            // order = method arguments
-    MediaType[] consumes,                 // @Consumes
-    MediaType[] produces,                 // @Produces
-    Map<String, String> staticHeaders,    // @ClientHeaderParam(value="...")
-    Map<String, String> dynamicHeaders,   // @ClientHeaderParam(value="{method}")
-    Class<?> declaredReturn,              // raw return type
-    Type genericReturn                    // generic type (for CompletionStage<List<X>>)
+    String httpMethod,                              // "GET", "POST", ... (null = sub-resource locator)
+    String pathTemplate,                            // "/users/{id}"
+    List<ParamBinding> bindings,                    // order = method arguments
+    Class<?> returnType,                            // raw return type
+    Type genericReturnType,                         // generic type (CompletionStage<List<X>>, JSON-B)
+    List<String> consumes,                          // @Consumes (Content-Type sent)
+    List<String> produces,                          // @Produces (Accept)
+    Map<String, List<String>> staticHeaders,        // @ClientHeaderParam(value="literal")  (spec §6.5)
+    Map<String, DynamicHeader> dynamicHeaders,      // @ClientHeaderParam(value="{method}") — method name + required flag
+    Method method                                   // source method (used by dynamic headers)
 ) {}
 ----
 
-`ParamBinding` is a `sealed interface`: `PathParamBinding`, `QueryParamBinding`, `HeaderParamBinding`, `CookieParamBinding`, `MatrixParamBinding`, `FormParamBinding`, `BeanParamBinding`, `BodyBinding`. The `switch` in `CyranoInvocationHandler` is exhaustive (sealed types — compiler-checked).
+`ParamBinding` (also in `io.vidocq.cyrano.internal`) is a `sealed interface` whose implementations are **nested records**: `ParamBinding.Path`, `ParamBinding.Query`, `ParamBinding.Header`, `ParamBinding.Cookie`, `ParamBinding.Form`, `ParamBinding.Matrix` (each `(int paramIndex, String name, String defaultValue)`), `ParamBinding.Body(int paramIndex)` for the implicit unannotated body, and `ParamBinding.Bean(int paramIndex, List<FieldBinding> fields)` for `@BeanParam` aggregation (with a `FieldBinding(Field field, Kind kind, String name, String defaultValue)` helper record). The `switch` in `CyranoInvocationHandler` is exhaustive (sealed types — compiler-checked).
 
-== 4. Proxy generation through the Class-File API (JEP 484)
+== 4. Proxy resolution: `ClientProxyRegistry` — generated artifacts first
 
-`CyranoProxyGenerator` emits the bytecode of a class named `Cyrano$<SimpleName>` in the **interface's package** (via `MethodHandles.privateLookupIn(iface, MethodHandles.lookup())`). The generated skeleton is:
+`io.vidocq.cyrano.internal.gen.ClientProxyRegistry` is the single entry point that turns a client interface into a proxy class. Generated artifacts come first, runtime generation is strictly a fallback (workspace codegen rule, audit CG-01 — the registry mirrors Cassini's `AdapterRegistry` pattern, hit counters included). The chain, in order:
+
+. **`ServiceLoader` of `ClientProxyFactory`** — the Java-Modules-friendly path. The module layer is consulted first (`ServiceLoader.load(layer, ClientProxyFactory.class)`), then the candidate class loaders: a strict module declares `provides ClientProxyFactory with com.acme.MyApi$$CyranoClient$Factory` and keeps the client package fully encapsulated.
+. **Naming convention** — `Class.forName(iface.getName() + "$$CyranoClient")` then its nested `Factory`. Works on the classpath and for exported packages.
+. **Runtime fallback** — `CyranoProxyGenerator` (Class-File API) + `CyranoInterfaceScanner`, for interfaces compiled without the Cyrano annotation processor (e.g. pre-compiled TCK jars).
+
+Resolution is cached per interface (`ConcurrentHashMap`); the counters (`serviceLoaderHits()`, `preGeneratedHits()`, `runtimeGeneratedHits()`) count resolutions, not cache hits, so tests can assert which tier actually did the work.
+
+=== Tiers 1-2: the APT-generated `$$CyranoClient`
+
+`cyrano-processor` (`CyranoClientProcessor`, registered through `META-INF/services/javax.annotation.processing.Processor`) emits, for every `@RegisterRestClient` interface, a plain Java source file — `Filer.createSourceFile`, no bytecode manipulation:
 
 [source,java]
 ----
-package com.example.client;
+// Generated by io.vidocq.cyrano.processor.CyranoClientProcessor — do not edit.
+public final class UsersClient$$CyranoClient implements UsersClient, java.io.Closeable {
 
-public final class Cyrano$UsersClient implements UsersClient {
+    // literal ClientDescriptor (methods, bindings, headers) — no runtime annotation scan
+    private static final io.vidocq.cyrano.spi.gen.ClientDescriptor DESCRIPTOR = ...;
 
-    private final io.vidocq.cyrano.runtime.CyranoInvocationHandler $handler;
+    private final io.vidocq.cyrano.spi.gen.ClientInvoker invoker;
 
-    public Cyrano$UsersClient(io.vidocq.cyrano.runtime.CyranoInvocationHandler handler) {
-        this.$handler = handler;
+    public UsersClient$$CyranoClient(io.vidocq.cyrano.spi.gen.ClientInvoker invoker) {
+        this.invoker = invoker;
     }
 
     @Override
-    public UserDto findById(long id) {
-        return (UserDto) $handler.invoke(0, new Object[] { id });
+    public UserDto findById(long id) { /* delegates to invoker with method index 0 */ }
+
+    @Override
+    public void close() { this.invoker.markClosed(); }
+
+    /** ServiceLoader-able factory — see io.vidocq.cyrano.spi.gen.ClientProxyFactory. */
+    public static final class Factory implements io.vidocq.cyrano.spi.gen.ClientProxyFactory {
+        public Class<?> clientInterface() { return UsersClient.class; }
+        public io.vidocq.cyrano.spi.gen.ClientDescriptor descriptor() { return DESCRIPTOR; }
+        public Object newProxy(io.vidocq.cyrano.spi.gen.ClientInvoker invoker) {
+            return new UsersClient$$CyranoClient(invoker);
+        }
     }
 }
 ----
 
-Emission uses `java.lang.classfile.ClassFile.build(...)`. No ASM dependency, no `setAccessible(true)`. The class is loaded with `lookup.defineClass(bytes)`; the `MethodHandles.Lookup` is obtained via `privateLookupIn` on the interface.
+The processor also writes a `META-INF/services/io.vidocq.cyrano.spi.gen.ClientProxyFactory` entry for classpath deployments. It **never fails a build**: any construct it cannot emit faithfully (including definitions the runtime scanner would reject with `RestClientDefinitionException`) is skipped with a compiler NOTE — the fallback preserves exact spec behaviour.
+
+=== Tier 3: runtime generation through the Class-File API (JEP 484)
+
+`CyranoProxyGenerator` emits the bytecode of a class named `Cyrano$<SimpleName>` in the **interface's package** (nested interfaces have their `$` flattened to `_` to avoid collisions). Emission uses `java.lang.classfile.ClassFile` — no ASM dependency, no `setAccessible(true)`, no `java.lang.reflect.Proxy`. The class is loaded with `lookup.defineClass(bytes)`; the `MethodHandles.Lookup` is obtained via `MethodHandles.privateLookupIn(iface, MethodHandles.lookup())`. The generated constructor takes the `CyranoInvocationHandler` and each method delegates with its method index.
 
 `CyranoProxyCache` memoises the `Entry` (a `Class<?> proxyClass`, `MethodHandle constructor` pair) in a `ConcurrentHashMap`; `computeIfAbsent` guarantees that each interface is processed at most once, even under concurrent load.
 
 == 5. Invocation: `CyranoInvocationHandler`
 
-The constructor `MethodHandle` receives the `CyranoInvocationHandler` at proxy instantiation. On each call, `invoke(int methodIndex, Object[] args)`:
+`io.vidocq.cyrano.internal.CyranoInvocationHandler` implements the `io.vidocq.cyrano.spi.gen.ClientInvoker` SPI, so the same handler backs both the APT-generated `$$CyranoClient` proxies and the runtime-generated `Cyrano$` classes. It is bound at proxy instantiation. On each call, `invoke(Object proxy, int methodIndex, Object[] args)`:
 
 . Retrieves the indexed `RequestSpec`.
 . Iterates over the `ParamBinding`s to build the URI (path + query + matrix), headers and body.
@@ -171,7 +201,7 @@ After reception, `CyranoInvocationHandler`:
 
 == Memory cost and performance
 
-* **One generated class per client interface** (not per call). `CyranoProxyCache` guarantees memoisation.
+* **One generated class per client interface** (not per call) — compiled with the application on the APT path; `CyranoProxyCache` guarantees memoisation on the runtime-fallback path.
 * **One `HttpClient` instance per REST client**, shared across all calls.
 * **No `ThreadLocal`**, no `synchronized` — no virtual-thread pinning.
 * **No buffer copy** on the hot path: `BodyHandlers.ofByteArray()` followed by JSON-B streaming deserialisation.
@@ -181,6 +211,5 @@ After reception, `CyranoInvocationHandler`:
 * **`record` + `sealed interface`** for `RequestSpec` and `ParamBinding` — exhaustive pattern matching, immutability, readability.
 * **No `java.lang.reflect.Proxy`** — AOT-incompatible, obscure stack traces (`$Proxy0.invoke`).
 * **No platform pool** — `Executors.newVirtualThreadPerTaskExecutor()` is sufficient and more efficient for I/O.
+* **APT-first, runtime generation strictly as fallback** (workspace codegen rule, audit CG-01) — `cyrano-processor` emits Java sources at compile time; `CyranoProxyGenerator` covers only interfaces compiled without the processor.
 * **`cyrano-mp-rest-client-api` repackage module** — the upstream spec ships without `module-info` and without `Automatic-Module-Name`, which prevents jlink. The repackage makes it explicitly `io.vidocq.cyrano.mp.rest.client.api`.
-
-The proxy generation strategy is documented in link:https://codefloe.com/Vidocq/cyrano/src/branch/main/docs/adr/[the ADRs] (`ADR-001-classfile-proxy-strategy.md`).

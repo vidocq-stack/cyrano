@@ -18,47 +18,32 @@ This page consolidates the state of the official MicroProfile Rest Client 4.0 TC
 | TCK stack
 | TestNG + Arquillian + ShrinkWrap
 | MicroProfile standard
-| Custom Arquillian container `CyranoDeployableContainer` (~300 LOC, test scope).
+| Custom Arquillian *Local* container `CyranoDeployableContainer` (test scope) + WireMock backend.
 
 | Tests executed
 | 168
-| Excluding SSL / long-running timeouts / SSE
-| See "Scope" below.
+| Retained perimeter
+| The `**/ssl/**` and `**/sse/**` suites are excluded at 0.2.0 — see below.
 
 | Tests passed
-| 140
-| ≈ 83 %
-| // TODO@user: refresh at next run (M4-6 / M5 target: > 95 %).
+| **168 / 168**
+| 100 % PASS
+| `Tests run: 168, Failures: 0, Errors: 0, Skipped: 0` (report from 2026-05-24).
 
-| Tests failing
-| 28
-| Investigation in progress
-| Grouped by family — see "Remaining failures".
-
-| Tests in error
-| 0
-| No JVM crash
-|
+| Excluded suites
+| `**/ssl/**`, `**/sse/**`
+| 2 families
+| SSL requires `RestClientBuilder.trustStore/keyStore` wiring into the transport — out of scope at 0.2.0; SSE (Server-Sent Events) out of scope at 0.2.0. Both land after this release.
 
 | Smoke
 | 3 / 3 PASS
 | `CyranoTckSmokeTest`
 | Out-of-Arquillian, run first as a guardrail.
-
-| M4-5 subset
-| 23 / 23 PASS
-| QueryParamStyle, CDIQueryParamStyle, Inheritance, FeatureRegistration, InvokeWithRegisteredProviders, CDIInvokeWithRegisteredProviders, EntityPart
-| M4-5 milestone validation.
-
-| M4-3 subset
-| 2 / 2 PASS
-| `ConfigKeyTest`
-| M4-3 milestone validation.
 |===
 
-[CAUTION]
+[NOTE]
 ====
-The 140/168 score deliberately excludes three families: SSL (`*Ssl*Test`), long-running timeouts (`TimeoutTest` ≥ 30 s) and SSE (`SseEvent*Test`). These families are planned for milestones M5 / M6. With them included, the nominal official TCK perimeter is about 200 tests.
+The `**/timeout/**` suites are part of the retained perimeter (re-enabled during M4); only `ssl/**` and `sse/**` remain excluded at 0.2.0. Both families are implemented after this release on the main line, which passes the full official suite (see the `dev` version of this page).
 ====
 
 == TCK runner architecture
@@ -70,12 +55,32 @@ The `cyrano-tck` module is **in-reactor, gated behind the `tck` Maven profile** 
 Historically `cyrano-tck` was a standalone out-of-reactor POM: ShrinkWrap Maven Resolver 3.3, transitive to the official TCK, could not parse Model 4.1.0 POMs. That constraint disappeared with the workspace-wide migration to Maven 3.9.16 / Model 4.0.0, and the MP Rest Client TCK harness builds its Arquillian deployments without the ShrinkWrap Maven resolver, so it is safe in-reactor — the same verification already backs `vidocq-runtime-tck-cyrano-restclient`.
 ====
 
-The MicroProfile Rest Client TCK requires an HTTP backend that plays the role of the target server. The `CyranoDeployableContainer` (custom Arquillian, test scope only):
+Cyrano is a REST **client** implementation: no server-side JAX-RS resources need to be deployed to pass the TCK. The TCK manages its own HTTP backend through **WireMock** (`WiremockArquillianTest.setupServer()`), so the harness is built around a no-op local container plus a JVM-wide WireMock singleton:
 
-* Starts an embedded xref:cassini::index.adoc[Cassini] + xref:chappe::index.adoc[Chappe] instance on a random port, serving the TCK's JAX-RS resources (server side).
-* Configures Cyrano's `RestClientBuilder` to point at this server (client side).
-* Reuses `CassiniTestHarness` (from `cassini-tck`) as a shared test component.
-* No dependency on Weld, Undertow or any third-party container.
+[cols="2,3"]
+|===
+| Component | Role
+
+| `CyranoDeployableContainer`
+| Arquillian *Local* container: accepts the `@Deployment` archive without deploying anything to a server, returns the `Local` protocol so tests run inside the test JVM ("as-client" mode, no bytecode enrichment). `deploy`/`undeploy` delegate CDI bootstrap to `VaubanTckBootstrap`.
+
+| `CyranoArquillianExtension`
+| Arquillian `LoadableExtension` SPI — registers the container (qualifier `cyrano` in `arquillian.xml`, selected via `arquillian.launch=cyrano`).
+
+| `VaubanTckBootstrap`
+| Boots/stops a Vauban CDI container per TCK archive: extracts `META-INF/microprofile-config.properties` from the ShrinkWrap archive, projects it through `TckConfigBridge`, registers the archive classes with `CyranoRestClientCdiExtension`.
+
+| `TckConfigBridge`
+| Exports the archive's MP Config properties as system properties so `CyranoBaseUriResolver.defaultMpConfigLookup()` finds them; cleared between deployments. No URL rewrite — the TCK fixtures already target WireMock via `wiremock.server.host`/`wiremock.server.port`.
+
+| `WireMockProbeListener`
+| TestNG listener (`META-INF/services/org.testng.ITestNGListener`) whose **static block starts WireMock at JVM boot** — Arquillian's *Local* lifecycle (`register()`/`start()`) fires too late, after `@AfterSuite`, while TCK `@BeforeMethod` hooks need the backend immediately.
+
+| `WireMockTestBackend`
+| JVM-static WireMock singleton on port **8765** (the value hardcoded in the spec's `WiremockArquillianTest.setupWireMockConnection()`, overridable via `-Dwiremock.server.port=...`), bound to `127.0.0.1`, with an admin-endpoint probe.
+|===
+
+No dependency on Weld, Undertow or any third-party container; WireMock and its transitives are test-scope fixtures of the TCK harness only.
 
 == Commands
 
@@ -106,55 +111,33 @@ Direct invocation without the script:
 ./mvnw -Ptck,tck-official -pl cyrano-tck test     # full suite
 ----
 
-== Remaining failures (28 / 168)
+== Remaining failures
 
-[cols="2,1,3"]
-|===
-| Family | KO count | Known cause
+None. The full suite passes:
 
-| `*SslTest*` (out of scope for the score)
-| n/a
-| SSL not wired until `trustStore/keyStore` are plugged into the JDK builder (M5).
+[source,text]
+----
+Tests run: 168, Failures: 0, Errors: 0, Skipped: 0
+# Tests passed: 168/168
+RESULT: PASS
+----
 
-| `TimeoutTest` (retained subset)
-| ~5
-| JDK `connectTimeout`/`readTimeout` rounded to the second on some platforms — under investigation.
-
-| `RedirectTest`
-| ~3
-| `Redirect.NEVER` vs `NORMAL` policy to be harmonised with spec §5.
-
-| `MultivaluedHeaderTest`
-| ~2
-| Order of values when a header is repeated — alignment with MP Rest Client §4.3.
-
-| Various `AsyncMethodTest`
-| ~6
-| CDI context propagation in `CompletionStage` (`@ActivateRequestContext` while async).
-
-| `CDIInvokeWithRegisteredProvidersTest` (advanced cases)
-| ~4
-| `@Dependent` lifecycle of providers — alignment with spec §6.
-
-| Others (sporadic)
-| ~8
-| Reproducer in progress — no stable pattern yet.
-|===
+The retained perimeter (everything except the `ssl/**` and `sse/**` suites) passes at 100 %.
 
 == Declared challenges
 
-No official challenge is open against the MP Rest Client spec to date. Every failure above is a **Cyrano bug**, not a spec dispute.
+No official challenge is open against the MP Rest Client spec — the retained perimeter (168 tests) passes at 100 %; the `ssl/**` and `sse/**` suites are excluded at 0.2.0, not challenged.
 
 [NOTE]
 ====
 The release discipline is clear (see `CLAUDE.md`): **no structural merge** on `cyrano-core`/`cyrano-cdi-vauban` without a TCK PASS on the relevant scope. Any tests disabled for spec interpretation or upstream TCK bug are documented in link:https://codefloe.com/Vidocq/cyrano/src/branch/main/TCK.md[TCK.md] with spec quote, test hash, and reactivation plan.
 ====
 
-== TCK roadmap
+== TCK milestone history
 
 [cols="2,2,3"]
 |===
-| Milestone | Scope | Target
+| Milestone | Scope | Outcome
 
 | M4-3
 | `ConfigKeyTest`
@@ -166,15 +149,11 @@ The release discipline is clear (see `CLAUDE.md`): **no structural merge** on `c
 
 | M4-6
 | Async + CDI context propagation + Multivalued headers + Redirect
-| > 95 % of the perimeter excluding SSL/SSE.
+| Reached — perimeter excluding SSL/SSE fully green (**168 / 168**).
 
-| M5
-| SSL (trustStore, keyStore, hostnameVerifier) + long-running timeouts
-| 100 % of the perimeter excluding SSE.
-
-| M6
-| SSE (`SseEventSource`)
-| 100 % of the official TCK.
+| Post-0.2.0
+| SSL (trustStore, keyStore, hostnameVerifier) + SSE
+| Implemented after this release on the main line — see the `dev` version of this page.
 |===
 
 == Going further

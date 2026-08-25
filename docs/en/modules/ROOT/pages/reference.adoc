@@ -16,15 +16,19 @@ This page lists every artefact published by Cyrano, the Java modules they export
 
 | `io.vidocq.cyrano:cyrano-api:{project-version}`
 | `compile`
-| Controlled re-export of the spec + stable public SPI (`io.vidocq.cyrano.spi`).
+| Controlled re-export of the spec + stable public SPI (`io.vidocq.cyrano.spi`, `io.vidocq.cyrano.spi.gen`).
+
+| `io.vidocq.cyrano:cyrano-processor:{project-version}`
+| annotation processor path (or `provided`)
+| APT processor `CyranoClientProcessor` — generates `<Interface>$$CyranoClient` sources (proxy + literal descriptor + ServiceLoader-able `Factory`) at compile time for every `@RegisterRestClient` interface. The primary proxy path.
 
 | `io.vidocq.cyrano:cyrano-core:{project-version}`
 | `runtime`
-| Implementation: `CyranoRestClientBuilder`, `CyranoInterfaceScanner`, `CyranoProxyGenerator` (Class-File API), `CyranoInvocationHandler`, `CyranoHttpTransport`.
+| Implementation: `CyranoRestClientBuilder`, `ClientProxyRegistry` resolution chain, `CyranoInterfaceScanner` + `CyranoProxyGenerator` (Class-File API, runtime fallback), `CyranoInvocationHandler`, `CyranoHttpTransport`.
 
 | `io.vidocq.cyrano:cyrano-cdi-vauban:{project-version}`
 | `runtime` (optional)
-| Vauban BCE `CyranoRestClientExtension` — `@RegisterRestClient` discovery, synthetic `@RestClient`-qualified bean, MP Config resolution.
+| Vauban BCE `CyranoRestClientCdiExtension` — `@RegisterRestClient` discovery, synthetic `@RestClient`-qualified bean, MP Config resolution.
 
 | `io.vidocq.cyrano:cyrano-tck:{project-version}`
 | `test` (in-reactor, `tck` Maven profile)
@@ -43,13 +47,16 @@ NOTE: `cyrano-tck` is **in-reactor, gated behind the `tck` Maven profile** (TCK 
 | `org.eclipse.microprofile.rest.client`, `org.eclipse.microprofile.rest.client.annotation`, `org.eclipse.microprofile.rest.client.ext`, `org.eclipse.microprofile.rest.client.inject`, `org.eclipse.microprofile.rest.client.spi`
 
 | `io.vidocq.cyrano.api`
-| `io.vidocq.cyrano.spi`
+| `io.vidocq.cyrano.spi` and `io.vidocq.cyrano.spi.gen` (the SPI consumed by APT-generated client code).
+
+| `io.vidocq.cyrano.processor`
+| No exported package — consumed exclusively through `provides javax.annotation.processing.Processor with CyranoClientProcessor` (javac ServiceLoader).
 
 | `io.vidocq.cyrano.core`
-| `io.vidocq.cyrano.runtime` (`provides RestClientBuilderResolver with CyranoRestClientBuilderResolver`)
+| `io.vidocq.cyrano.runtime` only (`io.vidocq.cyrano.internal` stays unexported). Also: `provides RestClientBuilderResolver with CyranoRestClientBuilderResolver`, `uses io.vidocq.cyrano.runtime.ProviderInstantiator`, `uses io.vidocq.cyrano.spi.gen.ClientProxyFactory` (module-layer resolution of generated factories).
 
 | `io.vidocq.cyrano.cdi.vauban`
-| No exported package (BCE loaded through `META-INF/services/jakarta.enterprise.inject.build.compatible.spi.BuildCompatibleExtension`).
+| `io.vidocq.cyrano.cdi.internal`. Three `provides`: `BuildCompatibleExtension` with `CyranoRestClientCdiExtension`, `io.vidocq.cyrano.runtime.ProviderInstantiator` with `CyranoCdiProviderInstantiator` (CDI-aware provider instantiation), and `io.vidocq.vauban.api.VaubanComponentProvider` with the APT-generated `_VaubanComponents` (no `opens ... to io.vidocq.vauban.core` needed).
 |===
 
 == Supported annotations
@@ -76,14 +83,11 @@ NOTE: `cyrano-tck` is **in-reactor, gated behind the `tck` Maven profile** (TCK 
 | `@org.eclipse.microprofile.rest.client.annotation.RegisterClientHeaders`
 | MP Rest Client §4 — `ClientHeadersFactory` (propagation from inbound request).
 
-| `@org.eclipse.microprofile.rest.client.annotation.ClientQueryParam`
-| MP Rest Client §4 — static or dynamic query param.
-
-| `@org.eclipse.microprofile.rest.client.annotation.RegisterClientQueryParams`
-| Repeating container of `@ClientQueryParam`.
+| `@org.eclipse.microprofile.rest.client.annotation.ClientHeaderParams`
+| Repeating container of `@ClientHeaderParam`.
 
 | `@jakarta.ws.rs.Path`, `@GET`, `@POST`, `@PUT`, `@DELETE`, `@PATCH`, `@HEAD`, `@OPTIONS`
-| JAX-RS — HTTP method + path template.
+| JAX-RS — HTTP method + path template. Custom verbs meta-annotated with `@jakarta.ws.rs.HttpMethod` are honoured too.
 
 | `@PathParam`, `@QueryParam`, `@HeaderParam`, `@CookieParam`, `@MatrixParam`, `@FormParam`, `@DefaultValue`, `@BeanParam`
 | JAX-RS — parameters.
@@ -139,13 +143,10 @@ All keys follow the `<key>/mp-rest/<attribute>` pattern, where `<key>` is either
 | Full base URI. High priority (wins over `url`).
 
 | `<key>/mp-rest/scope`
-| CDI scope of the synthesised bean (`jakarta.enterprise.context.ApplicationScoped` by default).
+| CDI scope of the synthesised bean (`jakarta.enterprise.context.Dependent` by default, spec §6.3; a scope annotation on the interface or this key overrides it).
 
 | `<key>/mp-rest/providers`
 | Comma-separated list of provider FQNs.
-
-| `<key>/mp-rest/providers/<provider-fqn>/priority`
-| Priority of a provider.
 
 | `<key>/mp-rest/connectTimeout`
 | Connect timeout in milliseconds.
@@ -156,53 +157,47 @@ All keys follow the `<key>/mp-rest/<attribute>` pattern, where `<key>` is either
 | `<key>/mp-rest/followRedirects`
 | `true` to follow redirections (3xx).
 
-| `<key>/mp-rest/proxyAddress`
-| HTTP proxy as `host:port`.
-
-| `<key>/mp-rest/proxyUser`
-| HTTP proxy username.
-
-| `<key>/mp-rest/proxyPassword`
-| HTTP proxy password.
-
 | `<key>/mp-rest/queryParamStyle`
 | `MULTI_PAIRS`, `COMMA_SEPARATED` or `ARRAY_PAIRS` (serialisation style for multivalued `@QueryParam`).
 
-| `<key>/mp-rest/trustStore`
-| Truststore URL (e.g. `classpath:/truststore.jks`). // TODO@user: SSL not yet covered by official TCK score.
-
-| `<key>/mp-rest/trustStorePassword`
-| Truststore password.
-
-| `<key>/mp-rest/keyStore`
-| Client keystore URL.
-
-| `<key>/mp-rest/keyStorePassword`
-| Keystore password.
-
-| `<key>/mp-rest/hostnameVerifier`
-| FQN of a `javax.net.ssl.HostnameVerifier` implementation.
 |===
 
-Resolution priority (strongest to weakest): `mp-rest/uri` > `mp-rest/url` > `@RegisterRestClient(baseUri=...)`. Other attributes have a single priority (MP Config wins over the builder's defaults).
+Each key resolves against the interface FQN first, then the `configKey`. The global (non-per-client) property `microprofile.rest.client.disable.default.mapper` (spec §8.1) is also read from MP Config; an explicit builder property wins.
+
+HTTP proxying is configured programmatically through `RestClientBuilder.proxyAddress(host, port)` — no `proxy*` MP Config key is read.
+
+At 0.2.0, **no `mp-rest` SSL key is read from MP Config**: the builder accepts `sslContext(...)`, `trustStore(...)`, `keyStore(...)` and `hostnameVerifier(...)` programmatically, but the `ssl/**` TCK suite is excluded at this version (see xref:tck.adoc[TCK]) — MP-Config-driven SSL lands after this release.
+
+Resolution priority for the base URL (strongest to weakest): `mp-rest/uri` > `mp-rest/url` > `@RegisterRestClient(baseUri=...)`. Other attributes have a single priority (MP Config wins over the builder's defaults).
 
 == Public SPI
 
-The `io.vidocq.cyrano.spi` package exposes stable hooks:
+Two stable SPI packages are exported by `cyrano-api`, plus one runtime SPI in `cyrano-core`:
 
 [cols="2,3"]
 |===
-| Interface | Role
+| Type | Role
 
-| `io.vidocq.cyrano.spi.TransportAdapter`
-| Allows substituting the transport layer (default: `java.net.http.HttpClient`). Loaded through `ServiceLoader`.
+| `io.vidocq.cyrano.spi.Cyrano`
+| Implementation metadata constants (`IMPLEMENTATION_NAME`, `SPEC_VERSION`, `IMPLEMENTATION_VERSION`) for TCK tests and runtime integration.
 
-| `io.vidocq.cyrano.spi.RequestInterceptor`
-| Low-level pre-send hook (different from the JAX-RS `ClientRequestFilter` — operates on the JDK `HttpRequest`).
+| `io.vidocq.cyrano.spi.gen.ClientProxyFactory`
+| The contract implemented by every APT-generated `$$CyranoClient$Factory` — `clientInterface()`, `descriptor()`, `newProxy(ClientInvoker)`. Resolved by `ClientProxyRegistry` through the module layer (`provides ... with ...`) or `META-INF/services`.
 
-| `io.vidocq.cyrano.spi.ResponseInterceptor`
-| Low-level post-receive hook.
+| `io.vidocq.cyrano.spi.gen.ClientInvoker`
+| The invocation contract a generated proxy delegates to; implemented by `CyranoInvocationHandler` in `cyrano-core`.
+
+| `io.vidocq.cyrano.spi.gen.ClientDescriptor` (+ `ClientMethodDescriptor`, `ClientParamDescriptor`, `DynamicHeaderDescriptor`)
+| Literal, reflection-free description of the client interface embedded in the generated code; converted back to internal `RequestSpec`s by `DescriptorConverter`.
+
+| `io.vidocq.cyrano.runtime.ProviderInstantiator`
+| Provider instantiation SPI (`uses` in `cyrano-core`): lets adapters supply managed instances for filters/mappers — `cyrano-cdi-vauban` provides the CDI-aware `CyranoCdiProviderInstantiator`.
+
+| `io.vidocq.cyrano.runtime.CyranoRestClientBuilderResolver`
+| The spec's `RestClientBuilderResolver`, published via `provides` and `META-INF/services`.
 |===
+
+There is no transport-substitution SPI: the transport is `java.net.http.HttpClient`, and the extension points around a request are the standard JAX-RS/MP providers (`ClientRequestFilter`, `ClientResponseFilter`, `MessageBodyReader`/`Writer`, `ResponseExceptionMapper`, `ParamConverterProvider`, `ClientHeadersFactory`).
 
 == Runtime prerequisites
 
