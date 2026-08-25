@@ -1,5 +1,5 @@
 = Cyrano
-:description: MicroProfile Rest Client 4.0 implementation, type-safe REST clients with zero third-party dependencies, build-time proxy via Class-File API, JDK HttpClient transport, Java 25.
+:description: MicroProfile Rest Client 4.0 implementation, type-safe REST clients with zero third-party dependencies, compile-time proxies via annotation processing (Class-File API runtime fallback), JDK HttpClient transport, Java 25.
 
 [.text-center]
 image::cyrano-logo.png[Cyrano,300,role=module-logo]
@@ -43,13 +43,13 @@ A type-safe REST client does exactly the same thing: the application calls `user
 | Implemented spec | https://download.eclipse.org/microprofile/microprofile-rest-client-4.0/microprofile-rest-client-spec-4.0.html[MicroProfile Rest Client 4.0]
 | Repo | https://codefloe.com/Vidocq/cyrano[Vidocq/cyrano] (mirrors: GitHub, Forgejo)
 | Java | 25 (LTS)
-| Java modules | `io.vidocq.cyrano.mp.rest.client.api`, `io.vidocq.cyrano.api`, `io.vidocq.cyrano.core`, `io.vidocq.cyrano.cdi.vauban`
+| Java modules | `io.vidocq.cyrano.mp.rest.client.api`, `io.vidocq.cyrano.api`, `io.vidocq.cyrano.processor`, `io.vidocq.cyrano.core`, `io.vidocq.cyrano.cdi.vauban`
 | Runtime dependencies | `microprofile-rest-client-api` (repackaged), `jakarta.ws.rs-api`, `jakarta.json.bind-api` (runtime impl: xref:champollion::index.adoc[Champollion])
 | HTTP transport | `java.net.http.HttpClient` (pure JDK, HTTP/1.1 + H/2, virtual threads)
-| Proxy generation | Class-File API (JEP 484) on first use — named `Cyrano$<Interface>` classes, no `java.lang.reflect.Proxy`
+| Proxy generation | APT-first: `cyrano-processor` generates `<Interface>$$CyranoClient` sources at compile time; Class-File API (JEP 484) kept strictly as runtime fallback — named `Cyrano$<Interface>` classes, no `java.lang.reflect.Proxy`
 | CDI integration | `cyrano-cdi-vauban` — BCE `@Enhancement` on `@RegisterRestClient`, `@Synthesis` produces the `@RestClient`-qualified bean
 | jlink-ready | ✅ (the `cyrano-mp-rest-client-api` repackage neutralises the upstream automatic module)
-| MicroProfile Rest Client 4.0 TCK | 140 / 168 (~83 %) excluding SSL / timeouts / SSE — see xref:tck.adoc[TCK status]
+| MicroProfile Rest Client 4.0 TCK | **235 / 235 — 100 % PASS, full suite, zero exclusions** (SSL and SSE included) — see xref:tck.adoc[TCK status]
 | License | EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later
 |===
 
@@ -59,7 +59,7 @@ A type-safe REST client does exactly the same thing: the application calls `user
 
 . **JDK transport, virtual-thread native.** `HttpClient` is built with `Executors.newVirtualThreadPerTaskExecutor()`. Every blocking call occupies a virtual thread, not a platform thread. No `synchronized`, no `ThreadLocal` on the hot path — virtual-thread-friendly end to end. Async mode (`CompletionStage<T>`) delegates to `HttpClient.sendAsync`.
 
-. **Build-time interface proxy, not reflection.** Cyrano does not call `java.lang.reflect.Proxy.newProxyInstance(...)`. On first use of a client interface, `CyranoProxyGenerator` emits a real named class `Cyrano$<SimpleName>` via the **Class-File API** (JEP 484) and loads it with `MethodHandles.Lookup.defineClass`. Benefits: readable stack traces, no `setAccessible(true)`, AOT-friendly (GraalVM `native-image`, Leyden CDS). The bytecode is memoised by `CyranoProxyCache`.
+. **Compile-time interface proxy, not reflection.** Cyrano does not call `java.lang.reflect.Proxy.newProxyInstance(...)`. The `cyrano-processor` annotation processor generates a real named class `<Interface>$$CyranoClient` **as plain Java source at compile time** (APT-first, workspace codegen rule CG-01), with a literal descriptor and a ServiceLoader-able `Factory`. For interfaces compiled without the processor (e.g. pre-compiled jars), `CyranoProxyGenerator` falls back to emitting a `Cyrano$<SimpleName>` class via the **Class-File API** (JEP 484), loaded with `MethodHandles.Lookup.defineClass` and memoised by `CyranoProxyCache`. Benefits either way: readable stack traces, no `setAccessible(true)`, AOT-friendly (GraalVM `native-image`, Leyden CDS).
 
 == Position in the ecosystem
 
@@ -67,7 +67,7 @@ A type-safe REST client does exactly the same thing: the application calls `user
 ....
 flowchart LR
   App["Application code<br/>@Inject @RestClient MyService"]
-  Proxy["Cyrano$MyService<br/>(Class-File API)"]
+  Proxy["MyService$$CyranoClient<br/>(APT-generated; Class-File API fallback)"]
   Handler["CyranoInvocationHandler<br/>resolves params, headers"]
   HttpC["java.net.http.HttpClient<br/>virtual thread executor"]
   Remote["Remote HTTP service"]
@@ -93,7 +93,7 @@ Cyrano plugs in as the **client side** of the same stack as xref:cassini::index.
 
 == Current status
 
-The core implementation (`cyrano-core`) and the CDI integration (`cyrano-cdi-vauban`) are in place. The MicroProfile Rest Client 4.0 TCK reaches **140 / 168** on the official suite (excluding SSL, long-running timeouts and SSE), i.e. about 83 %. Integration into the Vidocq runtime is in progress through the `vidocq-mps-cyrano-extension` wrapper.
+The core implementation (`cyrano-core`), the compile-time client generator (`cyrano-processor`) and the CDI integration (`cyrano-cdi-vauban`) are in place. The MicroProfile Rest Client 4.0 TCK passes at **235 / 235 — 100 %, full official suite, zero exclusions** (SSL and SSE included). Integration into the Vidocq runtime is provided through the `vidocq-runtime-cyrano-rest-client-extension` wrapper.
 
 == Quick links
 
@@ -101,7 +101,7 @@ The core implementation (`cyrano-core`) and the CDI integration (`cyrano-cdi-vau
 * xref:concepts.adoc[Concepts] — MP Rest Client vocabulary (`@RegisterRestClient`, `RestClientBuilder`, `@RestClient` qualifier, providers).
 * xref:usage.adoc[Usage] — parameters, headers, async, exception mappers, programmatic builder.
 * xref:reference.adoc[Reference] — Maven coordinates, Java modules, supported MP Config keys.
-* xref:internals.adoc[Internals] — interface scan, proxy generation via Class-File API, transport, Vauban BCE integration.
+* xref:internals.adoc[Internals] — proxy resolution chain (APT-generated clients first, Class-File API fallback), interface scan, transport, Vauban BCE integration.
 * xref:tck.adoc[TCK] — official score, tested scope, declared challenges.
 * xref:migration.adoc[Migration] — from SmallRye Rest Client / RESTEasy Client.
 

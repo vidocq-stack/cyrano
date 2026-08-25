@@ -2,11 +2,11 @@
 :description: MicroProfile Rest Client patterns supported by Cyrano — parameters, headers, async, exception mapping, providers, BeanParam, context propagation.
 
 [.lead]
-This page covers the common usage patterns for a Cyrano-typed REST client. All examples compile and execute against a `java.net.http.HttpClient` endpoint; the interface proxy is generated at `process-classes` by the Class-File API and loaded on first invocation.
+This page covers the common usage patterns for a Cyrano-typed REST client. All examples compile and execute against a `java.net.http.HttpClient` endpoint; the interface proxy is generated at compile time by the `cyrano-processor` annotation processor (`<Interface>$$CyranoClient`), with runtime Class-File API generation kept strictly as fallback for interfaces compiled without the processor.
 
 == HTTP methods
 
-The seven standard JAX-RS verbs are supported:
+Eight verb forms are supported: the seven standard JAX-RS annotations — `@GET`, `@POST`, `@PUT`, `@DELETE`, `@PATCH`, `@HEAD`, `@OPTIONS` — plus any custom verb whose annotation is meta-annotated with `@jakarta.ws.rs.HttpMethod`:
 
 [source,java]
 ----
@@ -40,6 +40,9 @@ public interface BlogClient {
     @HEAD
     @Path("/{id}")
     Response head(@PathParam("id") long id);
+
+    @OPTIONS
+    Response options();
 }
 ----
 
@@ -233,6 +236,6 @@ See xref:reference.adoc#mp-config[the complete list] of supported keys.
 
 == Vidocq Runtime integration
 
-In a complete Vidocq runtime, the `vidocq-mps-cyrano-extension` (integration in progress) declares the Cyrano module as a **side-effect-free runtime extension**: `@RestClient` synthetic beans become available as soon as the application starts, and MP Config resolution is wired through xref:ravel::index.adoc[Ravel] without additional configuration.
+In a complete Vidocq runtime, the `vidocq-runtime-cyrano-rest-client-extension` wrapper declares the Cyrano module as a **side-effect-free runtime extension**: `@RestClient` synthetic beans become available as soon as the application starts, and MP Config resolution is wired through xref:ravel::index.adoc[Ravel] without additional configuration.
 
 To publish on the server side the interface consumed by the client, see xref:cassini::index.adoc[Cassini] — the same `@Path("/users")` can act as a shared contract.
