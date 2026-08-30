@@ -31,7 +31,7 @@
     <parent>
         <groupId>io.vidocq.cyrano</groupId>
         <artifactId>cyrano-parent</artifactId>
-        <version>0.3.0-SNAPSHOT</version>
+        <version>0.3.0</version>
     </parent>
 
     <artifactId>cyrano-tck</artifactId>
@@ -322,7 +322,7 @@
                 <dependency>
                     <groupId>io.vidocq.champollion</groupId>
                     <artifactId>champollion-jsonp</artifactId>
-                    <version>0.3.0-SNAPSHOT</version>
+                    <version>0.3.0</version>
                     <scope>test</scope>
                 </dependency>
                 <!--
