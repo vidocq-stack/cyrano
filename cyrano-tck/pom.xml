@@ -43,10 +43,10 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>25</maven.compiler.release>
-        <cyrano.version>0.3.0-SNAPSHOT</cyrano.version>
+        <cyrano.version>0.4.0-SNAPSHOT</cyrano.version>
         <microprofile.rest.client.version>4.0</microprofile.rest.client.version>
-        <cassini.version>0.3.0-SNAPSHOT</cassini.version>
-        <chappe.version>0.3.0-SNAPSHOT</chappe.version>
+        <cassini.version>0.4.0-SNAPSHOT</cassini.version>
+        <chappe.version>0.4.0-SNAPSHOT</chappe.version>
     </properties>
 
     <repositories>
