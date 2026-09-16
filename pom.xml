@@ -72,6 +72,26 @@
 
         <!-- Reactive Streams (SSE, MP Rest Client 4.0 §10 — interface-only de-facto spec jar) -->
         <reactive.streams.version>1.0.4</reactive.streams.version>
+
+        <!--
+            The TCK this repository's pull requests are gated on (Vidocq/GestionProjet#9). Read by
+            the shared pr-validate workflow, which skips the step when this property is absent.
+
+            The certification profile is named explicitly because a plain `-Ptck` would not run it:
+            the root `tck` profile only adds cyrano-tck to the reactor, and inside cyrano-tck the
+            `smoke` profile is activeByDefault. `-Ptck` alone would therefore pass on a subset while
+            reporting success — the vacuous gate this campaign exists to remove.
+
+            This became possible only once cyrano-tck stopped depending on io.vidocq.cassini:
+            cassini-tck, an artefact that is published nowhere (Vidocq/cassini#36) and which this
+            module never used: CyranoDeployableContainer is its own Arquillian container and builds
+            on cassini-core / cassini-chappe, both declared separately and both on Maven Central.
+
+            Measured on a clean local repository (empty ~/.m2, the state of a CI runner): the
+            official MicroProfile Rest Client 4.0 TCK runs 235 tests in 179 s, all green (9 skipped
+            by the suite itself). Three minutes is what this suite costs — it is green, simply long.
+        -->
+        <ci.tck.command>mvn -B -ntp -P tck,tck-official -pl cyrano-tck test</ci.tck.command>
     </properties>
 
     <!--
