@@ -10,7 +10,7 @@ minimal repro, root cause hypothesis, status.
 
 - **Opened**: 2026-05-25
 - **Last revisited**: 2026-06-03
-- **Status**: ⚠️ OPEN — narrowed workaround (1 module instead of the whole reactor)
+- **Status**: ✅ FIXED 2026-10-07 — workaround removed (Vidocq/vidocq-parent#13)
 
 ### Symptom
 
@@ -71,6 +71,13 @@ and fails with `module not found`.
    `cyrano-core`, and `cyrano-cdi-vauban` build cleanly without it
    (BUILD SUCCESS, 69/69 tests pass). Only the repackage module retains
    the workaround.
+
+### Resolution (2026-10-07)
+The failure no longer reproduces on main: with the `target/javamodules` copy and the `--module-path` arguments
+removed, `clean verify` passes with the same tests (152) and every produced jar (5) keeps the same module
+descriptor. Most likely the failure dated from the Maven 4 RC / compiler-plugin 4.0.0-beta era (it does not come
+back with compiler plugin 3.13 either). Workaround removed; the shared execution in vidocq-parent goes next
+(Vidocq/vidocq-parent#13).
 
 ## BUG-20260712-01 — hardcoded implementation version constant in the published api artifact
 

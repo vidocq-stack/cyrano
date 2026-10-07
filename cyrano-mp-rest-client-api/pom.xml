@@ -48,28 +48,6 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <executions>
-                    <!--
-                        Maven 3.9 + maven-compiler-plugin 3.13.0 does not include
-                        ${project.build.outputDirectory} on the module-path at testCompile,
-                        so the smoke test in package `io.vidocq.cyrano.mp.rest.client.api`
-                        can't locate the main module. We override the compilerArgs for
-                        testCompile to add target/classes alongside javamodules.
-                    -->
-                    <execution>
-                        <id>default-testCompile</id>
-                        <configuration>
-                            <compilerArgs combine.self="override">
-                                <arg>--module-path</arg>
-                                <arg>${project.build.directory}/javamodules${path.separator}${project.build.outputDirectory}</arg>
-                            </compilerArgs>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <executions>
                     <execution>
@@ -110,23 +88,9 @@
                             </artifactItems>
                         </configuration>
                     </execution>
-                    <!--
-                        CYR-001 narrow workaround (2026-06-03) :
-                        maven-compiler-plugin 3.13.0 ne place pas les 'requires static'
-                        (jakarta.cdi / jakarta.inject / jakarta.annotation) sur le
-                        module-path durant testCompile. On copie ces JARs dans
-                        target/javamodules pour que l'override module-path ci-dessus
-                        les voie. Workaround localisé : les autres modules cyrano
-                        n'en ont pas besoin (vérifié 2026-06-03).
-                    -->
                     <execution>
                         <id>copy-compile-deps-to-module-path</id>
-                        <phase>initialize</phase>
-                        <goals><goal>copy-dependencies</goal></goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/javamodules</outputDirectory>
-                            <includeScope>compile</includeScope>
-                        </configuration>
+                        <phase>none</phase>
                     </execution>
                 </executions>
             </plugin>
