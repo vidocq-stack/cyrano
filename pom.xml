@@ -15,7 +15,7 @@
     <packaging>pom</packaging>
 
     <name>Cyrano</name>
-    <description>Implémentation MicroProfile Rest Client 4.0 — zéro librairie tierce, virtual threads, Java Modules strict, proxy via Class-File API (JEP 484)</description>
+    <description>MicroProfile Rest Client 4.0 implementation — zero third-party library, virtual threads, strict Java Modules, proxies via the Class-File API (JEP 484)</description>
     <url>https://codefloe.com/Vidocq/cyrano</url>
 
     <!--
@@ -51,18 +51,18 @@
 
     <properties>
         <!--
-            MicroProfile Rest Client 4.0 upstream reste un module automatique.
-            Cyrano le repacke dans cyrano-mp-rest-client-api (module explicite)
-            pour garder un graphe Java Modules linkable par jlink.
+            The upstream MicroProfile Rest Client 4.0 API is an automatic module.
+            Cyrano repackages it as cyrano-mp-rest-client-api (an explicit module)
+            to keep a Java Modules graph that jlink can link.
         -->
         <microprofile.rest.client.version>4.0</microprofile.rest.client.version>
 
-        <!-- Jakarta REST (annotations JAX-RS utilisées sur les interfaces client) -->
+        <!-- Jakarta REST (JAX-RS annotations used on client interfaces) -->
         <jakarta.ws.rs.version>4.0.0</jakarta.ws.rs.version>
 
-        <!-- Jakarta JSON-B (sérialisation corps requête/réponse — implémentation : champollion) -->
+        <!-- Jakarta JSON-B (request/response body serialisation — implementation: champollion) -->
         <jakarta.json.bind.version>3.0.1</jakarta.json.bind.version>
-        <!-- Jakarta JSON-P (transitive de JSON-B) -->
+        <!-- Jakarta JSON-P (transitive from JSON-B) -->
         <jakarta.json.version>2.1.3</jakarta.json.version>
 
         <!-- CDI -->
@@ -121,21 +121,21 @@
                 <version>${microprofile.rest.client.version}</version>
             </dependency>
 
-            <!-- Jakarta REST (annotations JAX-RS utilisées par les interfaces client) -->
+            <!-- Jakarta REST (JAX-RS annotations used by client interfaces) -->
             <dependency>
                 <groupId>jakarta.ws.rs</groupId>
                 <artifactId>jakarta.ws.rs-api</artifactId>
                 <version>${jakarta.ws.rs.version}</version>
             </dependency>
 
-            <!-- Jakarta JSON-B (implémentation runtime : champollion) -->
+            <!-- Jakarta JSON-B (runtime implementation: champollion) -->
             <dependency>
                 <groupId>jakarta.json.bind</groupId>
                 <artifactId>jakarta.json.bind-api</artifactId>
                 <version>${jakarta.json.bind.version}</version>
             </dependency>
 
-            <!-- Jakarta JSON-P (transitive de JSON-B, implémentation : champollion) -->
+            <!-- Jakarta JSON-P (transitive from JSON-B, implementation: champollion) -->
             <dependency>
                 <groupId>jakarta.json</groupId>
                 <artifactId>jakarta.json-api</artifactId>
@@ -172,7 +172,7 @@
                 <version>${jakarta.annotation.version}</version>
             </dependency>
 
-            <!-- Implémentations runtime (Vidocq) -->
+            <!-- Runtime implementations (Vidocq) -->
             <dependency>
                 <groupId>io.vidocq.champollion</groupId>
                 <artifactId>champollion-jsonp</artifactId>
@@ -194,7 +194,7 @@
                 <version>0.4.0-SNAPSHOT</version>
             </dependency>
 
-            <!-- Modules internes Cyrano -->
+            <!-- Cyrano internal modules -->
             <dependency>
                 <groupId>io.vidocq.cyrano</groupId>
                 <artifactId>cyrano-mp-rest-client-api</artifactId>
@@ -224,11 +224,11 @@
     </dependencyManagement>
 
     <!--
-        CYR-001 (2026-06-03) : le workaround Java Modules qui vivait ici a été déplacé
-        dans cyrano-mp-rest-client-api/pom.xml où il est strictement nécessaire
-        (requires static jakarta.cdi/inject/annotation mal routés par
-        maven-compiler-plugin 3.13.0 + Maven 3.9.16 au testCompile).
-        Les autres modules du reactor n'en ont pas besoin.
+        CYR-001 (2026-06-03): the Java Modules workaround that used to live here
+        moved to cyrano-mp-rest-client-api/pom.xml, the only place it is needed
+        (requires static jakarta.cdi/inject/annotation misrouted by
+        maven-compiler-plugin 3.13.0 + Maven 3.9.16 at testCompile).
+        The other reactor modules do not need it.
     -->
 
     <profiles>

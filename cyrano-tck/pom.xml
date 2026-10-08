@@ -38,15 +38,13 @@
     <packaging>jar</packaging>
 
     <name>Cyrano :: TCK Runner</name>
-    <description>Harness de conformance MicroProfile Rest Client 4.0 — point d'entrée pour le TCK officiel</description>
+    <description>MicroProfile Rest Client 4.0 conformance harness — entry point for the official TCK</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>25</maven.compiler.release>
-        <cyrano.version>0.4.0-SNAPSHOT</cyrano.version>
         <microprofile.rest.client.version>4.0</microprofile.rest.client.version>
         <cassini.version>0.4.0-SNAPSHOT</cassini.version>
-        <chappe.version>0.4.0-SNAPSHOT</chappe.version>
     </properties>
 
     <repositories>
@@ -61,9 +59,9 @@
     <dependencyManagement>
         <dependencies>
             <!--
-                Aligner arquillian-container-spi/impl-base/core-impl-base sur 1.10.1
-                pour éviter MalformedParameterizedTypeException sous JDK 25 (même
-                contournement que knock-tck / cassini-tck).
+                Align arquillian-container-spi/impl-base/core-impl-base on 1.10.1
+                to avoid MalformedParameterizedTypeException on JDK 25 (same
+                workaround as knock-tck / cassini-tck).
             -->
             <dependency>
                 <groupId>org.jboss.arquillian.container</groupId>
@@ -80,7 +78,7 @@
                 <artifactId>arquillian-core-impl-base</artifactId>
                 <version>1.10.1.Final</version>
             </dependency>
-            <!-- Force CDI API 4.1.0 finale -->
+            <!-- Force the final CDI API 4.1.0 -->
             <dependency>
                 <groupId>jakarta.enterprise</groupId>
                 <artifactId>jakarta.enterprise.cdi-api</artifactId>
@@ -99,21 +97,24 @@
         </dependencies>
     </dependencyManagement>
 
+    <!--
+        Versions of the Vidocq artefacts come from cyrano-parent's
+        dependencyManagement: the Cyrano modules follow ${project.version}, so
+        a pull request build (versions:set) tests its own modules, not the
+        SNAPSHOT published from main.
+    -->
     <dependencies>
         <dependency>
             <groupId>io.vidocq.cyrano</groupId>
             <artifactId>cyrano-api</artifactId>
-            <version>${cyrano.version}</version>
         </dependency>
         <dependency>
             <groupId>io.vidocq.cyrano</groupId>
             <artifactId>cyrano-core</artifactId>
-            <version>${cyrano.version}</version>
         </dependency>
         <dependency>
             <groupId>io.vidocq.cyrano</groupId>
             <artifactId>cyrano-cdi-vauban</artifactId>
-            <version>${cyrano.version}</version>
         </dependency>
         <dependency>
             <groupId>org.eclipse.microprofile.rest.client</groupId>
@@ -171,8 +172,8 @@
 
     <profiles>
         <!--
-            Profil par défaut : smoke test JUnit — vérifie le bootstrap minimal
-            (chargement des modules cyrano-core et cyrano-cdi-vauban) sans Arquillian.
+            Default profile: JUnit smoke test — checks the minimal bootstrap
+            (loading the cyrano-core and cyrano-cdi-vauban modules) without Arquillian.
         -->
         <profile>
             <id>smoke</id>
@@ -180,10 +181,10 @@
                 <activeByDefault>true</activeByDefault>
             </activation>
             <!--
-                En mode smoke, seules les classes hors `arquillian/` sont compilées
-                et exécutées : les sources Arquillian/ShrinkWrap dépendent de jars
-                (arquillian-container-spi, shrinkwrap-api, cassini-tck, weld…) qui
-                ne sont tirés que dans le profil `tck-official`.
+                In smoke mode only the classes outside `arquillian/` are compiled
+                and run: the Arquillian/ShrinkWrap sources depend on jars
+                (arquillian-container-spi, shrinkwrap-api, wiremock, the TCK…) that
+                only the `tck-official` profile pulls in.
             -->
             <build>
                 <plugins>
@@ -210,9 +211,9 @@
         </profile>
 
         <!--
-            Profil TCK officiel : Arquillian TestNG + container Cyrano custom
-            (CyranoDeployableContainer démarrant Cassini+Chappe embedded — voir ROADMAP.md M4).
-            Cible : 100 % PASS (contrat M4).
+            Official TCK profile: Arquillian TestNG + the custom Cyrano container
+            (CyranoDeployableContainer, a `Local` container that deploys nothing;
+            the TCK's HTTP backend is WireMock). Target: 100 % PASS (M4 contract).
         -->
         <profile>
             <id>tck-official</id>
@@ -238,15 +239,15 @@
                             <redirectTestOutputToFile>false</redirectTestOutputToFile>
                             <useFile>false</useFile>
                             <!--
-                                Timeout par test (sec) : protège contre les SSL/timeout
-                                tests qui peuvent attendre indéfiniment si Cyrano ne
-                                propage pas correctement les délais d'expiration.
+                                Exit timeout of the forked JVM (seconds): guards against
+                                SSL/timeout tests that could hang forever if Cyrano did
+                                not propagate its timeouts correctly.
                             -->
                             <forkedProcessExitTimeoutInSeconds>30</forkedProcessExitTimeoutInSeconds>
                             <systemPropertyVariables>
                                 <arquillian.launch>cyrano</arquillian.launch>
-                                <!-- Forcer IPv4 pour éviter les fallback ::1 → 127.0.0.1
-                                     mal gérés par Apache HttpClient5 sur macOS. -->
+                                <!-- Force IPv4 to avoid the ::1 → 127.0.0.1 fallback
+                                     that Apache HttpClient5 mishandles on macOS. -->
                                 <wiremock.server.host>127.0.0.1</wiremock.server.host>
                                 <java.net.preferIPv4Stack>true</java.net.preferIPv4Stack>
                             </systemPropertyVariables>
@@ -262,7 +263,7 @@
                 </plugins>
             </build>
             <dependencies>
-                <!-- TCK MicroProfile Rest Client 4.0 (publié sur Maven Central) -->
+                <!-- MicroProfile Rest Client 4.0 TCK (published on Maven Central) -->
                 <dependency>
                     <groupId>org.eclipse.microprofile.rest.client</groupId>
                     <artifactId>microprofile-rest-client-tck</artifactId>
@@ -277,46 +278,22 @@
                     <scope>test</scope>
                 </dependency>
                 <!--
-                    Container Arquillian custom (CyranoDeployableContainer) : démarre
-                    Cassini+Chappe embedded comme backend HTTP du TCK, puis configure
-                    le RestClientBuilder de Cyrano pour pointer dessus.
-                    Détails : ROADMAP.md M4.
+                    Jakarta REST RuntimeDelegate: the TCK builds Response, UriBuilder and
+                    friends through RuntimeDelegate, found by ServiceLoader, so no source
+                    of the runner names it. Cassini provides it in cassini-chappe
+                    (ChappeRuntimeDelegate), which brings cassini-core and chappe along.
+                    No Cassini or Chappe server is started.
                 -->
-                <dependency>
-                    <groupId>io.vidocq.cassini</groupId>
-                    <artifactId>cassini-core</artifactId>
-                    <version>${cassini.version}</version>
-                    <scope>test</scope>
-                </dependency>
                 <dependency>
                     <groupId>io.vidocq.cassini</groupId>
                     <artifactId>cassini-chappe</artifactId>
                     <version>${cassini.version}</version>
                     <scope>test</scope>
                 </dependency>
-                <dependency>
-                    <groupId>io.vidocq.chappe</groupId>
-                    <artifactId>chappe-api</artifactId>
-                    <version>${chappe.version}</version>
-                    <scope>test</scope>
-                </dependency>
-                <dependency>
-                    <groupId>io.vidocq.chappe</groupId>
-                    <artifactId>chappe-core</artifactId>
-                    <version>${chappe.version}</version>
-                    <scope>test</scope>
-                </dependency>
-                <dependency>
-                    <groupId>io.vidocq.chappe</groupId>
-                    <artifactId>chappe-http</artifactId>
-                    <version>${chappe.version}</version>
-                    <scope>test</scope>
-                </dependency>
-                <!-- champollion : impl Jakarta JSON-B utilisée par cyrano-core à l'exécution -->
+                <!-- Champollion: the Jakarta JSON-B implementation cyrano-core uses at run time -->
                 <dependency>
                     <groupId>io.vidocq.champollion</groupId>
                     <artifactId>champollion-jsonp</artifactId>
-                    <version>0.4.0-SNAPSHOT</version>
                     <scope>test</scope>
                 </dependency>
                 <!--
@@ -326,8 +303,7 @@
                 <dependency>
                     <groupId>io.vidocq.vauban</groupId>
                     <artifactId>vauban-core</artifactId>
-                    <version>${cyrano.version}</version>
-                    <scope>test</scope>
+                            <scope>test</scope>
                 </dependency>
                 <dependency>
                     <groupId>org.testng</groupId>
@@ -336,10 +312,10 @@
                     <scope>test</scope>
                 </dependency>
                 <!--
-                    Backend HTTP du TCK : le TCK MicroProfile Rest Client 4.0 délègue
-                    la simulation de serveur à WireMock (cf. WiremockArquillianTest).
-                    Le CyranoDeployableContainer démarre une instance WireMock unique
-                    pour toute la suite, écoutant sur 'wiremock.server.port'.
+                    HTTP backend of the TCK: the MicroProfile Rest Client 4.0 TCK
+                    delegates server simulation to WireMock (see WiremockArquillianTest).
+                    WireMockProbeListener starts a single WireMock instance for the
+                    whole suite, listening on 'wiremock.server.port'.
                 -->
                 <dependency>
                     <groupId>org.wiremock</groupId>
