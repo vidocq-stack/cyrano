@@ -118,9 +118,7 @@
                    beans of that package keep being served by their generated _VaubanComponents;
                  - the integration test's client interface has no generated client, so cyrano-core
                    defines its proxy at run time: the opens to cyrano-core is what a host module
-                   declares for that fallback; the reads and the export of io.vidocq.cyrano.internal
-                   stand in for what the fallback does not do by itself on the module path
-                   (BUG-20261008-02). -->
+                   declares for that fallback, and all it needs (BUG-20261008-02). -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -130,8 +128,6 @@
                         --add-reads io.vidocq.cyrano.cdi.vauban=jdk.httpserver,io.vidocq.vauban.core
                         --add-exports io.vidocq.cyrano.core/io.vidocq.cyrano.internal.gen=io.vidocq.cyrano.cdi.vauban
                         --add-opens io.vidocq.cyrano.cdi.vauban/io.vidocq.cyrano.cdi.internal=io.vidocq.vauban.core,io.vidocq.cyrano.core
-                        --add-reads io.vidocq.cyrano.core=io.vidocq.cyrano.cdi.vauban
-                        --add-exports io.vidocq.cyrano.core/io.vidocq.cyrano.internal=io.vidocq.cyrano.cdi.vauban
                     </argLine>
                 </configuration>
             </plugin>
