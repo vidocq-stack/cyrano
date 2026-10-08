@@ -73,15 +73,26 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- Tests stay on the class path: the end-to-end test builds a client through
-                 RestClientBuilder.newBuilder(), whose ServiceLoader lookup fails on the module path
-                 because io.vidocq.cyrano.mp.rest.client.api does not declare
-                 `uses RestClientBuilderResolver` (see BUG.md). -->
+            <!-- Tests run on the module path, patched into io.vidocq.cyrano.processor (test dependencies
+                 such as cyrano-core are not read by the module, hence the reads below):
+                 - the end-to-end test serves its requests with the JDK HTTP server and checks which tier
+                   of the proxy registry, internal to cyrano-core, served the client;
+                 - its fallback case has cyrano-core define a proxy for an interface of this module at
+                   run time. The opens is what a host module declares for that fallback; the reads and
+                   the export of io.vidocq.cyrano.internal stand in for what the fallback does not do
+                   by itself on the module path (BUG-20261008-02). -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <useModulePath>false</useModulePath>
+                    <argLine>
+                        --add-modules jdk.httpserver
+                        --add-reads io.vidocq.cyrano.processor=jdk.httpserver,io.vidocq.cyrano.core
+                        --add-exports io.vidocq.cyrano.core/io.vidocq.cyrano.internal.gen=io.vidocq.cyrano.processor
+                        --add-opens io.vidocq.cyrano.processor/io.vidocq.cyrano.processor=io.vidocq.cyrano.core
+                        --add-reads io.vidocq.cyrano.core=io.vidocq.cyrano.processor
+                        --add-exports io.vidocq.cyrano.core/io.vidocq.cyrano.internal=io.vidocq.cyrano.processor
+                    </argLine>
                 </configuration>
             </plugin>
         </plugins>

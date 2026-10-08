@@ -109,15 +109,30 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- Tests stay on the class path: they build clients through RestClientBuilder.newBuilder()
-                 (whose lookup fails on the module path, see cyrano-processor) and
-                 CyranoRestClientCdiExtensionDiscoveryTest calls ServiceLoader for a service this module
-                 provides but does not use. -->
+            <!-- Tests run on the module path, patched into io.vidocq.cyrano.cdi.vauban (test dependencies
+                 such as vauban-core are not read by the module, hence the reads below):
+                 - they serve requests with the JDK HTTP server and inspect the proxy registry,
+                   internal to cyrano-core;
+                 - the container instantiates and injects the nested test beans reflectively (the APT
+                   does not run on test fixtures), so the package is opened to vauban-core. The main
+                   beans of that package keep being served by their generated _VaubanComponents;
+                 - the integration test's client interface has no generated client, so cyrano-core
+                   defines its proxy at run time: the opens to cyrano-core is what a host module
+                   declares for that fallback; the reads and the export of io.vidocq.cyrano.internal
+                   stand in for what the fallback does not do by itself on the module path
+                   (BUG-20261008-02). -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <useModulePath>false</useModulePath>
+                    <argLine>
+                        --add-modules jdk.httpserver
+                        --add-reads io.vidocq.cyrano.cdi.vauban=jdk.httpserver,io.vidocq.vauban.core
+                        --add-exports io.vidocq.cyrano.core/io.vidocq.cyrano.internal.gen=io.vidocq.cyrano.cdi.vauban
+                        --add-opens io.vidocq.cyrano.cdi.vauban/io.vidocq.cyrano.cdi.internal=io.vidocq.vauban.core,io.vidocq.cyrano.core
+                        --add-reads io.vidocq.cyrano.core=io.vidocq.cyrano.cdi.vauban
+                        --add-exports io.vidocq.cyrano.core/io.vidocq.cyrano.internal=io.vidocq.cyrano.cdi.vauban
+                    </argLine>
                 </configuration>
             </plugin>
         </plugins>
