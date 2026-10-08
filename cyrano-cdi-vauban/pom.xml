@@ -65,40 +65,6 @@
 
     <build>
         <plugins>
-            <!--
-                Java Modules workaround cyrano-cdi-vauban : same problem as cyrano-core.
-                vauban-core is test-scope, absent from target/javamodules/ ; if a
-                module-info.class is in target/classes, Maven enables Java Modules at
-                default-compile and fails to find the provided jakarta.* modules
-                on the module-path.
-
-                Phase must run BEFORE `compile` (not before testCompile only) so
-                a non-clean `install -DskipTests` invocation (used by TCK runners
-                that don't run `clean`) also gets a fresh slate. `initialize` is
-                the earliest stable phase to drop the stale module-info.class.
-            -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-clean-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>remove-stale-module-info</id>
-                        <phase>initialize</phase>
-                        <goals><goal>clean</goal></goals>
-                        <configuration>
-                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
-                            <filesets>
-                                <fileset>
-                                    <directory>${project.build.outputDirectory}</directory>
-                                    <includes>
-                                        <include>module-info.class</include>
-                                    </includes>
-                                </fileset>
-                            </filesets>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -129,23 +95,24 @@
                         <id>default-testCompile</id>
                         <configuration>
                             <proc>none</proc>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>compile-module-info</id>
-                        <phase>prepare-package</phase>
-                        <goals><goal>compile</goal></goals>
-                        <configuration>
-                            <!-- No annotation processing on the separate module-info compile
-                                 (the beans were already processed in the main compile). -->
-                            <proc>none</proc>
-                            <compileSourceRoots>
-                                <compileSourceRoot>${project.basedir}/src/main/module-info</compileSourceRoot>
-                            </compileSourceRoots>
+                            <!-- The tests serve requests with the JDK HTTP server (jdk.httpserver) and
+                                 inspect the proxy registry, internal to cyrano-core. -->
+                            <compilerArgs combine.children="append">
+                                <arg>--add-modules</arg>
+                                <arg>jdk.httpserver</arg>
+                                <arg>--add-reads</arg>
+                                <arg>io.vidocq.cyrano.cdi.vauban=jdk.httpserver</arg>
+                                <arg>--add-exports</arg>
+                                <arg>io.vidocq.cyrano.core/io.vidocq.cyrano.internal.gen=io.vidocq.cyrano.cdi.vauban</arg>
+                            </compilerArgs>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+            <!-- Tests stay on the class path: they build clients through RestClientBuilder.newBuilder()
+                 (whose lookup fails on the module path, see cyrano-processor) and
+                 CyranoRestClientCdiExtensionDiscoveryTest calls ServiceLoader for a service this module
+                 provides but does not use. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

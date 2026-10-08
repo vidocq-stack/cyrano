@@ -80,67 +80,28 @@
 
     <build>
         <plugins>
-            <!--
-                Java Modules workaround cyrano-core.
-
-                Problème : Maven Compiler Plugin 4.0.0-beta-4 détecte le mode Java Modules dès que
-                module-info.class est présent dans target/classes. En mode Java Modules pour
-                testCompile, il reconstruit un module-path incompatible avec les dépendances
-                test-scope (tests exécutés sur classpath).
-
-                Solution en trois temps :
-
-                1. module-info.java hors de src/main/java (dans src/main/module-info) :
-                   default-compile ne le voit pas → pas de module-info.class dans
-                   target/classes → Maven ne détecte pas Java Modules pour testCompile.
-
-                2. maven-clean-plugin (generate-test-sources) supprime l'éventuel
-                   module-info.class stale de target/classes avant testCompile.
-
-                3. maven-compiler-plugin (prepare-package) recompile module-info.java seul
-                   dans target/classes avant l'assemblage du JAR.
-
-                Conséquence : les tests de cyrano-core s'exécutent sur le classpath
-                (useModulePath=false). Le câblage Java Modules sera validé par le smoke TCK.
-            -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-clean-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>remove-module-info-before-testcompile</id>
-                        <phase>generate-test-sources</phase>
-                        <goals><goal>clean</goal></goals>
-                        <configuration>
-                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
-                            <filesets>
-                                <fileset>
-                                    <directory>${project.build.outputDirectory}</directory>
-                                    <includes>
-                                        <include>module-info.class</include>
-                                    </includes>
-                                </fileset>
-                            </filesets>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+            <!-- The tests serve their requests with the JDK HTTP server (jdk.httpserver), a module
+                 the main code does not read. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>compile-module-info</id>
-                        <phase>prepare-package</phase>
-                        <goals><goal>compile</goal></goals>
+                        <id>default-testCompile</id>
                         <configuration>
-                            <compileSourceRoots>
-                                <compileSourceRoot>${project.basedir}/src/main/module-info</compileSourceRoot>
-                            </compileSourceRoots>
+                            <compilerArgs combine.children="append">
+                                <arg>--add-modules</arg>
+                                <arg>jdk.httpserver</arg>
+                                <arg>--add-reads</arg>
+                                <arg>io.vidocq.cyrano.core=jdk.httpserver</arg>
+                            </compilerArgs>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+            <!-- Tests stay on the class path: ClientProxyRegistryTest covers the class-path tier of the
+                 ClientProxyFactory lookup (a META-INF/services file under src/test/resources), which a
+                 named module ignores. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

@@ -34,15 +34,6 @@
  *
  * <p>JSON serialization is performed via Jakarta JSON-B (jakarta.json.bind);
  * champollion is the reference implementation provided at runtime.</p>
- *
- * <p><strong>Java Modules note — testCompile workaround</strong>:
- * {@code module-info.java} lives under {@code src/main/module-info/} (not
- * {@code src/main/java/}) so that the Maven Compiler Plugin does not pick up
- * Java Modules during {@code testCompile}. {@code maven-clean-plugin} purges
- * {@code module-info.class} before {@code testCompile} (incremental builds).
- * A {@code prepare-package} execution recompiles {@code module-info.java}
- * alone before the JAR is assembled. Tests run on the classpath
- * ({@code useModulePath=false}) — the Java Modules wiring is validated by the TCK.</p>
  */
 module io.vidocq.cyrano.core {
     requires transitive io.vidocq.cyrano.api;

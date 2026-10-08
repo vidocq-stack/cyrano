@@ -29,11 +29,6 @@
  * (low priority) and MicroProfile Config (Ravel, high priority,
  * {@code &lt;fqn&gt;/mp-rest/url}).</p>
  *
- * <p><strong>Java Modules note — testCompile workaround</strong>:
- * {@code module-info.java} lives under {@code src/main/module-info/} so the Maven
- * Compiler Plugin does not pick up Java Modules during {@code testCompile} (vauban-core is
- * test-scope, absent from {@code target/javamodules/}).</p>
- *
  * <p>For strict Java Modules deployment in production, plan to add
  * {@code opens io.vidocq.cyrano.cdi.internal to io.vidocq.vauban.core} so that
  * Vauban can introspect the internal CDI beans (to be activated in M3).</p>
