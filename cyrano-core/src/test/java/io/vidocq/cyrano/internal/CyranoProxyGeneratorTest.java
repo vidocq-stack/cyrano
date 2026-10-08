@@ -19,16 +19,28 @@
  */
 package io.vidocq.cyrano.internal;
 
+import com.sun.net.httpserver.HttpServer;
+import io.vidocq.cyrano.runtime.CyranoRestClientBuilderResolver;
+import io.vidocq.cyrano.test.host.HostPingApi;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import org.eclipse.microprofile.rest.client.RestClientDefinitionException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.Closeable;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -86,6 +98,67 @@ class CyranoProxyGeneratorTest {
         assertEquals(1, capturing.lastArgs.length);
         assertEquals("hello", capturing.lastArgs[0]);
         assertEquals("stub-response", result);
+    }
+
+    private static final String HOST = "cyrano.test.host";
+    private static final String HOST_PACKAGE = HostPingApi.class.getPackageName();
+
+    @TempDir
+    java.nio.file.Path dir;
+
+    /**
+     * BUG-20261008-02: an application module that opens its client package to cyrano-core, as the
+     * error message of the runtime fallback asks, gets a working client — without requiring
+     * cyrano-core, without exporting anything, and without any command-line flag.
+     */
+    @Test
+    void runtimeProxy_worksForAnInterfaceOfAnotherNamedModuleThatOpensItsPackage() throws Exception {
+        Class<?> iface = hostInterface(HostModule.named(dir, HOST)
+                .requires("io.vidocq.cyrano.mp.rest.client.api")
+                .opens(HOST_PACKAGE, "io.vidocq.cyrano.core"));
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ping", ex -> {
+            byte[] payload = "pong".getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "text/plain");
+            ex.sendResponseHeaders(200, payload.length);
+            try (var os = ex.getResponseBody()) {
+                os.write(payload);
+            }
+        });
+        server.start();
+        try {
+            Object client = new CyranoRestClientBuilderResolver().newBuilder()
+                    .baseUri(URI.create("http://127.0.0.1:" + server.getAddress().getPort()))
+                    .build(iface);
+
+            assertEquals(HOST, client.getClass().getModule().getName(), "the proxy lives in the host module");
+            assertEquals("pong", iface.getMethod("ping").invoke(client));
+            ((Closeable) client).close();
+            var afterClose = assertThrows(InvocationTargetException.class, () -> iface.getMethod("ping").invoke(client));
+            assertInstanceOf(IllegalStateException.class, afterClose.getCause(), "spec §8.1: a closed client fails");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /** Without the {@code opens}, building fails and the message says what to declare. */
+    @Test
+    void runtimeProxy_namesTheMissingOpensWhenTheHostDoesNotOpenItsPackage() throws Exception {
+        Class<?> iface = hostInterface(HostModule.named(dir, HOST)
+                .requires("io.vidocq.cyrano.mp.rest.client.api"));
+
+        var failure = assertThrows(RestClientDefinitionException.class, () -> new CyranoRestClientBuilderResolver()
+                .newBuilder().baseUri(URI.create("http://localhost:1")).build(iface));
+
+        assertTrue(failure.getMessage().contains("opens " + HOST_PACKAGE + " to io.vidocq.cyrano.core"),
+                failure.getMessage());
+    }
+
+    private static Class<?> hostInterface(HostModule module) throws ClassNotFoundException {
+        ModuleLayer layer = module.with(HostPingApi.class).layer();
+        Class<?> iface = layer.findLoader(HOST).loadClass(HostPingApi.class.getName());
+        assertEquals(HOST, iface.getModule().getName());
+        return iface;
     }
 
     /** Test handler that does not need a real HTTP transport. */
