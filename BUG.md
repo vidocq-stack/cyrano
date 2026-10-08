@@ -213,3 +213,28 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
     archive's `WEB-INF/lib/*.jar`, as a servlet container would (classes still resolve parent-first). With that, both
     TCK tests pass with the fallback disabled; the fallback is removed. No other TCK class name remains in the
     production modules.
+
+## BUG-20261008-05 — an asynchronous method can run its response filters on the caller's thread
+
+- **Date**: 2026-10-08
+- **Status**: FIXED (branch pr/ybl/rest-client-module-path — ships with the next release)
+- **Affected module**: `io.vidocq.cyrano.core` (`CyranoInvocationHandler`, `CompletionStage` return path)
+- **Symptom**: TCK `AsyncMethodTest.testInterfaceMethodWithCompletionStageObjectReturnIsInvokedAsynchronously` failed
+  once on cyrano#24's CI (head fe24ec02): `AssertionError: did not expect [3] but found [3]` (AsyncMethodTest.java:143)
+  — the response filter ran on the thread that called the client method. It passed locally on the same head.
+- **Minimal repro**: an interface method returning `CompletionStage<String>`, a `ClientResponseFilter` that records its
+  thread, no `executorService(...)` on the builder, and a response that is complete before `invoke` attaches its
+  continuation (fast local server; deterministically: a transport whose `sendAsync` returns a completed future). Same
+  with a request filter that calls `abortWith`.
+- **Root cause**: with no executor configured, `asyncCallbackExecutor()` is `Runnable::run`. `sendAsync(...)
+  .thenApplyAsync(fn, Runnable::run)` runs `fn` on whichever thread completes the future — or on the calling thread
+  when the future is already complete. The `abortWith` path builds the result on the calling thread and returns
+  `completedFuture`. Response filters, `MessageBodyReader`s, `ResponseExceptionMapper`s and
+  `AsyncInvocationInterceptor.applyContext` then run on the caller's thread, which the TCK forbids for asynchronous
+  methods.
+- **Investigations**:
+  - 2026-10-08: `CyranoInvocationHandlerTest` reproduces both paths deterministically (a transport whose `sendAsync`
+    returns a completed future; a request filter calling `abortWith`): the response filter ran on `main`. Fixed: with no
+    executor service configured, the response is processed on a new virtual thread, and the `abortWith` path completes
+    through the same executor (`supplyAsync`) instead of returning `completedFuture`. With an executor service set on
+    the builder, that executor is used, as before.

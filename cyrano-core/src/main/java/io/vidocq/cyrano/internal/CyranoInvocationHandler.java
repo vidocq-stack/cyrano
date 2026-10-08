@@ -193,26 +193,29 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
             for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
                 try { interceptor.prepareContext(); } catch (RuntimeException ignored) {}
             }
+            //An aborted request is answered asynchronously too: the response filters, readers and
+            //applyContext() run off the caller's thread, as for a sent request (BUG-20261008-05).
             if (reqCtx.isAborted()) {
-                try {
+                return CompletableFuture.supplyAsync(() -> {
                     for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
                         try { interceptor.applyContext(); } catch (RuntimeException ignored) {}
                     }
-                    CyranoClientResponseContext respCtx = CyranoClientResponseContext.fromAbort(reqCtx.abortResponse());
-                    for (var f : configuration.getResponseFilters()) {
-                        try {
-                            f.filter(reqCtx, respCtx);
-                        } catch (IOException ioe) {
-                            throw new jakarta.ws.rs.ProcessingException(ioe);
+                    try {
+                        CyranoClientResponseContext respCtx = CyranoClientResponseContext.fromAbort(reqCtx.abortResponse());
+                        for (var f : configuration.getResponseFilters()) {
+                            try {
+                                f.filter(reqCtx, respCtx);
+                            } catch (IOException ioe) {
+                                throw new jakarta.ws.rs.ProcessingException(ioe);
+                            }
+                        }
+                        return mapResponse(respCtx, spec, asyncRawType, asyncGenericType);
+                    } finally {
+                        for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
+                            try { interceptor.removeContext(); } catch (RuntimeException ignored) {}
                         }
                     }
-                    Object mapped = mapResponse(respCtx, spec, asyncRawType, asyncGenericType);
-                    return CompletableFuture.completedFuture(mapped);
-                } finally {
-                    for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
-                        try { interceptor.removeContext(); } catch (RuntimeException ignored) {}
-                    }
-                }
+                }, asyncCallbackExecutor());
             }
 
             HttpRequest finalReq = buildHttpRequest(reqCtx);
@@ -904,13 +907,20 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         return out;
     }
 
+    /**
+     * Where the response of an asynchronous method is processed: the builder's executor service, or else a new
+     * virtual thread per response. Never a direct executor: {@code thenApplyAsync(fn, Runnable::run)} runs
+     * {@code fn} on the caller's thread when the response is already complete (BUG-20261008-05).
+     */
     private Executor asyncCallbackExecutor() {
         Executor configured = configuration.getExecutorService();
         if (configured != null) {
             return configured;
         }
-        return Runnable::run;
+        return ASYNC_CALLBACKS;
     }
+
+    private static final Executor ASYNC_CALLBACKS = task -> Thread.ofVirtual().name("cyrano-async").start(task);
 
     private static Type listOf(Type element) {
         return new ParameterizedType() {

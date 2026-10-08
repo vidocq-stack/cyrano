@@ -41,8 +41,11 @@ import java.util.concurrent.Flow;
  *
  * <p>Thread-safe: {@link HttpClient} is documented as thread-safe. No
  * {@code synchronized}, no {@code ThreadLocal} — virtual-thread-friendly.</p>
+ *
+ * <p>Not final so that tests can stand in a transport that answers without a network (internal package, not
+ * exported).</p>
  */
-public final class CyranoHttpTransport implements AutoCloseable {
+public class CyranoHttpTransport implements AutoCloseable {
 
     private final HttpClient client;
 
