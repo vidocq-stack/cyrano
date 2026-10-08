@@ -94,3 +94,35 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
     Fixed: version.properties filtered by Maven next to the class, constant loaded at class
     init (same-module Java Modules resource, no opens). No longer compile-time-inlineable, which
     also protects future consumers from the javac inlining trap.
+
+## BUG-20261008-01 — RestClientBuilder.newBuilder() throws ServiceConfigurationError on the module path
+
+- **Date**: 2026-10-08
+- **Status**: FIXED (branch pr/ybl/module-info-in-place — ships with the next release)
+- **Affected modules**: `io.vidocq.cyrano.mp.rest.client.api`, `io.vidocq.cyrano.core` (module descriptors)
+- **Symptom**: on the module path, no Rest Client can be created. `RestClientBuilder.newBuilder()` throws
+  `ServiceConfigurationError: org.eclipse.microprofile.rest.client.spi.RestClientBuilderResolver: module
+  io.vidocq.cyrano.mp.rest.client.api does not declare 'uses'`; a builder obtained from
+  `CyranoRestClientBuilderResolver` directly fails the same way in cyrano-core (`RestClientBuilderListener:
+  module io.vidocq.cyrano.core does not declare 'uses'`), at creation and again in `build()`. The CDI path
+  (`CyranoRestClientSyntheticCreator`) calls `RestClientBuilder.newBuilder()`, so `@Inject @RestClient` is
+  affected too. Invisible on the class path, where every test and the TCK run.
+- **Minimal repro**: put cyrano-api, cyrano-core, cyrano-mp-rest-client-api and their dependencies on a plain
+  `--module-path` and call `RestClientBuilder.newBuilder()`. Also reproduced on the Vidocq runtime: the
+  vidocq-runtime-cassini-rest-example jlink image with the Rest Client extension added answers a request
+  calling `RestClientBuilder.newBuilder()` with the `ServiceConfigurationError` above (Cyrano bricks in the
+  boot layer, the application in the Vauban child layer).
+- **Root cause**: the MicroProfile API (`RestClientBuilder.newBuilder()`,
+  `RestClientBuilderResolver.instance()`) and Cyrano (`CyranoRestClientBuilderResolver`,
+  `CyranoRestClientBuilder`) look services up with `ServiceLoader`, which a named module may only do for
+  services its descriptor `uses`. Missing: `uses RestClientBuilderResolver` and `uses
+  RestClientBuilderListener` in the repackaged API, `uses RestClientBuilderListener` and `uses
+  RestClientListener` in cyrano-core. Nothing in the Vidocq runtime adds them: the Vauban application layer
+  only synthesises `provides` (and only for re-layered application modules), and the `io.vidocq.cyrano`
+  bricks stay in the boot layer.
+- **Investigations**:
+  - 2026-10-08: found while moving cyrano's tests to the module path (late module-info workaround removal).
+    Fixed with the four `uses`; module-path tests in cyrano-mp-rest-client-api (`RestClientBuilderLookupTest`)
+    and cyrano-core (`CyranoRestClientBuilderResolverTest`) look the resolver and the listeners up from
+    another module (a jar defined in a child layer). Before the fix they failed with the errors above, as did
+    55 existing cyrano-core tests once on the module path.

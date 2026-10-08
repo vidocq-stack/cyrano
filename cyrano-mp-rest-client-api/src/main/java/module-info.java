@@ -36,5 +36,11 @@ module io.vidocq.cyrano.mp.rest.client.api {
     exports org.eclipse.microprofile.rest.client.ext;
     exports org.eclipse.microprofile.rest.client.inject;
     exports org.eclipse.microprofile.rest.client.spi;
+
+    // RestClientBuilder.newBuilder() looks up its resolver (RestClientBuilderResolver.instance())
+    // and the builder listeners (§10.1) with ServiceLoader: without these, a named module may not
+    // look them up and newBuilder() throws ServiceConfigurationError on the module path.
+    uses org.eclipse.microprofile.rest.client.spi.RestClientBuilderResolver;
+    uses org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener;
 }
 

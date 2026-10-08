@@ -17,15 +17,18 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later
  */
-package io.vidocq.cyrano.internal.gen;
+package io.vidocq.cyrano.mp.rest.client.api.provided;
 
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
+import org.eclipse.microprofile.rest.client.RestClientBuilder;
+import org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener;
 
-/** Fixture resolved through the ServiceLoader tier (factory provided by the module the fixture is packed into). */
-@Path("/loader")
-public interface LoaderApi {
+/** A builder listener shipped in a module of its own; records each call in a system property. */
+public final class RecordingBuilderListener implements RestClientBuilderListener {
 
-    @GET
-    String ping();
+    public static final String CALLS = "cyrano.test.builder-listener.calls";
+
+    @Override
+    public void onNewBuilder(RestClientBuilder builder) {
+        System.setProperty(CALLS, Integer.toString(Integer.getInteger(CALLS, 0) + 1));
+    }
 }

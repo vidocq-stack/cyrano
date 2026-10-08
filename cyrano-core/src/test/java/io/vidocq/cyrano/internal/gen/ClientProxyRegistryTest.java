@@ -23,10 +23,13 @@ import io.vidocq.cyrano.internal.CyranoClientConfiguration;
 import io.vidocq.cyrano.internal.CyranoHttpTransport;
 import io.vidocq.cyrano.internal.CyranoInterfaceScanner;
 import io.vidocq.cyrano.internal.CyranoInvocationHandler;
+import io.vidocq.cyrano.internal.ProviderModule;
+import io.vidocq.cyrano.spi.gen.ClientProxyFactory;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -84,9 +87,22 @@ class ClientProxyRegistryTest {
         assertEquals(0, ClientProxyRegistry.runtimeGeneratedHits());
     }
 
+    /**
+     * The client interface and its generated factory live in a module of their own, which provides
+     * the factory: the strict Java Modules case, where the factory is found through the interface's
+     * module layer. The factory wins over the {@code $$CyranoClient} class the naming convention
+     * would also find.
+     */
     @Test
-    void serviceLoaderTier_winsOverNamingConvention() {
-        var resolved = ClientProxyRegistry.resolve(LoaderApi.class);
+    void serviceLoaderTier_winsOverNamingConvention(@TempDir java.nio.file.Path dir) throws Exception {
+        ModuleLayer layer = ProviderModule.named(dir, "cyrano.test.client")
+                .with(LoaderApi.class, LoaderApi$$CyranoClient.class)
+                .provides(ClientProxyFactory.class, LoaderApi$$CyranoClient.Factory.class)
+                .layer();
+        Class<?> loaderApi = layer.findLoader("cyrano.test.client").loadClass(LoaderApi.class.getName());
+
+        var resolved = ClientProxyRegistry.resolve(loaderApi);
+
         assertEquals(ClientProxyRegistry.Source.SERVICE_LOADER, resolved.source());
         assertEquals(1, ClientProxyRegistry.serviceLoaderHits());
         assertEquals(0, ClientProxyRegistry.preGeneratedHits());

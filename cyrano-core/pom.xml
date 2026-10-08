@@ -99,14 +99,19 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- Tests stay on the class path: ClientProxyRegistryTest covers the class-path tier of the
-                 ClientProxyFactory lookup (a META-INF/services file under src/test/resources), which a
-                 named module ignores. -->
+            <!-- Tests run on the module path, patched into io.vidocq.cyrano.core: they serve requests
+                 with the JDK HTTP server, and JSON-B binds test classes declared in the internal
+                 packages. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <useModulePath>false</useModulePath>
+                    <argLine>
+                        --add-modules jdk.httpserver
+                        --add-reads io.vidocq.cyrano.core=jdk.httpserver
+                        --add-opens io.vidocq.cyrano.core/io.vidocq.cyrano.internal=io.vidocq.champollion.jsonb
+                        --add-opens io.vidocq.cyrano.core/io.vidocq.cyrano.internal.sse=io.vidocq.champollion.jsonb
+                    </argLine>
                 </configuration>
             </plugin>
         </plugins>

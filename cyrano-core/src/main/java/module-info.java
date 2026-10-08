@@ -70,5 +70,11 @@ module io.vidocq.cyrano.core {
     //a strict Java Modules user module declares `provides ClientProxyFactory with ...`
     //and keeps its client package fully encapsulated.
     uses io.vidocq.cyrano.spi.gen.ClientProxyFactory;
+
+    //MP Rest Client 4.0 §10.1 and §10.2 — the builder and client listeners, looked up with
+    //ServiceLoader when a builder is created and when a client is built. Usually provided by
+    //another module (humboldt-rest provides a RestClientListener).
+    uses org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener;
+    uses org.eclipse.microprofile.rest.client.spi.RestClientListener;
 }
 

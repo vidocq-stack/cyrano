@@ -17,15 +17,21 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later
  */
-package io.vidocq.cyrano.internal.gen;
+package io.vidocq.cyrano.internal.provided;
 
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
+import org.eclipse.microprofile.rest.client.RestClientBuilder;
+import org.eclipse.microprofile.rest.client.spi.RestClientListener;
 
-/** Fixture resolved through the ServiceLoader tier (factory provided by the module the fixture is packed into). */
-@Path("/loader")
-public interface LoaderApi {
+/**
+ * A client listener shipped in a module of its own, the way humboldt-rest provides one; records each
+ * call in a system property because the copy loaded from that module is not the class the test sees.
+ */
+public final class RecordingClientListener implements RestClientListener {
 
-    @GET
-    String ping();
+    public static final String CALLS = "cyrano.test.core.client-listener.calls";
+
+    @Override
+    public void onNewClient(Class<?> serviceInterface, RestClientBuilder builder) {
+        System.setProperty(CALLS, Integer.toString(Integer.getInteger(CALLS, 0) + 1));
+    }
 }
