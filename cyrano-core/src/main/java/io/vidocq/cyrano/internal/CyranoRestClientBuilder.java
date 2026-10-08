@@ -71,7 +71,6 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     private int proxyPort = -1;
     private QueryParamStyle queryParamStyle;
     private final Map<String, Object> headers = new HashMap<>();
-    private boolean builderListenersApplied;
 
     @Override
     public Configuration getConfiguration() {
@@ -337,7 +336,8 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                     "The type passed to build() must be an interface: " + clazz.getName());
         }
         resolveDefaultMapperFromMpConfig();
-        applyBuilderListeners(clazz.getClassLoader());
+        //No RestClientBuilderListener here: they are notified when the builder is constructed, "not when its
+        //build method is invoked" (MP Rest Client 4.0 API) — RestClientBuilder.newBuilder() does it.
         //Spec §5.2 — @RegisterProvider annotations on the interface are self-registered
         applyRegisterProviders(clazz);
         //Spec §10.2 — RestClientListener.onNewClient() is invoked via ServiceLoader before build
@@ -368,22 +368,6 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         @SuppressWarnings("unchecked")
         T proxy = (T) resolved.instantiator().apply(handler);
         return proxy;
-    }
-
-    private void applyBuilderListeners(ClassLoader preferredLoader) {
-        if (builderListenersApplied) return;
-        var builderListeners = loadServices(org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener.class, preferredLoader);
-        if (Boolean.getBoolean("cyrano.debug.listeners")) {
-            LOG.log(System.Logger.Level.DEBUG, () -> "RestClientBuilderListener count=" + builderListeners.size());
-        }
-        for (var listener : builderListeners) {
-            try {
-                listener.onNewBuilder(this);
-            } catch (RuntimeException ignored) {
-                //a failed listener should not block build()
-            }
-        }
-        builderListenersApplied = true;
     }
 
     private static <S> List<S> loadServices(Class<S> serviceType, ClassLoader preferredLoader) {

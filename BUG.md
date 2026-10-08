@@ -164,3 +164,29 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
 - **Investigations**:
   - 2026-10-08: seen when moving the cyrano-processor and cyrano-cdi-vauban tests to the module path; their
     surefire `argLine` stands in for the read and the export until this is fixed.
+
+## BUG-20261008-03 — RestClientBuilderListener.onNewBuilder runs up to three times per builder
+
+- **Date**: 2026-10-08
+- **Status**: FIXED (branch pr/ybl/rest-client-module-path — ships with the next release)
+- **Affected module**: `io.vidocq.cyrano.core` (`CyranoRestClientBuilderResolver`, `CyranoRestClientBuilder.build`)
+- **Symptom**: every `RestClientBuilderListener` is notified several times for one builder. A builder from
+  `RestClientBuilder.newBuilder()` is notified by the MicroProfile API, again by `CyranoRestClientBuilderResolver.newBuilder()`,
+  and once more by `build()`; a listener that registers a provider registers it again on the same builder (no-op, but
+  a listener that counts or adds a non-idempotent configuration sees the duplicates). Module-path probe: 5 calls for
+  3 builders.
+- **Minimal repro**: a `RestClientBuilderListener` that counts its calls; `RestClientBuilder.newBuilder().baseUri(u).build(Api.class)`
+  counts 3.
+- **Spec**: MP Rest Client 4.0 API, `RestClientBuilderListener` Javadoc: implementations "will be notified when new
+  RestClientBuilder instances are being constructed" and `onNewBuilder` "will be called when the RestClientBuilder is
+  constructed, not when its build method is invoked". The API's own `RestClientBuilder.newBuilder()` does the
+  notification (it loops over `ServiceLoader.load(RestClientBuilderListener.class)` after calling the resolver), so the
+  implementation must not notify again — neither in the resolver nor in `build()`. TCK `RestClientBuilderListenerTest`
+  only checks that the listener ran (a registered filter wins).
+- **Root cause**: the resolver and `build()` each run their own listener loop on top of the API's.
+- **Investigations**:
+  - 2026-10-08: the module-path test (`CyranoRestClientBuilderResolverTest`) counted 2 calls after
+    `RestClientBuilder.newBuilder()` and 3 after `build()`. Fixed: the resolver returns a bare builder and
+    `build()` no longer runs builder listeners; `RestClientBuilder.newBuilder()` notifies each listener once. A
+    builder taken from `CyranoRestClientBuilderResolver.newBuilder()` directly is not notified (the resolver is the
+    SPI behind `newBuilder()`; Cyrano's own CDI path goes through `RestClientBuilder.newBuilder()`).

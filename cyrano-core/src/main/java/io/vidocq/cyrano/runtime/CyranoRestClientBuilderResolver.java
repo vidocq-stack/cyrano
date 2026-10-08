@@ -39,24 +39,15 @@ public final class CyranoRestClientBuilderResolver extends RestClientBuilderReso
         // required for ServiceLoader
     }
 
+    /**
+     * A new builder. Listeners are not notified here: {@link RestClientBuilder#newBuilder()} notifies every
+     * {@link org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener} itself once the resolver has
+     * returned the builder (MP Rest Client 4.0 API, {@code RestClientBuilderListener}); notifying here as well
+     * would call each listener twice for one builder (BUG-20261008-03).
+     */
     @Override
     public RestClientBuilder newBuilder() {
-        var builder = new CyranoRestClientBuilder();
-        ClassLoader tccl = Thread.currentThread().getContextClassLoader();
-        Iterable<org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener> listeners =
-                tccl != null
-                        ? java.util.ServiceLoader.load(org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener.class, tccl)
-                        : java.util.ServiceLoader.load(org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener.class);
-        //Spec MP Rest Client 4.0 §10.1 — RestClientBuilderListener.onNewBuilder() is invoked
-        //for each new builder created via RestClientBuilder.newBuilder().
-        for (var listener : listeners) {
-            try {
-                listener.onNewBuilder(builder);
-            } catch (RuntimeException ignored) {
-                //a failed lister must not block the creation of the builder
-            }
-        }
-        return builder;
+        return new CyranoRestClientBuilder();
     }
 }
 

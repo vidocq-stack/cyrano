@@ -105,8 +105,41 @@ class CyranoRestClientBuilderResolverTest {
         RestClientBuilder.newBuilder().baseUri(URI.create("http://localhost:1")).build(PingApi.class);
 
         assertEquals(1, Integer.getInteger(RecordingClientListener.CALLS, 0), "RestClientListener.onNewClient");
-        assertTrue(Integer.getInteger(RecordingBuilderListener.CALLS, 0) >= 1,
-                "RestClientBuilderListener.onNewBuilder, called "
-                        + Integer.getInteger(RecordingBuilderListener.CALLS, 0) + " time(s)");
+        assertEquals(1, Integer.getInteger(RecordingBuilderListener.CALLS, 0), "RestClientBuilderListener.onNewBuilder");
+    }
+
+    /**
+     * BUG-20261008-03. MP Rest Client 4.0 API, {@link RestClientBuilderListener}: listeners are notified when
+     * a builder is constructed, "not when its build method is invoked" — and {@link RestClientBuilder#newBuilder()}
+     * notifies them itself, after asking the resolver for the builder. One builder, one call.
+     */
+    @Test
+    void newBuilder_notifiesEachBuilderListenerOnce_andBuildDoesNotNotifyAgain_spec_section10_1() {
+        ModuleLayer layer = ProviderModule.named(dir, "cyrano.test.listeners")
+                .provides(RestClientBuilderListener.class, RecordingBuilderListener.class)
+                .layer();
+        Thread.currentThread().setContextClassLoader(layer.findLoader("cyrano.test.listeners"));
+
+        RestClientBuilder builder = RestClientBuilder.newBuilder();
+        assertEquals(1, Integer.getInteger(RecordingBuilderListener.CALLS, 0), "after newBuilder()");
+
+        builder.baseUri(URI.create("http://localhost:1")).build(PingApi.class);
+        assertEquals(1, Integer.getInteger(RecordingBuilderListener.CALLS, 0), "after build()");
+    }
+
+    /**
+     * The resolver is the SPI behind {@link RestClientBuilder#newBuilder()}, which does the notification: a
+     * builder taken from the resolver directly is not notified.
+     */
+    @Test
+    void resolverNewBuilder_leavesTheNotificationToTheApi() {
+        ModuleLayer layer = ProviderModule.named(dir, "cyrano.test.listeners")
+                .provides(RestClientBuilderListener.class, RecordingBuilderListener.class)
+                .layer();
+        Thread.currentThread().setContextClassLoader(layer.findLoader("cyrano.test.listeners"));
+
+        new CyranoRestClientBuilderResolver().newBuilder().baseUri(URI.create("http://localhost:1")).build(PingApi.class);
+
+        assertEquals(0, Integer.getInteger(RecordingBuilderListener.CALLS, 0));
     }
 }
