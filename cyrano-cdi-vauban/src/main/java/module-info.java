@@ -29,9 +29,11 @@
  * (low priority) and MicroProfile Config (Ravel, high priority,
  * {@code &lt;fqn&gt;/mp-rest/url}).</p>
  *
- * <p>For strict Java Modules deployment in production, plan to add
- * {@code opens io.vidocq.cyrano.cdi.internal to io.vidocq.vauban.core} so that
- * Vauban can introspect the internal CDI beans (to be activated in M3).</p>
+ * <p>Strict Java Modules: this module opens nothing to {@code io.vidocq.vauban.core}. The
+ * container reaches the build compatible extension and the provider instantiator through
+ * {@code provides}, and instantiates this package's beans (the producer, the synthetic
+ * creators and disposers) through the APT-generated {@code _VaubanComponents} provided
+ * below, from inside this module.</p>
  */
 module io.vidocq.cyrano.cdi.vauban {
     requires transitive io.vidocq.cyrano.core;

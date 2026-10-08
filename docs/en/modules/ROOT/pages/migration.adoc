@@ -101,8 +101,8 @@ RESTEasy exposes the same MP Rest Client API plus a proprietary extension layer.
 | Standard JAX-RS — identical declarations.
 
 | Logging via `RestClientListener`
-| `@RegisterProvider(LoggingFilter.class)` + custom filter
-| No global listener API — Cyrano follows the spec strictly.
+| `RestClientListener` / `RestClientBuilderListener`, or `@RegisterProvider(LoggingFilter.class)` + custom filter
+| Both listener SPIs of the specification (§10.1, §10.2) are supported, found with `ServiceLoader`, from another module too: `onNewBuilder` once per builder, `onNewClient` once per `build()`. A filter covers per-client logging. See xref:usage.adoc#listeners[Builder and client listeners].
 |===
 
 == From Jakarta REST `Client` (no MicroProfile)

@@ -176,13 +176,23 @@ The `run-official-tck-mp-rest-client-4.0.sh` script:
 
 **TCK runner architecture:**
 
-The MicroProfile Rest Client TCK requires an HTTP backend serving as the target server.
-The `CyranoDeployableContainer` (custom Arquillian, ~300 LOC, test-scope only):
-- Starts an embedded Cassini+Chappe instance on a random port to serve TCK JAX-RS resources
-  (server side).
-- Configures Cyrano's `RestClientBuilder` to point to this server (client side).
-- Reuses `CassiniTestHarness` (cassini-tck) as a shared test component.
-- No dependency on Weld, Undertow, or any third-party container.
+Cyrano is a client: the TCK deploys no server-side resource, and its HTTP backend is
+**WireMock**, which the TCK itself drives (`WiremockArquillianTest`). The runner, all under
+`cyrano-tck/src/test/java/io/vidocq/cyrano/tck/arquillian/`, test-scope only:
+- `CyranoDeployableContainer` — a custom Arquillian container with the `Local` protocol: it
+  accepts each `@Deployment` archive without deploying it anywhere, and the tests run in the
+  test JVM.
+- `WireMockProbeListener` / `WireMockTestBackend` — start WireMock at JVM boot (a TestNG
+  listener), before the TCK classes need it.
+- `VaubanTckBootstrap` — starts one Vauban CDI Lite container per deployment for the
+  `cditests.*` tests (`@Inject @RestClient` through `cyrano-cdi-vauban`); its deployment class
+  loader covers the archive's loose resources and its `WEB-INF/lib/*.jar`, as a servlet
+  container would.
+- No Weld, Undertow or any third-party container is started, and the runner does not
+  depend on `cassini-tck`, which is published nowhere: since `be73623` every artefact
+  resolves from Maven Central, so pull requests are gated on the full suite. The
+  Cassini/Chappe dependencies still declared in the `tck-official` profile are not
+  referenced by the runner's sources.
 
 **Release discipline:**
 

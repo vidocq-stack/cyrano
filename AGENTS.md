@@ -72,8 +72,10 @@ sdk env
   `mvn -f cyrano-tck/pom.xml -Ptck-official test`.
 - The TCK script explicitly installs `cyrano-api,cyrano-core,cyrano-cdi-vauban` via
   `./mvnw -pl ... -am install -DskipTests` before executing `cyrano-tck`.
-- The TCK requires a backend server (TCK JAX-RS resources): the `CyranoDeployableContainer`
-  starts embedded Cassini+Chappe in test-scope. See `ROADMAP.md#M4` for details.
+- The TCK drives its own HTTP backend (WireMock, started at JVM boot by `WireMockProbeListener`):
+  `CyranoDeployableContainer` is a `Local` Arquillian container that deploys nothing, and
+  `VaubanTckBootstrap` starts one Vauban container per deployment for the `cditests.*` tests.
+  No `cassini-tck` dependency (removed in `be73623`).
 
 ## Observed Contribution Conventions
 
