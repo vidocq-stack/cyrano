@@ -190,3 +190,26 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
     `build()` no longer runs builder listeners; `RestClientBuilder.newBuilder()` notifies each listener once. A
     builder taken from `CyranoRestClientBuilderResolver.newBuilder()` directly is not notified (the resolver is the
     SPI behind `newBuilder()`; Cyrano's own CDI path goes through `RestClientBuilder.newBuilder()`).
+
+## BUG-20261008-04 — build() registered TCK providers by class name when no listener was found
+
+- **Date**: 2026-10-08
+- **Status**: FIXED (branch pr/ybl/rest-client-module-path — ships with the next release)
+- **Affected modules**: `io.vidocq.cyrano.core` (`CyranoRestClientBuilder.applyTckListenerFallback`), `cyrano-tck`
+  (`VaubanTckBootstrap`)
+- **Symptom**: `CyranoRestClientBuilder.build()` held a branch keyed on the TCK's own class names: for the interface
+  `org.eclipse.microprofile.rest.client.tck.interfaces.SimpleGetApi`, when no `RestClientListener` had been found, it
+  registered `ReturnWith200RequestFilter` (or `ReturnWith500RequestFilter`) and called
+  `SimpleRestClientListenerImpl.onNewClient` itself — the outcomes `RestClientBuilderListenerTest` and
+  `RestClientListenerTest` check. Those two TCK tests passed without the listeners ever being discovered.
+- **Minimal repro**: make `applyTckListenerFallback` return at once and run
+  `-Ptck,tck-official -pl cyrano-tck -am verify -Dtest='RestClientBuilderListenerTest,RestClientListenerTest'`: both
+  fail (`HTTP 500`; `The RestClientListener impl was not invoked expected [500] but found [200]`).
+- **Root cause**: a harness gap hidden by a workaround in production code. The TCK deployments ship the listener and
+  its `META-INF/services` file in a library jar (`WebArchive.addAsLibrary`); `VaubanTckBootstrap` put only the
+  archive's loose resources on the deployment class loader, so `ServiceLoader` never saw the services file.
+- **Investigations**:
+  - 2026-10-08: found while fixing BUG-20261008-03. Fixed the harness: the deployment class loader also covers the
+    archive's `WEB-INF/lib/*.jar`, as a servlet container would (classes still resolve parent-first). With that, both
+    TCK tests pass with the fallback disabled; the fallback is removed. No other TCK class name remains in the
+    production modules.

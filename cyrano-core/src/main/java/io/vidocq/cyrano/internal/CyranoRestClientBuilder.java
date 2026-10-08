@@ -351,7 +351,6 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                 listener.onNewClient(clazz, this);
             } catch (RuntimeException ignored) { /* failed listener — ignored */ }
         }
-        applyTckListenerFallback(clazz, restClientListeners.isEmpty());
         applyFeatures();
         // Codegen rule (audit CG-01): generated artifacts first (ServiceLoader, then
         // the $$CyranoClient naming convention); runtime Class-File generation is the
@@ -391,55 +390,6 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             if (seen.add(service.getClass().getName())) out.add(service);
         }
         return out;
-    }
-
-    private void applyTckListenerFallback(Class<?> serviceInterface, boolean noDiscoveredListeners) {
-        if (!noDiscoveredListeners) return;
-        if (!"org.eclipse.microprofile.rest.client.tck.interfaces.SimpleGetApi".equals(serviceInterface.getName())) return;
-
-        boolean has200 = hasRegisteredClass("org.eclipse.microprofile.rest.client.tck.providers.ReturnWith200RequestFilter");
-        boolean has500 = hasRegisteredClass("org.eclipse.microprofile.rest.client.tck.providers.ReturnWith500RequestFilter");
-
-        if (has500 && !has200) {
-            registerClassByName("org.eclipse.microprofile.rest.client.tck.providers.ReturnWith200RequestFilter", 1);
-            return;
-        }
-
-        Object disableMapper = configuration.getProperty("microprofile.rest.client.disable.default.mapper");
-        boolean mapperDisabled = Boolean.TRUE.equals(disableMapper)
-                || "true".equalsIgnoreCase(String.valueOf(disableMapper));
-        if (has200 && !has500 && mapperDisabled) {
-            registerClassByName("org.eclipse.microprofile.rest.client.tck.providers.ReturnWith500RequestFilter", 1);
-            try {
-                Class<?> listenerClass = Class.forName(
-                        "org.eclipse.microprofile.rest.client.tck.spi.SimpleRestClientListenerImpl",
-                        true,
-                        serviceInterface.getClassLoader());
-                Object listener = listenerClass.getDeclaredConstructor().newInstance();
-                listenerClass.getMethod("onNewClient", Class.class, org.eclipse.microprofile.rest.client.RestClientBuilder.class)
-                        .invoke(listener, serviceInterface, this);
-            } catch (ReflectiveOperationException ignored) {
-                //best-effort fallback only
-            }
-        }
-    }
-
-    private boolean hasRegisteredClass(String fqn) {
-        for (Class<?> c : configuration.getClasses()) {
-            if (fqn.equals(c.getName())) return true;
-        }
-        return false;
-    }
-
-    private void registerClassByName(String fqn, int priority) {
-        try {
-            Class<?> provider = Class.forName(fqn, true, Thread.currentThread().getContextClassLoader());
-            if (!configuration.isRegistered(provider)) {
-                register(provider, priority);
-            }
-        } catch (ClassNotFoundException ignored) {
-            // provider absent from the test classpath
-        }
     }
 
     private static <S> void loadFromModuleLayer(Class<S> serviceType,

@@ -104,11 +104,18 @@ final class VaubanTckBootstrap {
     /**
      * Copies every non-class asset of the archive (WEB-INF/classes normalized
      * to the root) into a temp directory and installs a URLClassLoader over it
-     * as the context class loader for the deployment's lifetime.
+     * — and over the library jars of the archive (WEB-INF/lib/*.jar), as a
+     * servlet container would — as the context class loader for the
+     * deployment's lifetime. The library jars carry the META-INF/services files
+     * of the TCK listener tests (RestClientBuilderListenerTest,
+     * RestClientListenerTest); classes still resolve parent-first to the test
+     * class path.
      */
     private static void materializeResources(Archive<?> archive) {
         try {
             java.nio.file.Path root = java.nio.file.Files.createTempDirectory("cyrano-tck-deployment-");
+            var urls = new java.util.ArrayList<java.net.URL>();
+            urls.add(root.toUri().toURL());
             for (var entry : archive.getContent().entrySet()) {
                 var node = entry.getValue();
                 if (node == null || node.getAsset() == null) {
@@ -133,11 +140,14 @@ final class VaubanTckBootstrap {
                     java.nio.file.Files.copy(in, target,
                             java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 }
+                if (relative.startsWith("WEB-INF/lib/") && relative.endsWith(".jar")) {
+                    urls.add(target.toUri().toURL());
+                }
             }
             deploymentRoot = root;
             previousTccl = Thread.currentThread().getContextClassLoader();
             deploymentLoader = new java.net.URLClassLoader(
-                    "cyrano-tck-deployment", new java.net.URL[] {root.toUri().toURL()}, previousTccl);
+                    "cyrano-tck-deployment", urls.toArray(java.net.URL[]::new), previousTccl);
             Thread.currentThread().setContextClassLoader(deploymentLoader);
         } catch (java.io.IOException e) {
             throw new IllegalStateException("Cannot materialize the TCK archive resources", e);
