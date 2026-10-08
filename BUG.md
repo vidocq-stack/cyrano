@@ -265,3 +265,23 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
     with vauban BUG-20261008-01 fixed (the synthetic metadata dropped language-model types). On Vidocq the extension
     reaches the processor through the new `vidocq-runtime-cyrano-rest-client-extension-codegen` bundle, which
     `vidocq:checkpom` now requires.
+
+## BUG-20261008-07 — every Rest Client application gets reactive-streams, an automatic module, and cannot be linked
+
+- **Date**: 2026-10-08
+- **Status**: FIXED (branch pr/ybl/rest-client-module-path — ships with the next release)
+- **Affected module**: `cyrano-core` (POM)
+- **Symptom**: on the Vidocq runtime, `vidocq:jlink` fails as soon as the application depends on the Rest Client
+  extension: `jlink does not support automatic modules: org.reactivestreams`. `org.reactivestreams:reactive-streams`
+  1.0.4 has no module descriptor, only `Automatic-Module-Name`, and came with cyrano-core as a compile dependency.
+- **Minimal repro**: an application depending on `vidocq-runtime-cyrano-rest-client-extension`, `mvn package` with
+  the `vidocq:jlink` goal (vidocq `vidocq-runtime-cyrano-rest-client-example`).
+- **Root cause**: cyrano-core needs Reactive Streams only for clients whose methods return `Publisher` (MP Rest Client
+  4.0 server-sent events). Its descriptor already says so (`requires static org.reactivestreams`) and the invocation
+  handler recognises `Publisher` by name, but the POM made the jar a transitive dependency of every client.
+- **Investigations**:
+  - 2026-10-08: the dependency is now `optional`: cyrano-core still compiles and tests against it, the TCK runners get
+    it from the TCK (reactive-streams-tck), and an application that returns `Publisher` declares it — the
+    jar is an automatic module, so such an application cannot be linked until an explicit `org.reactivestreams` module
+    is available. With the change, the Vidocq Rest Client example links with `vidocq:jlink` and its image answers
+    through the client.

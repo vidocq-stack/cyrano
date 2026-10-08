@@ -35,10 +35,14 @@
             Jakarta/MicroProfile spec API under the zero-dep rule. Declared
             `requires static` in module-info: only clients that actually use
             Publisher return types need it on their module path.
+            Optional, so it is not passed on to every client: the jar is an
+            automatic module, and an automatic module on the module path stops
+            jlink (BUG-20261008-07). An application returning Publisher declares it.
         -->
         <dependency>
             <groupId>org.reactivestreams</groupId>
             <artifactId>reactive-streams</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
