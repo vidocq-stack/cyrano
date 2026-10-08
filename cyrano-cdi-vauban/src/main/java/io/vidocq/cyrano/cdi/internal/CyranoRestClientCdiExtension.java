@@ -29,6 +29,7 @@ import jakarta.enterprise.inject.build.compatible.spi.Enhancement;
 import jakarta.enterprise.inject.build.compatible.spi.Messages;
 import jakarta.enterprise.inject.build.compatible.spi.SyntheticComponents;
 import jakarta.enterprise.inject.build.compatible.spi.Synthesis;
+import jakarta.enterprise.inject.build.compatible.spi.Types;
 import jakarta.enterprise.lang.model.AnnotationInfo;
 import jakarta.enterprise.lang.model.AnnotationMember;
 import jakarta.enterprise.lang.model.declarations.ClassInfo;
@@ -106,7 +107,7 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
         String configScope = resolveConfigScope(info.name(), configKey);
         String scope = configScope != null ? configScope : annotationScope;
 
-        discovered.putIfAbsent(info.name(), new DiscoveredInterface(info.name(), baseUri, configKey, scope));
+        discovered.putIfAbsent(info.name(), new DiscoveredInterface(info, info.name(), baseUri, configKey, scope));
     }
 
     /**
@@ -116,18 +117,20 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
      */
     @Synthesis
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public void synthesizeRestClientBeans(SyntheticComponents components) {
+    public void synthesizeRestClientBeans(SyntheticComponents components, Types types) {
         for (DiscoveredInterface d : discovered.values()) {
-            Class<?> iface = loadOrNull(d.fqn());
-            if (iface == null) {
-                //If the interface is not loadable on the container side, we do nothing
-                // silently — Vauban has already reported the classpath error.
-                continue;
-            }
             Class<? extends Annotation> scopeClass = resolveScopeClass(d.scope());
-
-            ((jakarta.enterprise.inject.build.compatible.spi.SyntheticBeanBuilder) components.addBean(iface))
-                    .type(iface)
+            Class<?> iface = loadOrNull(d.fqn());
+            jakarta.enterprise.inject.build.compatible.spi.SyntheticBeanBuilder builder;
+            if (iface != null) {
+                builder = components.addBean(iface).type(iface);
+            } else {
+                //At build time (the Vauban annotation processor) the interface is being compiled with
+                //the application and cannot be loaded: the bean type comes from the language model, and
+                //the creator loads the interface by name when it creates the client (BUG-20261008-06).
+                builder = components.addBean(Object.class).type(types.ofClass(d.info()));
+            }
+            builder
                     .qualifier(RestClient.class)
                     .scope(scopeClass)
                     .withParam(CyranoRestClientSyntheticCreator.PARAM_INTERFACE_NAME, d.fqn())
@@ -226,5 +229,5 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
     }
 
     /** Interface metadata collected in the Enhancement phase. */
-    private record DiscoveredInterface(String fqn, String baseUri, String configKey, String scope) {}
+    private record DiscoveredInterface(ClassInfo info, String fqn, String baseUri, String configKey, String scope) {}
 }

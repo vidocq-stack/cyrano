@@ -238,3 +238,30 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
     executor service configured, the response is processed on a new virtual thread, and the `abortWith` path completes
     through the same executor (`supplyAsync`) instead of returning `completedFuture`. With an executor service set on
     the builder, that executor is used, as before.
+
+## BUG-20261008-06 — no @RestClient bean for an application's interface when the extension runs at build time
+
+- **Date**: 2026-10-08
+- **Status**: FIXED (branch pr/ybl/rest-client-module-path — ships with the next release)
+- **Affected module**: `io.vidocq.cyrano.cdi.vauban` (`CyranoRestClientCdiExtension.synthesizeRestClientBeans`)
+- **Symptom**: on the Vidocq runtime, `@Inject @RestClient GreetingClient` fails: at run time `DeploymentException:
+  Unsatisfied dependency: field RelayResource.greetings of type ... GreetingClient with qualifiers [@Any, @RestClient]`
+  when the extension is not on the annotation-processor path (the Vauban processor only warns that the BCE "will not
+  run", and the runtime skips extensions for archives the processor already handled); with the extension on the
+  processor path, the same message becomes a compilation error.
+- **Minimal repro**: compile a `@RegisterRestClient` interface and a bean injecting it with `@Inject @RestClient`, with
+  vauban-processor and cyrano-cdi-vauban on the processor path: `[Vauban] Unsatisfied dependency`.
+- **Root cause**: the `@Enhancement` phase collects the interface (by its lang-model `ClassInfo`), but `@Synthesis`
+  registers the bean with `components.addBean(Class)`, after loading the interface by name; at build time the interface
+  is being compiled and cannot be loaded, so the extension skips it silently ("Vauban has already reported the
+  classpath error", which it has not). No bean is synthesised, none is recorded for the runtime.
+- **Investigations**:
+  - 2026-10-08: reproduced on the Vidocq runtime with a Rest Client example (vidocq branch
+    pr/ybl/rest-client-module-path): without the extension on the processor path the processor warns and the runtime
+    fails with the unsatisfied dependency; with it, compilation fails the same way. Fixed: when the interface cannot be
+    loaded, `@Synthesis` declares the bean with `addBean(Object.class).type(types.ofClass(info))`, the creator loading
+    the interface by name when it builds the client. `CyranoRestClientCdiExtensionTest` (language-model doubles, an
+    interface name no loader knows) saw no bean declared before the fix. The bean type then reaches the runtime only
+    with vauban BUG-20261008-01 fixed (the synthetic metadata dropped language-model types). On Vidocq the extension
+    reaches the processor through the new `vidocq-runtime-cyrano-rest-client-extension-codegen` bundle, which
+    `vidocq:checkpom` now requires.
