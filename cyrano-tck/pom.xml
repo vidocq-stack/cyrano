@@ -316,13 +316,12 @@
                 <dependency>
                     <groupId>io.vidocq.champollion</groupId>
                     <artifactId>champollion-jsonp</artifactId>
-                    <version>0.3.0-SNAPSHOT</version>
+                    <version>0.4.0-SNAPSHOT</version>
                     <scope>test</scope>
                 </dependency>
                 <!--
-                    Vauban CDI container : utilisé par VaubanTckBootstrap pour démarrer
-                    un container CDI Lite par déploiement Arquillian (tests cditests.*).
-                    Version alignée sur cyrano.version (tous en 0.3.0-SNAPSHOT).
+                    Vauban CDI container: VaubanTckBootstrap starts one CDI Lite container per
+                    Arquillian deployment (cditests.* tests).
                 -->
                 <dependency>
                     <groupId>io.vidocq.vauban</groupId>
