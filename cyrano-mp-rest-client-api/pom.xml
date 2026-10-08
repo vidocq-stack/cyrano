@@ -88,10 +88,6 @@
                             </artifactItems>
                         </configuration>
                     </execution>
-                    <execution>
-                        <id>copy-compile-deps-to-module-path</id>
-                        <phase>none</phase>
-                    </execution>
                 </executions>
             </plugin>
         </plugins>
