@@ -125,9 +125,12 @@ Common Java types are serialised/deserialised through Jakarta JSON-B (impl xref:
 
 Remember to add `opens com.example.dto to jakarta.json.bind;` in the `module-info.java` of the module that contains the DTOs.
 
+[#async]
 == Async — `CompletionStage<T>`
 
 A `CompletionStage<T>` return triggers `HttpClient.sendAsync`. The `CompletionStage` is completed on a virtual thread.
+
+[.tag-new]#NEW# The response — response filters, readers, `AsyncInvocationInterceptor.applyContext` — is processed on a new virtual thread for each call, or on the builder's `executorService(...)` when one is set, and never on the thread that called the method, even when the response is already there when the call returns (a fast local server, or a request a filter aborts with `abortWith`). Up to {release-version}, such a response was processed on the caller's thread.
 
 [source,java]
 ----
@@ -201,6 +204,7 @@ public class LoggingRequestFilter implements ClientRequestFilter {
 
 Registration is identical to exception mappers (`@RegisterProvider` or `register(...)`).
 
+[#programmatic-builder]
 == Programmatic builder
 
 Without CDI or for dynamic cases (URL resolved at runtime, conditional providers):
@@ -216,6 +220,16 @@ RestClientBuilder builder = RestClientBuilder.newBuilder()
 
 BlogClient blog = builder.build(BlogClient.class);
 ----
+
+[#listeners]
+=== Builder and client listeners [.tag-new]#NEW#
+
+The two listener SPIs of the specification are looked up with `ServiceLoader`, and work on the module path: a module provides them with `provides org.eclipse.microprofile.rest.client.spi.RestClientBuilderListener with ...` or `provides org.eclipse.microprofile.rest.client.spi.RestClientListener with ...`, and Cyrano's descriptors declare the matching `uses`.
+
+* `RestClientBuilderListener.onNewBuilder` runs **once per builder**, when `RestClientBuilder.newBuilder()` creates it — never from `build()`. Up to {release-version} it ran up to three times for one builder.
+* `RestClientListener.onNewClient` runs once per `build()`, as before.
+
+Before these `uses` were declared, `RestClientBuilder.newBuilder()` threw `ServiceConfigurationError` on the module path, and so did `@Inject @RestClient`, which goes through it.
 
 == Configuration through MP Config
 

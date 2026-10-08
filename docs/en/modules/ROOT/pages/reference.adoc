@@ -44,7 +44,7 @@ NOTE: `cyrano-tck` is **in-reactor, gated behind the `tck` Maven profile** (TCK 
 | Module | Exported packages
 
 | `io.vidocq.cyrano.mp.rest.client.api`
-| `org.eclipse.microprofile.rest.client`, `org.eclipse.microprofile.rest.client.annotation`, `org.eclipse.microprofile.rest.client.ext`, `org.eclipse.microprofile.rest.client.inject`, `org.eclipse.microprofile.rest.client.spi`
+| `org.eclipse.microprofile.rest.client`, `org.eclipse.microprofile.rest.client.annotation`, `org.eclipse.microprofile.rest.client.ext`, `org.eclipse.microprofile.rest.client.inject`, `org.eclipse.microprofile.rest.client.spi`. [.tag-new]#NEW# Also: `uses RestClientBuilderResolver` and `uses RestClientBuilderListener`, the lookups `RestClientBuilder.newBuilder()` makes (MP Rest Client §10.1) — without them a named module may not make them, and `newBuilder()` threw `ServiceConfigurationError` on the module path.
 
 | `io.vidocq.cyrano.api`
 | `io.vidocq.cyrano.spi` and `io.vidocq.cyrano.spi.gen` (the SPI consumed by APT-generated client code).
@@ -53,7 +53,7 @@ NOTE: `cyrano-tck` is **in-reactor, gated behind the `tck` Maven profile** (TCK 
 | No exported package — consumed exclusively through `provides javax.annotation.processing.Processor with CyranoClientProcessor` (javac ServiceLoader).
 
 | `io.vidocq.cyrano.core`
-| `io.vidocq.cyrano.runtime` only (`io.vidocq.cyrano.internal` stays unexported). Also: `provides RestClientBuilderResolver with CyranoRestClientBuilderResolver`, `uses io.vidocq.cyrano.runtime.ProviderInstantiator`, `uses io.vidocq.cyrano.spi.gen.ClientProxyFactory` (module-layer resolution of generated factories).
+| `io.vidocq.cyrano.runtime` only (`io.vidocq.cyrano.internal` stays unexported). Also: `provides RestClientBuilderResolver with CyranoRestClientBuilderResolver`, `uses io.vidocq.cyrano.runtime.ProviderInstantiator`, `uses io.vidocq.cyrano.spi.gen.ClientProxyFactory` (module-layer resolution of generated factories). [.tag-new]#NEW# `uses RestClientBuilderListener` and `uses RestClientListener` (MP Rest Client §10.1, §10.2): a listener another module provides — the `RestClientListener` of humboldt-rest, for example — is found on the module path. `requires static org.reactivestreams`: see <<reactive-streams,Reactive Streams for `Publisher`>>.
 
 | `io.vidocq.cyrano.cdi.vauban`
 | `io.vidocq.cyrano.cdi.internal`. Three `provides`: `BuildCompatibleExtension` with `CyranoRestClientCdiExtension`, `io.vidocq.cyrano.runtime.ProviderInstantiator` with `CyranoCdiProviderInstantiator` (CDI-aware provider instantiation), and `io.vidocq.vauban.api.VaubanComponentProvider` with the APT-generated `_VaubanComponents` (no `opens ... to io.vidocq.vauban.core` needed).
@@ -121,11 +121,32 @@ NOTE: `cyrano-tck` is **in-reactor, gated behind the `tck` Maven profile** (TCK 
 | Access to status, headers and raw body.
 
 | `CompletionStage<T>`
-| Async through `HttpClient.sendAsync`, completed on virtual thread.
+| Async through `HttpClient.sendAsync`. [.tag-new]#NEW# The response is processed (filters, readers, `AsyncInvocationInterceptor.applyContext`) on a new virtual thread, or on the builder's `executorService` when one is set — never on the caller's thread. See xref:usage.adoc#async[Async].
+
+| `org.reactivestreams.Publisher<T>`
+| Server-sent events (MP Rest Client 4.0). Needs the Reactive Streams dependency: see <<reactive-streams,Reactive Streams for `Publisher`>>.
 
 | `void`
 | The response is consumed and discarded.
 |===
+
+[#reactive-streams]
+=== Reactive Streams for `Publisher` [.tag-new]#NEW#
+
+`cyrano-core` declares `org.reactivestreams:reactive-streams` as an **optional** dependency, and its descriptor says `requires static org.reactivestreams`: a Rest Client application does not get the jar, and links with jlink. That jar has no module descriptor, only an `Automatic-Module-Name`, and jlink refuses automatic modules (`jlink does not support automatic modules: org.reactivestreams`); until {release-version} it came with `cyrano-core` into every application, so none of them could be linked.
+
+An application whose client methods return `Publisher` declares the dependency itself:
+
+[source,xml]
+----
+<dependency>
+  <groupId>org.reactivestreams</groupId>
+  <artifactId>reactive-streams</artifactId>
+  <version>1.0.4</version>
+</dependency>
+----
+
+Such an application cannot be linked with jlink until an explicit `org.reactivestreams` module exists; it runs on the module path as usual.
 
 [[mp-config]]
 == MicroProfile Config keys

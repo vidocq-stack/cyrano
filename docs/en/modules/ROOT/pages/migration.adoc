@@ -9,6 +9,16 @@ Cyrano is at `{project-version}` and passes the official MicroProfile Rest Clien
 [.lead]
 Cyrano implements MicroProfile Rest Client 4.0 strictly. Migration means aligning annotations with the spec and giving up the proprietary extensions of existing implementations.
 
+[#upgrading]
+== Upgrading from {release-version} [.tag-new]#NEW#
+
+What changes for an application that moves from Cyrano {release-version} to the `{project-version}` line (full list: xref:whats-new.adoc[What's new]):
+
+* **Client methods returning `Publisher`** — declare `org.reactivestreams:reactive-streams` yourself: `cyrano-core` no longer brings it. Every other application drops an automatic module and can be linked with jlink. xref:reference.adoc#reactive-streams[Reactive Streams for `Publisher`].
+* **Interfaces without a `cyrano-processor` proxy, in a named module** — keep only `opens <package> to io.vidocq.cyrano.core`, and remove any `--add-reads io.vidocq.cyrano.core=...` or `--add-exports io.vidocq.cyrano.core/io.vidocq.cyrano.internal=...` added to make the runtime-fallback proxy work. With `cyrano-processor` on the processor path, no `opens` is needed. xref:internals.adoc#runtime-fallback[Tier 3: runtime generation].
+* **`RestClientBuilderListener`** — `onNewBuilder` now runs once per builder, where it ran up to three times. A listener that counted calls, or relied on the call from `build()`, needs updating. xref:usage.adoc#listeners[Builder and client listeners].
+* **`CompletionStage` methods** — response filters, readers and `AsyncInvocationInterceptor.applyContext` no longer run on the caller's thread when the response is already complete. Code that relied on running there (a `ThreadLocal` set by the caller, say) must propagate its context through `AsyncInvocationInterceptor`. xref:usage.adoc#async[Async — `CompletionStage<T>`].
+
 == From SmallRye Rest Client
 
 SmallRye is the implementation used by Quarkus and WildFly. Its spec fidelity is high; porting is conceptually direct.
