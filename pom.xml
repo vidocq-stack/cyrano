@@ -110,6 +110,7 @@
         <module>cyrano-processor</module>
         <module>cyrano-core</module>
         <module>cyrano-cdi-vauban</module>
+        <module>cyrano-it-other-containers</module>
     </modules>
 
     <dependencyManagement>

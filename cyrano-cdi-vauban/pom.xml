@@ -17,6 +17,12 @@
             <groupId>io.vidocq.cyrano</groupId>
             <artifactId>cyrano-core</artifactId>
         </dependency>
+        <!-- Jakarta REST: `provided`, the container brings it (vidocq-workspace#17). -->
+        <dependency>
+            <groupId>jakarta.ws.rs</groupId>
+            <artifactId>jakarta.ws.rs-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>jakarta.enterprise</groupId>
             <artifactId>jakarta.enterprise.cdi-api</artifactId>

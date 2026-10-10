@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Cyrano on Open Liberty (MicroProfile 7 distribution). mpRestClient stays off: Cyrano ships its own
+    RestClientBuilderResolver, and Liberty's would compete with it. jsonb supplies the JSON-B
+    implementation, mpConfig reads the base URI, and restfulWS serves the stub the client calls.
+-->
+<server description="cyrano-it-openliberty">
+    <featureManager>
+        <feature>cdi-4.0</feature>
+        <feature>restfulWS-3.1</feature>
+        <feature>jsonb-3.0</feature>
+        <feature>mpConfig-3.1</feature>
+    </featureManager>
+
+    <httpEndpoint id="defaultHttpEndpoint" host="localhost" httpPort="${http.port}" httpsPort="${https.port}"/>
+
+    <!-- MP Rest Client 4.0 §5: <configKey>/mp-rest/url. Liberty's mpConfig reads server variables. -->
+    <variable name="stub/mp-rest/url" value="http://localhost:${http.port}/cyrano"/>
+
+    <webApplication location="cyrano-it-openliberty.war" contextRoot="/cyrano"/>
+</server>

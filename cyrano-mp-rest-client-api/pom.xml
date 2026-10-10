@@ -18,9 +18,13 @@
             <artifactId>microprofile-rest-client-api</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- Jakarta REST annotations and client types, used on the client interfaces. A Jakarta
+             platform API: `provided`, the container brings it (the Vidocq Rest Client extension,
+             or an application server), so a WAR never ships a second copy (vidocq-workspace#17). -->
         <dependency>
             <groupId>jakarta.ws.rs</groupId>
             <artifactId>jakarta.ws.rs-api</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>jakarta.enterprise</groupId>

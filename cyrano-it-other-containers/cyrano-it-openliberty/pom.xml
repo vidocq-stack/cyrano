@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.vidocq.cyrano</groupId>
+        <artifactId>cyrano-it-other-containers</artifactId>
+        <version>0.4.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>cyrano-it-openliberty</artifactId>
+    <packaging>war</packaging>
+    <name>Cyrano :: Integration tests on Open Liberty</name>
+    <description>Portability proof: a WAR bundling the Cyrano jars, unchanged, deployed on Open Liberty
+        (MicroProfile 7 distribution, CDI 4.0 + Jakarta REST 3.1 + JSON-B 3.0 + MicroProfile Config 3.1)
+        with Liberty's own mpRestClient feature off — injected and programmatic Rest Clients, checked
+        over HTTP (vidocq-workspace#15).</description>
+
+    <properties>
+        <!-- The application under test has no public API to document. -->
+        <maven.javadoc.failOnError>false</maven.javadoc.failOnError>
+        <!-- Open Liberty runtime: the MicroProfile 7 distribution ships the cdi-4.0, restfulWS-3.1,
+             jsonb-3.0 and mpConfig-3.1 features, so nothing is installed from the network at build time. -->
+        <openliberty.version>26.0.0.10</openliberty.version>
+        <liberty.maven.plugin.version>3.12.3</liberty.maven.plugin.version>
+        <failsafe.plugin.version>3.5.5</failsafe.plugin.version>
+        <build.helper.plugin.version>3.6.1</build.helper.plugin.version>
+        <war.plugin.version>3.4.0</war.plugin.version>
+    </properties>
+
+    <!--
+        The WAR bundles cyrano-cdi-vauban with what it brings transitively (cyrano-core, cyrano-api,
+        the MicroProfile Rest Client API, the JSON-P and JSON-B APIs), exactly as an application
+        would. Jakarta REST is `provided` by Liberty's restfulWS feature, the JSON-B implementation by
+        its jsonb feature, MicroProfile Config by its mpConfig feature. Liberty's mpRestClient feature
+        is never enabled: its Rest Client would compete with Cyrano's.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>io.vidocq.cyrano</groupId>
+            <artifactId>cyrano-cdi-vauban</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.enterprise</groupId>
+            <artifactId>jakarta.enterprise.cdi-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.ws.rs</groupId>
+            <artifactId>jakarta.ws.rs-api</artifactId>
+            <!-- Jakarta REST 3.1, the level of Liberty's restfulWS-3.1 feature. -->
+            <version>3.1.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <!-- The Cyrano processor generates the proxy of every @RegisterRestClient interface, as it
+                 does in an application build. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>io.vidocq.cyrano</groupId>
+                            <artifactId>cyrano-processor</artifactId>
+                            <version>${project.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>${war.plugin.version}</version>
+                <configuration>
+                    <failOnMissingWebXml>false</failOnMissingWebXml>
+                </configuration>
+            </plugin>
+            <!-- A free HTTP port per build, so parallel builds on one runner do not collide. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>${build.helper.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>reserve-ports</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>reserve-network-port</goal>
+                        </goals>
+                        <configuration>
+                            <portNames>
+                                <portName>liberty.http.port</portName>
+                                <portName>liberty.https.port</portName>
+                            </portNames>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>io.openliberty.tools</groupId>
+                <artifactId>liberty-maven-plugin</artifactId>
+                <version>${liberty.maven.plugin.version}</version>
+                <configuration>
+                    <runtimeArtifact>
+                        <groupId>io.openliberty</groupId>
+                        <artifactId>openliberty-microProfile7</artifactId>
+                        <version>${openliberty.version}</version>
+                        <type>zip</type>
+                    </runtimeArtifact>
+                    <serverName>cyranoIt</serverName>
+                    <!-- Deploy the packaged WAR, the artefact an application ships — not a loose
+                         application, which points Liberty at the jars in the local repository and
+                         would test those instead of what the WAR holds. -->
+                    <deployPackages>project</deployPackages>
+                    <looseApplication>false</looseApplication>
+                    <bootstrapProperties>
+                        <http.port>${liberty.http.port}</http.port>
+                        <https.port>${liberty.https.port}</https.port>
+                    </bootstrapProperties>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>start-liberty</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>create</goal>
+                            <goal>deploy</goal>
+                            <goal>test-start</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>stop-liberty</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>test-stop</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${failsafe.plugin.version}</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <cyrano.it.base>http://localhost:${liberty.http.port}/cyrano</cyrano.it.base>
+                    </systemPropertyVariables>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

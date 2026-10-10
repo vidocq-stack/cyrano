@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.vidocq.cyrano</groupId>
+        <artifactId>cyrano-it-other-containers</artifactId>
+        <version>0.4.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>cyrano-it-weld</artifactId>
+    <name>Cyrano :: Integration tests on Weld</name>
+    <description>Portability proof: the Cyrano jars, unchanged, on a class path under Weld SE (CDI 4.1)
+        instead of Vauban — an @Inject @RestClient interface with a processor-generated proxy, and a
+        programmatic client on the run-time fallback, against a local HTTP stub (vidocq-workspace#15).</description>
+
+    <properties>
+        <!-- Weld 6.0 implements CDI 4.1, the level Cyrano targets (Weld 7 is CDI 5.0). -->
+        <weld.version>6.0.4.Final</weld.version>
+    </properties>
+
+    <!--
+        Every dependency is test-scoped: the module ships nothing. Weld is the reference CDI
+        implementation, used here as a test container only — it never reaches a Cyrano artifact.
+        The Vauban container is deliberately absent from the class path, which WeldPortabilityTest
+        asserts. The test supplies what an application on another container supplies itself: Ravel
+        for MicroProfile Config, Champollion for JSON-B, the Jakarta REST API. The stub server is the
+        JDK's com.sun.net.httpserver.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>io.vidocq.cyrano</groupId>
+            <artifactId>cyrano-cdi-vauban</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.ws.rs</groupId>
+            <artifactId>jakarta.ws.rs-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vidocq.champollion</groupId>
+            <artifactId>champollion-jsonb</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vidocq.ravel</groupId>
+            <artifactId>ravel-core</artifactId>
+            <version>0.4.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.weld.se</groupId>
+            <artifactId>weld-se-core</artifactId>
+            <version>${weld.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- A class path, as in an application server or a plain Weld SE application: the
+                 module descriptors (and their `provides`) are ignored, only META-INF/services and
+                 META-INF/beans.xml count. -->
+            <!-- The Cyrano processor generates the proxy of every @RegisterRestClient interface of the
+                 test sources, as it does in an application build. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <annotationProcessorPaths>
+                                <path>
+                                    <groupId>io.vidocq.cyrano</groupId>
+                                    <artifactId>cyrano-processor</artifactId>
+                                    <version>${project.version}</version>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <useModulePath>false</useModulePath>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

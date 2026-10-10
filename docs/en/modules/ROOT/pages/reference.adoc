@@ -238,12 +238,40 @@ Two stable SPI packages are exported by `cyrano-api`, plus one runtime SPI in `c
 
 There is no transport-substitution SPI: the transport is `java.net.http.HttpClient`, and the extension points around a request are the standard JAX-RS/MP providers (`ClientRequestFilter`, `ClientResponseFilter`, `MessageBodyReader`/`Writer`, `ResponseExceptionMapper`, `ParamConverterProvider`, `ClientHeadersFactory`).
 
+[#runtime-prerequisites]
 == Runtime prerequisites
 
 * JDK 25+ — for the Class-File API and virtual threads.
 * Java Modules: one `module-info.java` per application Maven module consuming Cyrano.
-* A JSON-B implementation: xref:champollion::index.adoc[Champollion] (declared separately, `runtime` scope).
+* The Jakarta REST API [.tag-new]#NEW# — `provided` in every Cyrano jar: the Vidocq Rest Client extension brings it, and so does an application server.
+* A JSON-B implementation: xref:champollion::index.adoc[Champollion]. The Vidocq Rest Client extension brings it [.tag-new]#NEW#; elsewhere, declare one (`runtime` scope) or use the server's.
 * Optional — an MP Config implementation (xref:ravel::index.adoc[Ravel]) for `<key>/mp-rest/*`.
+
+[#other-containers]
+== Other CDI containers [.tag-new]#NEW#
+
+Cyrano does not need Vauban. The jars run unchanged under another CDI container, and two integration-test modules, grouped under `cyrano-it-other-containers`, prove it on every build (cyrano#34):
+
+[cols="1,2"]
+|===
+| Module | What it runs
+
+| `cyrano-it-weld`
+| Weld SE 6.0 (CDI 4.1), class path, no Vauban, Ravel for MicroProfile Config, Champollion for JSON-B: an `@Inject @RestClient` interface calls a local HTTP stub through the proxy `cyrano-processor` generated, and a client built with `RestClientBuilder` for an interface the processor never saw takes the run-time fallback.
+| `cyrano-it-openliberty`
+| A WAR on Open Liberty 26.0.0.10, MicroProfile 7 distribution (CDI 4.0, Jakarta REST 3.1, JSON-B 3.0, MicroProfile Config 3.1), with Liberty's `mpRestClient` feature off: the same two clients, calling a stub served by Liberty, checked over HTTP.
+|===
+
+Neither module is published. Nothing in Cyrano is tied to Vauban: `cyrano-cdi-vauban` registers the `@RestClient` beans through a standard build compatible extension, and has no normal-scoped bean.
+
+[WARNING]
+.Deploying on an application server
+====
+* **Keep the server's own Rest Client off** — `mpRestClient` on Open Liberty. Cyrano ships its own `RestClientBuilderResolver`; with the server's MicroProfile Rest Client enabled, two implementations compete for `RestClientBuilder.newBuilder()`.
+* **Enable the server's Jakarta REST, JSON-B and MicroProfile Config** — `restfulWS-3.1`, `jsonb-3.0` and `mpConfig-3.1` on Open Liberty. Cyrano leaves the Jakarta REST API `provided` and uses the server's JSON-B implementation and configuration.
+* **Nothing to exclude** — the WAR carries the MicroProfile Rest Client, JSON-P and JSON-B API jars that `cyrano-api` and `cyrano-core` pull in; with the features above, the server's copies are loaded first. `cyrano-it-openliberty` builds its WAR with exactly these dependencies.
+* **Run `cyrano-processor` on the application's build** — without it every client takes the run-time fallback, which works, but generates its proxy class at run time.
+====
 
 == Utility scripts
 
