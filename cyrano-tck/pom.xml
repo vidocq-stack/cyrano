@@ -290,10 +290,17 @@
                     <version>${cassini.version}</version>
                     <scope>test</scope>
                 </dependency>
-                <!-- Champollion: the Jakarta JSON-B implementation cyrano-core uses at run time -->
+                <!-- Champollion: the Jakarta JSON-P and JSON-B implementations cyrano-core uses at run
+                     time. JSON-B used to come through cassini-core, which now depends on the API
+                     only (vidocq-workspace#17). -->
                 <dependency>
                     <groupId>io.vidocq.champollion</groupId>
                     <artifactId>champollion-jsonp</artifactId>
+                    <scope>test</scope>
+                </dependency>
+                <dependency>
+                    <groupId>io.vidocq.champollion</groupId>
+                    <artifactId>champollion-jsonb</artifactId>
                     <scope>test</scope>
                 </dependency>
                 <!--
