@@ -92,6 +92,13 @@
             by the suite itself). Three minutes is what this suite costs — it is green, simply long.
         -->
         <ci.tck.command>mvn -B -ntp -P tck,tck-official -pl cyrano-tck test</ci.tck.command>
+
+        <!--
+            SonarQube (Vidocq/vidocq#284): every module reads the aggregated JaCoCo report of
+            cyrano-coverage (quality profile), so the tests of cyrano-it-weld count for the code
+            they exercise in the other modules.
+        -->
+        <sonar.coverage.jacoco.xmlReportPaths>${maven.multiModuleProjectDirectory}/cyrano-coverage/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <!--
@@ -248,6 +255,16 @@
             <id>tck</id>
             <modules>
                 <module>cyrano-tck</module>
+            </modules>
+        </profile>
+        <!--
+            Quality profile (with the one of vidocq-parent, which runs the JaCoCo agent): adds
+            the aggregated coverage report that SonarQube reads (Vidocq/vidocq#284).
+        -->
+        <profile>
+            <id>quality</id>
+            <modules>
+                <module>cyrano-coverage</module>
             </modules>
         </profile>
     </profiles>

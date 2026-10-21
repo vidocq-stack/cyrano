@@ -85,7 +85,9 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <!-- @{argLine} keeps the JaCoCo agent of the quality profile (vidocq-parent). -->
                     <argLine>
+                        @{argLine}
                         --add-modules jdk.httpserver
                         --add-reads io.vidocq.cyrano.processor=jdk.httpserver,io.vidocq.cyrano.core
                         --add-exports io.vidocq.cyrano.core/io.vidocq.cyrano.internal.gen=io.vidocq.cyrano.processor
