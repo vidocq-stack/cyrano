@@ -83,7 +83,7 @@
         <dependency>
             <groupId>io.vidocq.ravel</groupId>
             <artifactId>ravel-core</artifactId>
-            <version>0.4.0-SNAPSHOT</version>
+            <version>${ravel.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

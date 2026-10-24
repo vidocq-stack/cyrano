@@ -51,6 +51,18 @@
 
     <properties>
         <!--
+            Versions of the io.vidocq bricks this repository depends on. They are properties, never
+            literals, so that the CI can pin them: the downstream rebuild of Vidocq/ci
+            (build-impacted, pin-upstreams.py) rewrites <NAME.version> under /project/properties to the
+            version of the pull request under test, and the release (release-maven) bumps them with
+            versions:set-property. The name is the brick's repository name.
+        -->
+        <champollion.version>0.4.0-SNAPSHOT</champollion.version>
+        <vauban.version>0.4.0-SNAPSHOT</vauban.version>
+        <ravel.version>0.4.0-SNAPSHOT</ravel.version>
+        <cassini.version>0.4.0-SNAPSHOT</cassini.version>
+
+        <!--
             The upstream MicroProfile Rest Client 4.0 API is an automatic module.
             Cyrano repackages it as cyrano-mp-rest-client-api (an explicit module)
             to keep a Java Modules graph that jlink can link.
@@ -184,22 +196,22 @@
             <dependency>
                 <groupId>io.vidocq.champollion</groupId>
                 <artifactId>champollion-jsonp</artifactId>
-                <version>0.4.0-SNAPSHOT</version>
+                <version>${champollion.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.vidocq.champollion</groupId>
                 <artifactId>champollion-jsonb</artifactId>
-                <version>0.4.0-SNAPSHOT</version>
+                <version>${champollion.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.vidocq.vauban</groupId>
                 <artifactId>vauban-core</artifactId>
-                <version>0.4.0-SNAPSHOT</version>
+                <version>${vauban.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.vidocq.vauban</groupId>
                 <artifactId>vauban-classloader-spi</artifactId>
-                <version>0.4.0-SNAPSHOT</version>
+                <version>${vauban.version}</version>
             </dependency>
 
             <!-- Cyrano internal modules -->
