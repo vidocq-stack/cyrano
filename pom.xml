@@ -1,30 +1,24 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
- <!-- dummy -->
+ 
     <parent>
         <groupId>io.vidocq</groupId>
         <artifactId>vidocq-parent</artifactId>
-        <version>0.4.0-SNAPSHOT</version>
+        <version>0.4.0-RC1</version>
         <relativePath />
     </parent>
 
     <groupId>io.vidocq.cyrano</groupId>
     <artifactId>cyrano-parent</artifactId>
-    <version>0.4.0-SNAPSHOT</version>
+    <version>0.4.0-RC1</version>
     <packaging>pom</packaging>
 
     <name>Cyrano</name>
     <description>MicroProfile Rest Client 4.0 implementation — zero third-party library, virtual threads, strict Java Modules, proxies via the Class-File API (JEP 484)</description>
     <url>https://codefloe.com/Vidocq/cyrano</url>
 
-    <!--
-        Disjunctive triple license: a recipient may use this software under
-        ANY ONE of the three licences below, at their option. EPL-2.0 is the
-        anchor (see the LICENSE file); per EPL-2.0 section 1, GPL-2.0-or-later
-        is offered as a Secondary License.
-        SPDX-License-Identifier: EPL-2.0 OR EUPL-1.2 OR GPL-2.0-or-later
-    -->
+    
     <licenses>
         <license>
             <name>EPL-2.0</name>
@@ -50,79 +44,39 @@
     </scm>
 
     <properties>
-        <!--
-            Versions of the io.vidocq bricks this repository depends on. They are properties, never
-            literals, so that the CI can pin them: the downstream rebuild of Vidocq/ci
-            (build-impacted, pin-upstreams.py) rewrites <NAME.version> under /project/properties to the
-            version of the pull request under test, and the release (release-maven) bumps them with
-            versions:set-property. The name is the brick's repository name.
-        -->
-        <champollion.version>0.4.0-SNAPSHOT</champollion.version>
-        <vauban.version>0.4.0-SNAPSHOT</vauban.version>
-        <ravel.version>0.4.0-SNAPSHOT</ravel.version>
+        
+        <champollion.version>0.4.0-RC1</champollion.version>
+        <vauban.version>0.4.0-RC1</vauban.version>
+        <ravel.version>0.4.0-RC1</ravel.version>
         <cassini.version>0.4.0-SNAPSHOT</cassini.version>
 
-        <!--
-            The upstream MicroProfile Rest Client 4.0 API is an automatic module.
-            Cyrano repackages it as cyrano-mp-rest-client-api (an explicit module)
-            to keep a Java Modules graph that jlink can link.
-        -->
+        
         <microprofile.rest.client.version>4.0</microprofile.rest.client.version>
 
-        <!-- Jakarta REST (JAX-RS annotations used on client interfaces) -->
+        
         <jakarta.ws.rs.version>4.0.0</jakarta.ws.rs.version>
 
-        <!-- Jakarta JSON-B (request/response body serialisation — implementation: champollion) -->
+        
         <jakarta.json.bind.version>3.0.1</jakarta.json.bind.version>
-        <!-- Jakarta JSON-P (transitive from JSON-B) -->
+        
         <jakarta.json.version>2.1.3</jakarta.json.version>
 
-        <!-- CDI -->
+        
         <jakarta.cdi.version>4.1.0</jakarta.cdi.version>
         <jakarta.inject.version>2.0.1</jakarta.inject.version>
         <jakarta.annotation.version>3.0.0</jakarta.annotation.version>
 
-        <!-- Reactive Streams (SSE, MP Rest Client 4.0 §10 — interface-only de-facto spec jar) -->
+        
         <reactive.streams.version>1.0.4</reactive.streams.version>
 
-        <!--
-            The TCK this repository's pull requests are gated on (Vidocq/GestionProjet#9). Read by
-            the shared pr-validate workflow, which skips the step when this property is absent.
-
-            The certification profile is named explicitly because a plain `-Ptck` would not run it:
-            the root `tck` profile only adds cyrano-tck to the reactor, and inside cyrano-tck the
-            `smoke` profile is activeByDefault. `-Ptck` alone would therefore pass on a subset while
-            reporting success — the vacuous gate this campaign exists to remove.
-
-            This became possible only once cyrano-tck stopped depending on io.vidocq.cassini:
-            cassini-tck, an artefact that is published nowhere (Vidocq/cassini#36) and which this
-            module never used: CyranoDeployableContainer is its own Arquillian container and builds
-            on cassini-core / cassini-chappe, both declared separately and both on Maven Central.
-
-            Measured on a clean local repository (empty ~/.m2, the state of a CI runner): the
-            official MicroProfile Rest Client 4.0 TCK runs 235 tests in 179 s, all green (9 skipped
-            by the suite itself). Three minutes is what this suite costs — it is green, simply long.
-        -->
+        
         <ci.tck.command>mvn -B -ntp -P tck,tck-official -pl cyrano-tck test</ci.tck.command>
 
-        <!--
-            SonarQube (Vidocq/vidocq#284): every module reads the aggregated JaCoCo report of
-            cyrano-coverage (quality profile), so the tests of cyrano-it-weld count for the code
-            they exercise in the other modules.
-        -->
+        
         <sonar.coverage.jacoco.xmlReportPaths>${maven.multiModuleProjectDirectory}/cyrano-coverage/target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
-    <!--
-        cyrano-tck joins the reactor only under the `tck` profile (see <profiles>
-        below), mirroring the vidocq-runtime-tck-* pattern: a plain `mvn install`
-        neither downloads nor runs the TCK, and the release reactor never sees it.
-        The historical out-of-reactor constraint (ShrinkWrap Maven Resolver 3.3
-        vs Model 4.1.0 POMs) disappeared with the Maven 3.9.16 / Model 4.0.0
-        migration; the MP Rest Client TCK harness builds its Arquillian
-        deployments without the ShrinkWrap Maven resolver, so it runs safely
-        in-reactor (same verification as vidocq-runtime-tck-cyrano-restclient).
-    -->
+    
     <modules>
         <module>cyrano-mp-rest-client-api</module>
         <module>cyrano-api</module>
@@ -134,48 +88,42 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- MicroProfile Rest Client API -->
+            
             <dependency>
                 <groupId>org.eclipse.microprofile.rest.client</groupId>
                 <artifactId>microprofile-rest-client-api</artifactId>
                 <version>${microprofile.rest.client.version}</version>
             </dependency>
 
-            <!-- Jakarta REST (JAX-RS annotations used by client interfaces) -->
+            
             <dependency>
                 <groupId>jakarta.ws.rs</groupId>
                 <artifactId>jakarta.ws.rs-api</artifactId>
                 <version>${jakarta.ws.rs.version}</version>
             </dependency>
 
-            <!-- Jakarta JSON-B (runtime implementation: champollion) -->
+            
             <dependency>
                 <groupId>jakarta.json.bind</groupId>
                 <artifactId>jakarta.json.bind-api</artifactId>
                 <version>${jakarta.json.bind.version}</version>
             </dependency>
 
-            <!-- Jakarta JSON-P (transitive from JSON-B, implementation: champollion) -->
+            
             <dependency>
                 <groupId>jakarta.json</groupId>
                 <artifactId>jakarta.json-api</artifactId>
                 <version>${jakarta.json.version}</version>
             </dependency>
 
-            <!--
-                Reactive Streams — required by the MP Rest Client 4.0 SSE API
-                surface (spec §10: org.reactivestreams.Publisher return types).
-                Zero-dep waiver: interface-only de-facto spec jar (4 interfaces,
-                no implementation code), Automatic-Module-Name org.reactivestreams,
-                same standing as a Jakarta/MicroProfile spec API.
-            -->
+            
             <dependency>
                 <groupId>org.reactivestreams</groupId>
                 <artifactId>reactive-streams</artifactId>
                 <version>${reactive.streams.version}</version>
             </dependency>
 
-            <!-- CDI -->
+            
             <dependency>
                 <groupId>jakarta.enterprise</groupId>
                 <artifactId>jakarta.enterprise.cdi-api</artifactId>
@@ -192,7 +140,7 @@
                 <version>${jakarta.annotation.version}</version>
             </dependency>
 
-            <!-- Runtime implementations (Vidocq) -->
+            
             <dependency>
                 <groupId>io.vidocq.champollion</groupId>
                 <artifactId>champollion-jsonp</artifactId>
@@ -214,7 +162,7 @@
                 <version>${vauban.version}</version>
             </dependency>
 
-            <!-- Cyrano internal modules -->
+            
             <dependency>
                 <groupId>io.vidocq.cyrano</groupId>
                 <artifactId>cyrano-mp-rest-client-api</artifactId>
@@ -243,36 +191,17 @@
         </dependencies>
     </dependencyManagement>
 
-    <!--
-        CYR-001 (2026-06-03): the Java Modules workaround that used to live here
-        moved to cyrano-mp-rest-client-api/pom.xml, the only place it is needed
-        (requires static jakarta.cdi/inject/annotation misrouted by
-        maven-compiler-plugin 3.13.0 + Maven 3.9.16 at testCompile).
-        The other reactor modules do not need it.
-    -->
+    
 
     <profiles>
-        <!--
-            TCK harmonisation (workspace-wide effort, recipe validated on dirac):
-            the official MicroProfile Rest Client 4.0 TCK runner joins the reactor
-            only when this profile is active, exactly like the in-reactor
-            vidocq-runtime-tck-* runners of the vidocq runtime.
-
-                ./mvnw -Ptck -pl cyrano-tck test                     # smoke
-                ./mvnw -Ptck,tck-official -pl cyrano-tck test        # full suite
-
-            run-official-tck-mp-rest-client-4.0.sh remains the friendly wrapper.
-        -->
+        
         <profile>
             <id>tck</id>
             <modules>
                 <module>cyrano-tck</module>
             </modules>
         </profile>
-        <!--
-            Quality profile (with the one of vidocq-parent, which runs the JaCoCo agent): adds
-            the aggregated coverage report that SonarQube reads (Vidocq/vidocq#284).
-        -->
+        
         <profile>
             <id>quality</id>
             <modules>
