@@ -71,7 +71,7 @@ public void synthesizeRestClientBeans(SyntheticComponents components) {
 }
 ----
 
-[.tag-new]#NEW# **Interfaces that cannot be loaded yet.** On the Vidocq runtime the extension runs inside the Vauban annotation processor, while the application's `@RegisterRestClient` interface is being compiled: `@Synthesis` cannot load it. The bean is then declared from the language model — `components.addBean(Object.class).type(types.ofClass(info))` — and the creator loads the interface by name when it builds the client. An interface that can be loaded is declared as above. Up to {release-version} the extension skipped such an interface silently, so no `@RestClient` bean existed and `@Inject @RestClient` failed with an unsatisfied dependency. The bean type reaches the runtime only with the matching Vauban `0.4.0` line, which keeps language-model types in the synthetic bean metadata.
+**Interfaces that cannot be loaded yet.** On the Vidocq runtime the extension runs inside the Vauban annotation processor, while the application's `@RegisterRestClient` interface is being compiled: `@Synthesis` cannot load it. The bean is then declared from the language model — `components.addBean(Object.class).type(types.ofClass(info))` — and the creator loads the interface by name when it builds the client. An interface that can be loaded is declared as above. Up to {release-version} the extension skipped such an interface silently, so no `@RestClient` bean existed and `@Inject @RestClient` failed with an unsatisfied dependency. The bean type reaches the runtime only with the matching Vauban `0.4.0` line, which keeps language-model types in the synthetic bean metadata.
 
 Diagnostics go through the standard BCE `Messages` facility (`jakarta.enterprise.inject.build.compatible.spi.Messages`), injected into the `@Enhancement` method. The extension declares no other hook — base-URL resolution failures surface at bean instantiation, not at build time.
 
@@ -161,7 +161,7 @@ The processor also writes a `META-INF/services/io.vidocq.cyrano.spi.gen.ClientPr
 
 `CyranoProxyGenerator` emits the bytecode of a class named `Cyrano$<SimpleName>` in the **interface's package** (nested interfaces have their `$` flattened to `_` to avoid collisions). Emission uses `java.lang.classfile.ClassFile` — no ASM dependency, no `setAccessible(true)`, no `java.lang.reflect.Proxy`. The class is loaded with `lookup.defineClass(bytes)`; the `MethodHandles.Lookup` is obtained via `MethodHandles.privateLookupIn(iface, MethodHandles.lookup())`. The generated constructor takes the `CyranoInvocationHandler` and each method delegates with its method index.
 
-[.tag-new]#NEW# **Interfaces of another named module.** The generated class refers to `java.base` types only: it holds a `MethodHandle` bound to `CyranoInvocationHandler.invoke`, called with `invokeExact`, and a `Runnable` for `close()`. `cyrano-core` adds the read edge to the interface's module for itself (`Module.addReads`). The module that declares the interface therefore needs only the `opens` the error message names:
+**Interfaces of another named module.** The generated class refers to `java.base` types only: it holds a `MethodHandle` bound to `CyranoInvocationHandler.invoke`, called with `invokeExact`, and a `Runnable` for `close()`. `cyrano-core` adds the read edge to the interface's module for itself (`Module.addReads`). The module that declares the interface therefore needs only the `opens` the error message names:
 
 [source,java]
 ----

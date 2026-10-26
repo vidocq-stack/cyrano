@@ -10,7 +10,7 @@ Cyrano is at `{project-version}` and passes the official MicroProfile Rest Clien
 Cyrano implements MicroProfile Rest Client 4.0 strictly. Migration means aligning annotations with the spec and giving up the proprietary extensions of existing implementations.
 
 [#upgrading]
-== Upgrading from {release-version} [.tag-new]#NEW#
+== Upgrading from {release-version}
 
 What changes for an application that moves from Cyrano {release-version} to the `{project-version}` line (full list: xref:whats-new.adoc[What's new]):
 
