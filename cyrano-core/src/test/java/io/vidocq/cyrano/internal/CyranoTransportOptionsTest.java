@@ -150,6 +150,18 @@ class CyranoTransportOptionsTest {
         assertThrows(ProcessingException.class, client::execute);
     }
 
+    /** Spec §5.5: proxyAddress routes the requests through the proxy, whatever the target host. */
+    @Test
+    void proxyAddress_routes_the_request_through_the_proxy() {
+        SlowApi client = new CyranoRestClientBuilder()
+                .baseUri(URI.create("http://cyrano-target.invalid"))
+                .proxyAddress("127.0.0.1", server.getAddress().getPort())
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .build(SlowApi.class);
+
+        assertEquals("slow-body", client.execute());
+    }
+
     @Test
     void proxyAddress_rejects_null_host() {
         assertThrows(IllegalArgumentException.class,

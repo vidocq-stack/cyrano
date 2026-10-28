@@ -227,6 +227,44 @@ class CyranoSslTransportTest {
         }
     }
 
+    @Test
+    void verifier_session_view_reflects_the_handshake_session_spec_section5_6() {
+        List<Object> seen = new ArrayList<>();
+        HostnameVerifier verifier = (hostname, session) -> {
+            seen.add(session.getPeerHost());
+            seen.add(session.getPeerPort() > 0);
+            seen.add(session.getProtocol().startsWith("TLS"));
+            seen.add(!session.getCipherSuite().isEmpty());
+            seen.add(session.getPacketBufferSize() > 0 && session.getApplicationBufferSize() > 0);
+            try {
+                seen.add(session.getPeerPrincipal().getName());
+            } catch (javax.net.ssl.SSLPeerUnverifiedException e) {
+                seen.add(e);
+            }
+            // The local identity is only sent after the server is verified (TLS 1.3): both or neither.
+            seen.add((session.getLocalCertificates() == null) == (session.getLocalPrincipal() == null));
+            session.putValue("k", "v");
+            seen.add(session.getValue("k"));
+            seen.add(List.of(session.getValueNames()));
+            session.removeValue("k");
+            seen.add(session.getValue("k") == null);
+            seen.add(session.getCreationTime() <= session.getLastAccessedTime() || session.getId() != null);
+            seen.add(session.isValid() || session.getSessionContext() != null);
+            return true;
+        };
+        // Mutual TLS: the key store also goes through the verifying SSL context.
+        SecureApi api = RestClientBuilder.newBuilder()
+                .baseUri(uri(mutualServer))
+                .trustStore(clientTrustStore)
+                .keyStore(clientKeyStore, "password")
+                .hostnameVerifier(verifier)
+                .build(SecureApi.class);
+
+        assertEquals(BODY, api.get());
+        assertEquals(List.of("localhost", true, true, true, true, "CN=localhost", true,
+                "v", List.of("k"), true, true, true), seen);
+    }
+
     // ------------------------------------------------------------------
     // explicit SSLContext (TCK SslContextTest)
     // ------------------------------------------------------------------

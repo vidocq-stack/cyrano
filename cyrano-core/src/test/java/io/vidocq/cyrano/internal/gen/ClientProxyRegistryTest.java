@@ -120,6 +120,20 @@ class ClientProxyRegistryTest {
     }
 
     @Test
+    void namingConventionTier_ignoresAFactoryGeneratedForAnotherInterface() {
+        var resolved = ClientProxyRegistry.resolve(StaleApi.class);
+        assertEquals(ClientProxyRegistry.Source.RUNTIME_GENERATED, resolved.source());
+        assertEquals(0, ClientProxyRegistry.preGeneratedHits());
+    }
+
+    @Test
+    void namingConventionTier_fallsBackWhenTheFactoryIsMissing() {
+        var resolved = ClientProxyRegistry.resolve(BrokenApi.class);
+        assertEquals(ClientProxyRegistry.Source.RUNTIME_GENERATED, resolved.source());
+        assertEquals(1, ClientProxyRegistry.runtimeGeneratedHits());
+    }
+
+    @Test
     void resolution_isCachedPerInterface() {
         ClientProxyRegistry.resolve(FixtureApi.class);
         ClientProxyRegistry.resolve(FixtureApi.class);
