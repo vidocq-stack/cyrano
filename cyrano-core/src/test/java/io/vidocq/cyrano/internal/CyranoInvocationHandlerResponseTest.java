@@ -442,7 +442,7 @@ class CyranoInvocationHandlerResponseTest {
                     .register(new ThrowingFactory())
                     .register(new BrokenFactory())
                     .register(new NullFactory())
-                    .register((ClientResponseFilter) (req, resp) -> filterThread.set(Thread.currentThread().getName()))
+                    .register((ClientResponseFilter) (_, _) -> filterThread.set(Thread.currentThread().getName()))
                     .build(ResponseApi.class);
 
             assertEquals("ok", client.async().toCompletableFuture().get(10, TimeUnit.SECONDS));
@@ -461,7 +461,7 @@ class CyranoInvocationHandlerResponseTest {
                 .register(factory)
                 .register(new ThrowingFactory())
                 .register(abortWith(200, ABORTED))
-                .register((ClientResponseFilter) (req, resp) -> filtered.set(String.valueOf(resp.getStatus())))
+                .register((ClientResponseFilter) (_, resp) -> filtered.set(String.valueOf(resp.getStatus())))
                 .build(ResponseApi.class);
 
         assertEquals(ABORTED, client.async().toCompletableFuture().get(10, TimeUnit.SECONDS));
@@ -472,7 +472,7 @@ class CyranoInvocationHandlerResponseTest {
 
     @Test
     void async_response_filter_io_failure_completes_exceptionally() {
-        ClientResponseFilter failing = (req, resp) -> {
+        ClientResponseFilter failing = (_, _) -> {
             throw new IOException(BOOM);
         };
         CompletableFuture<String> sent = builder().register(failing).build(ResponseApi.class)

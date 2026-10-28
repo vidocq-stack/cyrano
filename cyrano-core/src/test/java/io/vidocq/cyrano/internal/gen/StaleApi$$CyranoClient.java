@@ -27,6 +27,7 @@ import io.vidocq.cyrano.spi.gen.ClientProxyFactory;
 public final class StaleApi$$CyranoClient {
 
     private StaleApi$$CyranoClient() {
+        // never instantiated: only the class lookup matters
     }
 
     public static final class Factory implements ClientProxyFactory {

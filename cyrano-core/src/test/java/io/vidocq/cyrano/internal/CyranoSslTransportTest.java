@@ -230,7 +230,7 @@ class CyranoSslTransportTest {
     @Test
     void verifier_session_view_reflects_the_handshake_session_spec_section5_6() {
         List<Object> seen = new ArrayList<>();
-        HostnameVerifier verifier = (hostname, session) -> {
+        HostnameVerifier verifier = (_, session) -> {
             seen.add(session.getPeerHost());
             seen.add(session.getPeerPort() > 0);
             seen.add(session.getProtocol().startsWith("TLS"));

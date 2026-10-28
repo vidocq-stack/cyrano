@@ -248,6 +248,7 @@ class CyranoInvocationHandlerRequestTest {
         public String value;
 
         public Payload() {
+            // JSON-B needs a no-arg constructor
         }
 
         Payload(String value) {
@@ -496,7 +497,7 @@ class CyranoInvocationHandlerRequestTest {
     @Test
     void response_filter_io_failure_is_a_processing_exception() {
         FactoryApi client = builder()
-                .register((ClientResponseFilter) (req, resp) -> {
+                .register((ClientResponseFilter) (_, _) -> {
                     throw new IOException(BOOM);
                 })
                 .build(FactoryApi.class);

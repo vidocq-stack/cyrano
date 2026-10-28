@@ -53,6 +53,7 @@ class CyranoInterfaceScannerValidationTest {
 
     public static final class Helpers {
         private Helpers() {
+            // static compute methods only
         }
 
         public static String good() {

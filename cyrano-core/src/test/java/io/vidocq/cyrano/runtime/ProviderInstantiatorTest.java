@@ -34,11 +34,15 @@ class ProviderInstantiatorTest {
 
     static final class PrivateProvider {
         private PrivateProvider() {
+            // reachable only reflectively, as a provider would be
         }
     }
 
     static final class NoDefaultConstructor {
-        NoDefaultConstructor(String ignored) {
+        final String value;
+
+        NoDefaultConstructor(String value) {
+            this.value = value;
         }
     }
 

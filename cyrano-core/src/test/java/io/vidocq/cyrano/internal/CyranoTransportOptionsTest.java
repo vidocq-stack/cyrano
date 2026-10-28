@@ -82,7 +82,7 @@ class CyranoTransportOptionsTest {
             } else if ("/slow".equals(path)) {
                 try {
                     Thread.sleep(400);
-                } catch (InterruptedException e) {
+                } catch (InterruptedException _) {
                     Thread.currentThread().interrupt();
                 }
                 payload = "slow-body".getBytes(StandardCharsets.UTF_8);

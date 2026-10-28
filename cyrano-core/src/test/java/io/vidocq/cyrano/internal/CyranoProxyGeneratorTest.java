@@ -85,7 +85,7 @@ class CyranoProxyGeneratorTest {
     }
 
     @Test
-    void invocation_handler_receives_correct_index_and_args() throws Exception {
+    void invocation_handler_receives_correct_index_and_args() {
         // Manual handler that captures the index and args without HTTP.
         var capturing = new CapturingHandler();
         var entry = CyranoProxyCache.getOrGenerate(Echo.class);

@@ -75,6 +75,7 @@ class CyranoClientProcessorCoverageTest {
 
         @Override
         public void markClosed() {
+            // the stub has no resource to release
         }
     }
 

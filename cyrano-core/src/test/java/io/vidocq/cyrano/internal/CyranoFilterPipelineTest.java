@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Covers runtime M4-2 iteration: {@link ClientRequestFilter} pipeline /
@@ -197,7 +196,7 @@ class CyranoFilterPipelineTest {
                         ctx.abortWith(StubResponse.ofString(418, "teapot")))
                 .register((ClientResponseFilter) (req, resp) -> seenStatus.set(resp.getStatus()))
                 .build(EchoService.class);
-        assertNotNull(catchWebApp(() -> client.ping()));
+        assertNotNull(catchWebApp(client::ping));
         assertEquals(418, seenStatus.get());
     }
 

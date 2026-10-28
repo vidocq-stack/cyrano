@@ -45,6 +45,7 @@ import java.util.concurrent.CompletionStage;
 final class TestRuntimeDelegate extends RuntimeDelegate {
 
     private TestRuntimeDelegate() {
+        // installed through install()
     }
 
     /** Installs the double once for the whole test JVM (idempotent). */

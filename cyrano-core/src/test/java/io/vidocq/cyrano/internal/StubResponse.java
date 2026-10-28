@@ -70,7 +70,7 @@ final class StubResponse extends Response {
     @Override public <T> T readEntity(jakarta.ws.rs.core.GenericType<T> entityType, Annotation[] annotations) { throw new UnsupportedOperationException(); }
     @Override public boolean hasEntity() { return entity != null; }
     @Override public boolean bufferEntity() { return false; }
-    @Override public void close() { }
+    @Override public void close() { /* nothing to release */ }
     @Override public MediaType getMediaType() { return MediaType.WILDCARD_TYPE; }
     @Override public Locale getLanguage() { return null; }
     @Override public int getLength() { return entity == null ? -1 : entity.toString().length(); }
@@ -85,7 +85,7 @@ final class StubResponse extends Response {
     @Override public jakarta.ws.rs.core.Link getLink(String relation) { return null; }
     @Override public jakarta.ws.rs.core.Link.Builder getLinkBuilder(String relation) { throw new UnsupportedOperationException(); }
     @Override public MultivaluedMap<String, Object> getMetadata() { return headers; }
-    @Override public MultivaluedMap<String, Object> getHeaders() { return headers; }
+    @Override public MultivaluedMap<String, Object> getHeaders() { return getMetadata(); }
     @Override public MultivaluedMap<String, String> getStringHeaders() { return stringHeaders; }
     @Override public String getHeaderString(String name) { return null; }
 }

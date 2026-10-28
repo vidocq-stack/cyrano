@@ -23,5 +23,6 @@ package io.vidocq.cyrano.internal.gen;
 public final class BrokenApi$$CyranoClient {
 
     private BrokenApi$$CyranoClient() {
+        // never instantiated: only the class lookup matters
     }
 }
