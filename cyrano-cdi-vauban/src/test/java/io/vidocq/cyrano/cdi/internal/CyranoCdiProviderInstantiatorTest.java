@@ -28,6 +28,7 @@ import jakarta.interceptor.InterceptorBinding;
 import jakarta.interceptor.InvocationContext;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -40,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * {@link CyranoCdiProviderInstantiator}: MP Rest Client 4.0 §4.2.4 — when CDI is present, providers that are
@@ -152,6 +154,25 @@ class CyranoCdiProviderInstantiatorTest {
         try (var _ = container()) {
             assertEquals(RESULT, instantiator.aroundInvoke(this, method(InterceptedApi.class, "plain"),
                     null, () -> RESULT));
+        }
+    }
+
+    /** BUG-20261028-11. */
+    @Test
+    void exceptions_of_the_invocation_cross_the_interceptor_chain() throws Exception {
+        try (var _ = container()) {
+            Method call = method(InterceptedApi.class, "call");
+            Object[] args = {"x"};
+
+            IOException checked = assertThrows(IOException.class,
+                    () -> instantiator.aroundInvoke(this, call, args, () -> {
+                        throw new IOException("io");
+                    }));
+            assertEquals("io", checked.getMessage());
+            assertThrows(IllegalStateException.class,
+                    () -> instantiator.aroundInvoke(this, call, args, () -> {
+                        throw new IllegalStateException("state");
+                    }));
         }
     }
 }

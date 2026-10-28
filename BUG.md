@@ -306,3 +306,23 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
   - 2026-10-28: found while covering the processor for SonarQube. The container is no longer read separately.
     Regression test: `CyranoClientProcessorCoverageTest.twoDistinctClientHeaderParams_onOneElement_areGenerated`
     (and `CyranoClientProcessorDefinitionsTest.a_method_header_overrides_the_interface_header_of_the_same_name`).
+
+## BUG-20261028-11 — an exception thrown by an intercepted client method reaches the caller as InvocationTargetException
+
+- **Date**: 2026-10-28
+- **Status**: OPEN — regression test `CyranoCdiProviderInstantiatorTest#exceptions_of_the_invocation_cross_the_interceptor_chain`
+- **Affected module**: `cyrano-cdi-vauban` (`CyranoCdiProviderInstantiator`)
+- **Symptom**: when a CDI interceptor is bound to a Rest Client method (MP Rest Client 4.0 §4.2.4), any exception
+  thrown by the invocation — a `WebApplicationException` of the default mapper (§8), a checked exception of a
+  `ResponseExceptionMapper`, a `ProcessingException` — comes out of `aroundInvoke` wrapped in
+  `java.lang.reflect.InvocationTargetException` instead of unchanged.
+- **Minimal repro**: on a Vauban container with an `@Interceptor` bound to the method,
+  `new CyranoCdiProviderInstantiator().aroundInvoke(target, method, args, () -> { throw new IOException(); })`
+  throws `InvocationTargetException` whose cause is the `IOException`.
+- **Root cause**: Vauban's `VaubanInterceptor.intercept` calls the `@AroundInvoke` method with `Method.invoke` and
+  lets the `InvocationTargetException` escape, while `Interceptor.intercept` must throw what the interceptor method
+  throws (Jakarta Interceptors 2.2 §2.5: `InvocationContext.proceed` and the interceptor see the target's own
+  exception). `CyranoCdiProviderInstantiator` passes that wrapper on as is.
+- **Investigations**:
+  - 2026-10-28: found by a new unit test; the TCK `CDIInterceptorTest` only exercises a method that returns
+    normally. The container-side cause belongs to Vauban and is to be reported there.
