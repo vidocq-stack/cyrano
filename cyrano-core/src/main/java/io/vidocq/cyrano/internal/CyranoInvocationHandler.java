@@ -1075,9 +1075,10 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     }
 
     private static MediaType extractResponseMediaType(CyranoClientResponseContext respCtx) {
-        List<String> ct = respCtx.getHeaders().get("Content-Type");
+        //Header names are case-insensitive (RFC 9110 §5.1): servers send Content-type or content-type too.
+        String ct = respCtx.getHeaderString("Content-Type");
         if (ct == null || ct.isEmpty()) return MediaType.WILDCARD_TYPE;
-        return parseMediaType(ct.get(0));
+        return parseMediaType(ct);
     }
 
     /** Sub-resource locator — spec JAX-RS §3.7 / MP Rest Client §3: build a new proxy at the sub-path URI. */

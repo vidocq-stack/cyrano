@@ -339,6 +339,13 @@ class CyranoInvocationHandlerResponseTest {
         assertEquals("n/41/9000000000/true/null/7/fixed/shared", hidden.describe());
     }
 
+    /** BUG-20261028-21: header names are case-insensitive, JDK servers send {@code Content-type}. */
+    @Test
+    void registered_reader_reads_the_body_with_the_response_media_type_spec_section4_2() {
+        server.respond(200, "raw").contentType("text/plain");
+        assertEquals("raw@text/plain", builder().register(new WrappedReader()).build(ResponseApi.class).wrapped().text());
+    }
+
     @Test
     void reader_interceptors_run_around_the_registered_reader() {
         ReaderInterceptor suffix = ctx -> new Wrapped(((Wrapped) ctx.proceed()).text() + "!");

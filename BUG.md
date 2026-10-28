@@ -330,3 +330,19 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
   - 2026-10-28: `CyranoCdiProviderInstantiator` now rethrows the cause of an `InvocationTargetException` coming out of
     `Interceptor.intercept` when it is an `Exception`, so the caller sees the invocation's own exception whatever
     the container does.
+
+## BUG-20261028-21 — the response media type handed to a MessageBodyReader ignores most Content-Type headers
+
+- **Date**: 2026-10-28
+- **Status**: FIXED (branch test/coverage-invocation)
+- **Affected module**: `cyrano-core`
+- **Symptom**: a `MessageBodyReader` registered on a client receives `*/*` as media type instead of the response
+  `Content-Type` whenever the server does not spell the header exactly `Content-Type` — e.g. the JDK `HttpServer`
+  (`Content-type`) or any HTTP/2 server (always lower case).
+- **Minimal repro**: a server answering `Content-type: text/plain`, a client method returning a type read by a
+  registered reader that records its `mediaType` argument: it gets `*/*`
+  (`CyranoInvocationHandlerResponseTest.registered_reader_reads_the_body_with_the_response_media_type_spec_section4_2`).
+- **Root cause**: `CyranoInvocationHandler.extractResponseMediaType` looked the header up with a case-sensitive
+  `getHeaders().get("Content-Type")`, while HTTP header names are case-insensitive (RFC 9110 §5.1).
+- **Fix**: the lookup goes through `CyranoClientResponseContext.getHeaderString`, which is case-insensitive.
+- **Regression test**: the test above (red before the fix, green after).
