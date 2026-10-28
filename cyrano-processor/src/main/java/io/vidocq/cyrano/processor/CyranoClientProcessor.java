@@ -95,6 +95,12 @@ public final class CyranoClientProcessor extends AbstractProcessor {
             "org.eclipse.microprofile.rest.client.inject.RegisterRestClient";
     private static final String SUFFIX = "$$CyranoClient";
     private static final Pattern TEMPLATE_PARAM_PATTERN = Pattern.compile("\\{([^}/]+)}");
+    /** Closing brace of a member of the generated class. */
+    private static final String MEMBER_END = "    }\n";
+    /** {@code @Override} on a method of the generated nested {@code Factory}. */
+    private static final String NESTED_OVERRIDE = "        @java.lang.Override\n";
+    /** Indentation of a {@code ClientMethodDescriptor} constructor argument in the generated descriptor. */
+    private static final String ARG_INDENT = "                            ";
 
     private Elements elements;
     private Types types;
@@ -136,25 +142,8 @@ public final class CyranoClientProcessor extends AbstractProcessor {
             }
             while (!queue.isEmpty()) {
                 TypeElement iface = queue.poll();
-                if (!generatedFqns.add(elements.getBinaryName(iface).toString())) {
-                    continue;
-                }
-                try {
-                    List<TypeElement> subResources = generateClient(iface);
-                    for (TypeElement sub : subResources) {
-                        if (sameModule(iface, sub)) {
-                            queue.add(sub);
-                        } else {
-                            note(sub, "sub-resource interface lives in another module; "
-                                    + "its proxy will use the runtime fallback");
-                        }
-                    }
-                } catch (SkipGeneration skip) {
-                    note(iface, "skipping " + iface.getQualifiedName() + SUFFIX + " — "
-                            + skip.getMessage() + " (runtime fallback will handle this interface)");
-                } catch (IOException | RuntimeException e) {
-                    messager.printMessage(Diagnostic.Kind.WARNING,
-                            "Cyrano client generation failed, runtime fallback will handle it: " + e, iface);
+                if (generatedFqns.add(elements.getBinaryName(iface).toString())) {
+                    generateQueued(iface, queue);
                 }
             }
         }
@@ -162,6 +151,27 @@ public final class CyranoClientProcessor extends AbstractProcessor {
             writeServicesFile();
         }
         return false;
+    }
+
+    /** Generates the client of {@code iface} and queues its same-module sub-resource interfaces. */
+    private void generateQueued(TypeElement iface, Deque<TypeElement> queue) {
+        try {
+            List<TypeElement> subResources = generateClient(iface);
+            for (TypeElement sub : subResources) {
+                if (sameModule(iface, sub)) {
+                    queue.add(sub);
+                } else {
+                    note(sub, "sub-resource interface lives in another module; "
+                            + "its proxy will use the runtime fallback");
+                }
+            }
+        } catch (SkipGeneration skip) {
+            note(iface, "skipping " + iface.getQualifiedName() + SUFFIX + " — "
+                    + skip.getMessage() + " (runtime fallback will handle this interface)");
+        } catch (IOException | RuntimeException e) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Cyrano client generation failed, runtime fallback will handle it: " + e, iface);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -242,9 +252,10 @@ public final class CyranoClientProcessor extends AbstractProcessor {
     private List<ExecutableElement> abstractMethods(TypeElement iface) {
         List<ExecutableElement> out = new ArrayList<>();
         for (ExecutableElement method : ElementFilter.methodsIn(elements.getAllMembers(iface))) {
-            if (method.getEnclosingElement().getKind() != ElementKind.INTERFACE) continue;
-            if (!method.getModifiers().contains(Modifier.ABSTRACT)) continue;
-            out.add(method);
+            if (method.getEnclosingElement().getKind() == ElementKind.INTERFACE
+                    && method.getModifiers().contains(Modifier.ABSTRACT)) {
+                out.add(method);
+            }
         }
         return out;
     }
@@ -317,28 +328,30 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         List<ParamModel> out = new ArrayList<>();
         List<? extends VariableElement> parameters = method.getParameters();
         for (int i = 0; i < parameters.size(); i++) {
-            VariableElement p = parameters.get(i);
-            String dflt = p.getAnnotation(DefaultValue.class) != null
-                    ? p.getAnnotation(DefaultValue.class).value() : null;
-            PathParam path = p.getAnnotation(PathParam.class);
-            if (path != null) { out.add(new ParamModel.Simple("Path", i, path.value(), dflt)); continue; }
-            QueryParam query = p.getAnnotation(QueryParam.class);
-            if (query != null) { out.add(new ParamModel.Simple("Query", i, query.value(), dflt)); continue; }
-            HeaderParam header = p.getAnnotation(HeaderParam.class);
-            if (header != null) { out.add(new ParamModel.Simple("Header", i, header.value(), dflt)); continue; }
-            CookieParam cookie = p.getAnnotation(CookieParam.class);
-            if (cookie != null) { out.add(new ParamModel.Simple("Cookie", i, cookie.value(), dflt)); continue; }
-            FormParam form = p.getAnnotation(FormParam.class);
-            if (form != null) { out.add(new ParamModel.Simple("Form", i, form.value(), dflt)); continue; }
-            MatrixParam matrix = p.getAnnotation(MatrixParam.class);
-            if (matrix != null) { out.add(new ParamModel.Simple("Matrix", i, matrix.value(), dflt)); continue; }
-            if (p.getAnnotation(BeanParam.class) != null) {
-                out.add(beanModel(i, p));
-                continue;
-            }
-            out.add(new ParamModel.Body(i));
+            out.add(paramModel(parameters.get(i), i));
         }
         return out;
+    }
+
+    private ParamModel paramModel(VariableElement p, int i) throws SkipGeneration {
+        String dflt = p.getAnnotation(DefaultValue.class) != null
+                ? p.getAnnotation(DefaultValue.class).value() : null;
+        PathParam path = p.getAnnotation(PathParam.class);
+        if (path != null) return new ParamModel.Simple("Path", i, path.value(), dflt);
+        QueryParam query = p.getAnnotation(QueryParam.class);
+        if (query != null) return new ParamModel.Simple("Query", i, query.value(), dflt);
+        HeaderParam header = p.getAnnotation(HeaderParam.class);
+        if (header != null) return new ParamModel.Simple("Header", i, header.value(), dflt);
+        CookieParam cookie = p.getAnnotation(CookieParam.class);
+        if (cookie != null) return new ParamModel.Simple("Cookie", i, cookie.value(), dflt);
+        FormParam form = p.getAnnotation(FormParam.class);
+        if (form != null) return new ParamModel.Simple("Form", i, form.value(), dflt);
+        MatrixParam matrix = p.getAnnotation(MatrixParam.class);
+        if (matrix != null) return new ParamModel.Simple("Matrix", i, matrix.value(), dflt);
+        if (p.getAnnotation(BeanParam.class) != null) {
+            return beanModel(i, p);
+        }
+        return new ParamModel.Body(i);
     }
 
     private ParamModel beanModel(int index, VariableElement param) throws SkipGeneration {
@@ -352,26 +365,9 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         // Same hierarchy walk and shadowing rule as CyranoInterfaceScanner#extractFieldBindings.
         while (c != null && !c.getQualifiedName().contentEquals("java.lang.Object")) {
             for (VariableElement f : ElementFilter.fieldsIn(c.getEnclosedElements())) {
-                if (f.getModifiers().contains(Modifier.STATIC)) continue;
-                if (!seen.add(f.getSimpleName().toString())) continue;
-                String dflt = f.getAnnotation(DefaultValue.class) != null
-                        ? f.getAnnotation(DefaultValue.class).value() : null;
-                String kind = null;
-                String name = null;
-                PathParam fp = f.getAnnotation(PathParam.class);
-                if (fp != null) { kind = "PATH"; name = fp.value(); }
-                QueryParam fq = f.getAnnotation(QueryParam.class);
-                if (fq != null) { kind = "QUERY"; name = fq.value(); }
-                HeaderParam fh = f.getAnnotation(HeaderParam.class);
-                if (fh != null) { kind = "HEADER"; name = fh.value(); }
-                CookieParam fc = f.getAnnotation(CookieParam.class);
-                if (fc != null) { kind = "COOKIE"; name = fc.value(); }
-                FormParam ff = f.getAnnotation(FormParam.class);
-                if (ff != null) { kind = "FORM"; name = ff.value(); }
-                MatrixParam fm = f.getAnnotation(MatrixParam.class);
-                if (fm != null) { kind = "MATRIX"; name = fm.value(); }
-                if (kind != null) {
-                    fields.add(new BeanFieldModel(f.getSimpleName().toString(), kind, name, dflt));
+                if (!f.getModifiers().contains(Modifier.STATIC) && seen.add(f.getSimpleName().toString())) {
+                    BeanFieldModel field = fieldModel(f);
+                    if (field != null) fields.add(field);
                 }
             }
             TypeMirror superType = c.getSuperclass();
@@ -379,6 +375,29 @@ public final class CyranoClientProcessor extends AbstractProcessor {
                     ? (TypeElement) ((DeclaredType) superType).asElement() : null;
         }
         return new ParamModel.Bean(index, beanType, fields);
+    }
+
+    /**
+     * Model of a {@code @BeanParam} field, or {@code null} when it carries no parameter annotation.
+     * When a field carries several, the last one of PATH, QUERY, HEADER, COOKIE, FORM, MATRIX wins.
+     */
+    private static BeanFieldModel fieldModel(VariableElement f) {
+        String dflt = f.getAnnotation(DefaultValue.class) != null
+                ? f.getAnnotation(DefaultValue.class).value() : null;
+        String fieldName = f.getSimpleName().toString();
+        MatrixParam fm = f.getAnnotation(MatrixParam.class);
+        if (fm != null) return new BeanFieldModel(fieldName, "MATRIX", fm.value(), dflt);
+        FormParam ff = f.getAnnotation(FormParam.class);
+        if (ff != null) return new BeanFieldModel(fieldName, "FORM", ff.value(), dflt);
+        CookieParam fc = f.getAnnotation(CookieParam.class);
+        if (fc != null) return new BeanFieldModel(fieldName, "COOKIE", fc.value(), dflt);
+        HeaderParam fh = f.getAnnotation(HeaderParam.class);
+        if (fh != null) return new BeanFieldModel(fieldName, "HEADER", fh.value(), dflt);
+        QueryParam fq = f.getAnnotation(QueryParam.class);
+        if (fq != null) return new BeanFieldModel(fieldName, "QUERY", fq.value(), dflt);
+        PathParam fp = f.getAnnotation(PathParam.class);
+        if (fp != null) return new BeanFieldModel(fieldName, "PATH", fp.value(), dflt);
+        return null;
     }
 
     /**
@@ -439,15 +458,17 @@ public final class CyranoClientProcessor extends AbstractProcessor {
             if (ext == null) return false;
             String methodName = computeRef.substring(lastDot + 1);
             for (ExecutableElement m : ElementFilter.methodsIn(elements.getAllMembers(ext))) {
-                if (!m.getModifiers().contains(Modifier.STATIC)) continue;
-                if (!m.getSimpleName().contentEquals(methodName)) continue;
-                if (isValidComputeSignature(m)) return true;
+                if (m.getModifiers().contains(Modifier.STATIC) && m.getSimpleName().contentEquals(methodName)
+                        && isValidComputeSignature(m)) {
+                    return true;
+                }
             }
             return false;
         }
         for (ExecutableElement m : ElementFilter.methodsIn(elements.getAllMembers(iface))) {
-            if (!m.getSimpleName().contentEquals(computeRef)) continue;
-            if (isValidComputeSignature(m)) return true;
+            if (m.getSimpleName().contentEquals(computeRef) && isValidComputeSignature(m)) {
+                return true;
+            }
         }
         return false;
     }
@@ -478,15 +499,7 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         Matcher matcher = TEMPLATE_PARAM_PATTERN.matcher(template);
         while (matcher.find()) placeholders.add(matcher.group(1));
 
-        Set<String> bound = new LinkedHashSet<>();
-        for (ParamModel p : params) {
-            if (p instanceof ParamModel.Simple s && s.kind().equals("Path")) bound.add(s.name());
-            if (p instanceof ParamModel.Bean b) {
-                for (BeanFieldModel f : b.fields()) {
-                    if (f.kind().equals("PATH")) bound.add(f.name());
-                }
-            }
-        }
+        Set<String> bound = boundPathNames(params);
         for (String b : bound) {
             if (!placeholders.contains(b)) {
                 throw new SkipGeneration("@PathParam('" + b + "') has no placeholder in '" + template
@@ -499,6 +512,21 @@ public final class CyranoClientProcessor extends AbstractProcessor {
                         + method.getSimpleName() + ")");
             }
         }
+    }
+
+    /** Names bound to a path placeholder, by {@code @PathParam} parameters or {@code @BeanParam} fields. */
+    private static Set<String> boundPathNames(List<ParamModel> params) {
+        Set<String> bound = new LinkedHashSet<>();
+        for (ParamModel p : params) {
+            if (p instanceof ParamModel.Simple(var kind, var _, var name, var _) && kind.equals("Path")) {
+                bound.add(name);
+            } else if (p instanceof ParamModel.Bean(var _, var _, var fields)) {
+                for (BeanFieldModel f : fields) {
+                    if (f.kind().equals("PATH")) bound.add(f.name());
+                }
+            }
+        }
+        return bound;
     }
 
     private boolean sameModule(TypeElement a, TypeElement b) {
@@ -532,7 +560,7 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         out.append("    public ").append(className)
                 .append("(io.vidocq.cyrano.spi.gen.ClientInvoker invoker) {\n")
                 .append("        this.invoker = invoker;\n")
-                .append("    }\n");
+                .append(MEMBER_END);
 
         for (int i = 0; i < models.size(); i++) {
             emitMethod(out, models.get(i), i);
@@ -541,23 +569,23 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         out.append("\n    @java.lang.Override\n")
                 .append("    public void close() {\n")
                 .append("        this.invoker.markClosed();\n")
-                .append("    }\n");
+                .append(MEMBER_END);
 
         out.append("\n    /** ServiceLoader-able factory — see io.vidocq.cyrano.spi.gen.ClientProxyFactory. */\n")
                 .append("    public static final class Factory implements io.vidocq.cyrano.spi.gen.ClientProxyFactory {\n\n")
-                .append("        @java.lang.Override\n")
+                .append(NESTED_OVERRIDE)
                 .append("        public java.lang.Class<?> clientInterface() {\n")
                 .append("            return ").append(ifaceSource).append(".class;\n")
                 .append("        }\n\n")
-                .append("        @java.lang.Override\n")
+                .append(NESTED_OVERRIDE)
                 .append("        public io.vidocq.cyrano.spi.gen.ClientDescriptor descriptor() {\n")
                 .append("            return DESCRIPTOR;\n")
                 .append("        }\n\n")
-                .append("        @java.lang.Override\n")
+                .append(NESTED_OVERRIDE)
                 .append("        public java.lang.Object newProxy(io.vidocq.cyrano.spi.gen.ClientInvoker invoker) {\n")
                 .append("            return new ").append(className).append("(invoker);\n")
                 .append("        }\n")
-                .append("    }\n");
+                .append(MEMBER_END);
 
         out.append("}\n");
 
@@ -582,7 +610,7 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         for (int i = 0; i < models.size(); i++) {
             MethodModel m = models.get(i);
             out.append("                    new io.vidocq.cyrano.spi.gen.ClientMethodDescriptor(\n");
-            out.append("                            ").append(quote(m.element().getSimpleName().toString()))
+            out.append(ARG_INDENT).append(quote(m.element().getSimpleName().toString()))
                     .append(",\n");
             out.append("                            java.util.List.of(");
             List<? extends TypeMirror> paramTypes = m.resolved().getParameterTypes();
@@ -591,19 +619,19 @@ public final class CyranoClientProcessor extends AbstractProcessor {
                 out.append(erasedClassLiteral(paramTypes.get(p)));
             }
             out.append("),\n");
-            out.append("                            ")
+            out.append(ARG_INDENT)
                     .append(m.httpMethod() == null ? "null" : quote(m.httpMethod())).append(",\n");
-            out.append("                            ").append(quote(m.template())).append(",\n");
+            out.append(ARG_INDENT).append(quote(m.template())).append(",\n");
             out.append("                            java.util.List.of(");
             for (int p = 0; p < m.params().size(); p++) {
                 if (p > 0) out.append(",\n                                    ");
                 emitParam(out, m.params().get(p));
             }
             out.append("),\n");
-            out.append("                            ").append(stringList(m.consumes())).append(",\n");
-            out.append("                            ").append(stringList(m.produces())).append(",\n");
-            out.append("                            ").append(staticHeadersMap(m.headers().statics())).append(",\n");
-            out.append("                            ").append(dynamicHeadersMap(m.headers().dynamics()));
+            out.append(ARG_INDENT).append(stringList(m.consumes())).append(",\n");
+            out.append(ARG_INDENT).append(stringList(m.produces())).append(",\n");
+            out.append(ARG_INDENT).append(staticHeadersMap(m.headers().statics())).append(",\n");
+            out.append(ARG_INDENT).append(dynamicHeadersMap(m.headers().dynamics()));
             out.append(")");
             out.append(i < models.size() - 1 ? ",\n" : "));\n\n");
         }
@@ -611,19 +639,20 @@ public final class CyranoClientProcessor extends AbstractProcessor {
 
     private void emitParam(StringBuilder out, ParamModel p) throws SkipGeneration {
         switch (p) {
-            case ParamModel.Simple s -> out.append("new io.vidocq.cyrano.spi.gen.ClientParamDescriptor.")
-                    .append(s.kind()).append("(").append(s.index()).append(", ")
-                    .append(quote(s.name())).append(", ").append(quoteOrNull(s.defaultValue())).append(")");
-            case ParamModel.Body b -> out.append("new io.vidocq.cyrano.spi.gen.ClientParamDescriptor.Body(")
-                    .append(b.index()).append(")");
-            case ParamModel.Bean bean -> {
+            case ParamModel.Simple(var kind, var index, var name, var defaultValue) ->
+                    out.append("new io.vidocq.cyrano.spi.gen.ClientParamDescriptor.")
+                            .append(kind).append("(").append(index).append(", ")
+                            .append(quote(name)).append(", ").append(quoteOrNull(defaultValue)).append(")");
+            case ParamModel.Body(var index) -> out.append("new io.vidocq.cyrano.spi.gen.ClientParamDescriptor.Body(")
+                    .append(index).append(")");
+            case ParamModel.Bean(var index, var beanType, var fields) -> {
                 out.append("new io.vidocq.cyrano.spi.gen.ClientParamDescriptor.Bean(")
-                        .append(bean.index()).append(", ")
-                        .append(erasedClassLiteral(bean.beanType()))
+                        .append(index).append(", ")
+                        .append(erasedClassLiteral(beanType))
                         .append(", java.util.List.of(");
-                for (int f = 0; f < bean.fields().size(); f++) {
+                for (int f = 0; f < fields.size(); f++) {
                     if (f > 0) out.append(", ");
-                    BeanFieldModel field = bean.fields().get(f);
+                    BeanFieldModel field = fields.get(f);
                     out.append("new io.vidocq.cyrano.spi.gen.ClientParamDescriptor.BeanField(")
                             .append(quote(field.fieldName())).append(", ")
                             .append("io.vidocq.cyrano.spi.gen.ClientParamDescriptor.BeanField.Kind.")
@@ -672,7 +701,7 @@ public final class CyranoClientProcessor extends AbstractProcessor {
                 .append("        } catch (java.lang.Exception e) {\n")
                 .append("            throw new java.lang.RuntimeException(e);\n")
                 .append("        }\n")
-                .append("    }\n");
+                .append(MEMBER_END);
     }
 
     /** Boxed cast for primitives (auto-unboxes on return), source type otherwise. */
