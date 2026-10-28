@@ -57,7 +57,7 @@ public final class Cyrano {
             Properties props = new Properties();
             props.load(in);
             return props.getProperty("version", "unknown");
-        } catch (IOException e) {
+        } catch (IOException _) {
             return "unknown";
         }
     }

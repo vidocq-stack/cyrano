@@ -138,7 +138,7 @@ public final class ClientProxyRegistry {
         Class<?> generated;
         try {
             generated = Class.forName(generatedName, false, iface.getClassLoader());
-        } catch (ClassNotFoundException e) {
+        } catch (ClassNotFoundException _) {
             return null;
         }
         try {

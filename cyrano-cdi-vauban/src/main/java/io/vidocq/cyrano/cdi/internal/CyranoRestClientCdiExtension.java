@@ -213,17 +213,17 @@ public class CyranoRestClientCdiExtension implements BuildCompatibleExtension {
             if (tccl != null) {
                 return Class.forName(fqn, false, tccl);
             }
-        } catch (ClassNotFoundException ignored) {
+        } catch (ClassNotFoundException _) {
             // next fallback
         }
         try {
             return Class.forName(fqn, false, self);
-        } catch (ClassNotFoundException ignored) {
+        } catch (ClassNotFoundException _) {
             // final fallback
         }
         try {
             return Class.forName(fqn);
-        } catch (ClassNotFoundException e) {
+        } catch (ClassNotFoundException _) {
             return null;
         }
     }

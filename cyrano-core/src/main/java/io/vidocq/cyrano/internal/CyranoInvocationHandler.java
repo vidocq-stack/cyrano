@@ -510,13 +510,13 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private static URI buildFinalUri(String rawUrl) {
         try {
             return URI.create(rawUrl);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             // [] in query string: try the scheme+ssp constructor which preserves raw chars
             int colon = rawUrl.indexOf(':');
             if (colon > 0) {
                 try {
                     return new java.net.URI(rawUrl.substring(0, colon), rawUrl.substring(colon + 1), null);
-                } catch (java.net.URISyntaxException e2) {
+                } catch (java.net.URISyntaxException _) {
                     // Final fallback: percent-encode []
                     return URI.create(rawUrl.replace("[", "%5B").replace("]", "%5D"));
                 }
@@ -899,7 +899,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
                 try {
                     AsyncInvocationInterceptor interceptor = factory.newInterceptor();
                     if (interceptor != null) out.add(interceptor);
-                } catch (RuntimeException ignored) {
+                } catch (RuntimeException _) {
                     //failed factory ignored
                 }
             }
@@ -1008,7 +1008,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
                 Object resolved;
                 try {
                     resolved = ((ContextResolver<Object>) resolver).getContext(targetType);
-                } catch (RuntimeException ignored) {
+                } catch (RuntimeException _) {
                     continue;
                 }
                 if (resolved instanceof Jsonb jsonb) {
@@ -1045,10 +1045,8 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private MessageBodyReader<?> findMessageBodyReader(Class<?> type) {
         MediaType wildcard = MediaType.WILDCARD_TYPE;
         for (Object inst : configuration.getInstances()) {
-            if (inst instanceof MessageBodyReader r) {
-                if (r.isReadable(type, type, new Annotation[0], wildcard)) {
-                    return r;
-                }
+            if (inst instanceof MessageBodyReader r && r.isReadable(type, type, new Annotation[0], wildcard)) {
+                return r;
             }
         }
         return null;
@@ -1059,10 +1057,8 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private MessageBodyWriter<?> findMessageBodyWriter(Class<?> type) {
         MediaType wildcard = MediaType.WILDCARD_TYPE;
         for (Object inst : configuration.getInstances()) {
-            if (inst instanceof MessageBodyWriter w) {
-                if (w.isWriteable(type, type, new Annotation[0], wildcard)) {
-                    return w;
-                }
+            if (inst instanceof MessageBodyWriter w && w.isWriteable(type, type, new Annotation[0], wildcard)) {
+                return w;
             }
         }
         return null;
@@ -1071,7 +1067,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private static MediaType parseMediaType(String ct) {
         if (ct == null || ct.isBlank()) return MediaType.APPLICATION_JSON_TYPE;
         try { return MediaType.valueOf(ct); }
-        catch (IllegalArgumentException e) { return MediaType.APPLICATION_JSON_TYPE; }
+        catch (IllegalArgumentException _) { return MediaType.APPLICATION_JSON_TYPE; }
     }
 
     private static MediaType extractResponseMediaType(CyranoClientResponseContext respCtx) {

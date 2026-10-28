@@ -143,7 +143,7 @@ public final class CyranoBaseUriResolver {
             Method configAccessor;
             try {
                 configAccessor = providerClass.getMethod("getConfig", ClassLoader.class);
-            } catch (NoSuchMethodException noClMethod) {
+            } catch (NoSuchMethodException _) {
                 configAccessor = providerClass.getMethod("getConfig");
             }
             final Method getConfig = configAccessor;
@@ -161,13 +161,13 @@ public final class CyranoBaseUriResolver {
                     @SuppressWarnings("unchecked")
                     Optional<String> value = (Optional<String>) getOptionalValue.invoke(config, key, String.class);
                     if (value.isPresent()) return value;
-                } catch (ReflectiveOperationException | RuntimeException ignored) {
+                } catch (ReflectiveOperationException | RuntimeException _) {
                     // fall through to system property fallback
                 }
                 //Fallback: system property (used by TckConfigBridge in TCK mode)
                 return Optional.ofNullable(System.getProperty(key));
             };
-        } catch (ClassNotFoundException | NoClassDefFoundError | NoSuchMethodException ignored) {
+        } catch (ClassNotFoundException | NoClassDefFoundError | NoSuchMethodException _) {
             //MP Config absent — complete fallback to system properties
             return key -> Optional.ofNullable(System.getProperty(key));
         }

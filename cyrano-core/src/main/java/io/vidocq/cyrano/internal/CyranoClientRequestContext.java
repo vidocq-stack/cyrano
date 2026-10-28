@@ -144,7 +144,7 @@ final class CyranoClientRequestContext implements ClientRequestContext {
         String d = getHeaderString("Date");
         if (d == null) return null;
         try { return new java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).parse(d); }
-        catch (java.text.ParseException ex) { return null; }
+        catch (java.text.ParseException _) { return null; }
     }
 
     @Override public Locale getLanguage() {

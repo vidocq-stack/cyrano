@@ -57,7 +57,7 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
         BeanManager bm;
         try {
             bm = CDI.current().getBeanManager();
-        } catch (IllegalStateException unavailable) {
+        } catch (IllegalStateException _) {
             //CDI not yet started (or outside CDI) — delegates to reflective fallback
             return null;
         }
@@ -74,7 +74,7 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
         BeanManager bm;
         try {
             bm = CDI.current().getBeanManager();
-        } catch (IllegalStateException unavailable) {
+        } catch (IllegalStateException _) {
             return invocation.call();
         }
 

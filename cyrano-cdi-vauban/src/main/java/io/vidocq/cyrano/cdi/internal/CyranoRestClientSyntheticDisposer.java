@@ -38,7 +38,7 @@ public class CyranoRestClientSyntheticDisposer implements SyntheticBeanDisposer<
         if (instance instanceof Closeable c) {
             try {
                 c.close();
-            } catch (IOException ignored) {
+            } catch (IOException _) {
                 // close() ne lance pas d'IOException en pratique
             }
         }

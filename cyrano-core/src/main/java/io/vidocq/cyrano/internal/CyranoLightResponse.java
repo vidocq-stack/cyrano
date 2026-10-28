@@ -191,8 +191,8 @@ public final class CyranoLightResponse extends Response {
         if (configuration == null) return null;
         MediaType wildcard = MediaType.WILDCARD_TYPE;
         for (Object inst : configuration.getInstances()) {
-            if (inst instanceof MessageBodyReader r) {
-                if (r.isReadable(entityType, entityType, new Annotation[0], wildcard)) return r;
+            if (inst instanceof MessageBodyReader r && r.isReadable(entityType, entityType, new Annotation[0], wildcard)) {
+                return r;
             }
         }
         return null;
@@ -217,7 +217,7 @@ public final class CyranoLightResponse extends Response {
     @Override public jakarta.ws.rs.core.Link getLink(String relation) { return null; }
     @Override public jakarta.ws.rs.core.Link.Builder getLinkBuilder(String relation) { throw nope(); }
     @Override public MultivaluedMap<String, Object> getMetadata() { return headers; }
-    @Override public MultivaluedMap<String, Object> getHeaders() { return headers; }
+    @Override public MultivaluedMap<String, Object> getHeaders() { return getMetadata(); }
     @Override public MultivaluedMap<String, String> getStringHeaders() { return stringHeaders; }
     @Override public String getHeaderString(String name) {
         var v = headerValues(name);

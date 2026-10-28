@@ -32,7 +32,6 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -192,9 +191,7 @@ public final class CyranoClientConfiguration implements Configuration {
     void markFeatureEnabled(Feature feature) {
         if (feature == null) return;
         enabledFeatureInstances.add(feature);
-        @SuppressWarnings("unchecked")
-        Class<? extends Feature> featureClass = (Class<? extends Feature>) feature.getClass();
-        enabledFeatures.add(featureClass);
+        enabledFeatures.add(feature.getClass());
     }
 
     @Override public RuntimeType getRuntimeType() { return RuntimeType.CLIENT; }
@@ -275,10 +272,8 @@ public final class CyranoClientConfiguration implements Configuration {
                 Integer v = (Integer) prioCls.getMethod("value").invoke(a);
                 if (v != null) return v;
             }
-        } catch (ClassNotFoundException ignored) {
-            // jakarta.annotation is absent — this is fine
-        } catch (ReflectiveOperationException ignored) {
-            // ignored — falls back to Priorities.USER
+        } catch (ReflectiveOperationException _) {
+            // jakarta.annotation is absent, or the value is unreadable — falls back to Priorities.USER
         }
         return jakarta.ws.rs.Priorities.USER; // 5000
     }

@@ -131,7 +131,7 @@ final class CyranoClientResponseContext implements ClientResponseContext {
     }
     @Override public int getLength() {
         String cl = getHeaderString("Content-Length");
-        try { return cl == null ? -1 : Integer.parseInt(cl); } catch (NumberFormatException e) { return -1; }
+        try { return cl == null ? -1 : Integer.parseInt(cl); } catch (NumberFormatException _) { return -1; }
     }
     @Override public MediaType getMediaType() {
         String ct = getHeaderString("Content-Type");
@@ -152,7 +152,7 @@ final class CyranoClientResponseContext implements ClientResponseContext {
     @Override
     public boolean hasEntity() {
         try { return entityStream != null && entityStream.available() > 0; }
-        catch (java.io.IOException e) { return false; }
+        catch (java.io.IOException _) { return false; }
     }
 
     @Override public InputStream getEntityStream() { return entityStream; }
@@ -162,7 +162,7 @@ final class CyranoClientResponseContext implements ClientResponseContext {
     String readBodyAsString() {
         try {
             return new String(entityStream.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (java.io.IOException e) {
+        } catch (java.io.IOException _) {
             return "";
         }
     }

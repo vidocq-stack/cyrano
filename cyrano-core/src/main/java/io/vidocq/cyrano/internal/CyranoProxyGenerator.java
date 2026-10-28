@@ -179,7 +179,7 @@ public final class CyranoProxyGenerator {
             MethodHandles.Lookup target = MethodHandles.privateLookupIn(iface, MethodHandles.lookup());
             try {
                 return target.defineClass(bytes);
-            } catch (LinkageError dup) {
+            } catch (LinkageError _) {
                 //The proxy has already been defined in this classloader (typically because
                 //the CyranoProxyCache cache missed — can happen in
                 //Arquillian/ShrinkWrap contexts where several Class<?> objects represent

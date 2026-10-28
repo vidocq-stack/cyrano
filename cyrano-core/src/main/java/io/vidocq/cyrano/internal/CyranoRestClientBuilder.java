@@ -66,11 +66,6 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
 
     private final CyranoClientConfiguration configuration = new CyranoClientConfiguration();
     private URI baseUri;
-    private ExecutorService executorService;
-    private String proxyHost;
-    private int proxyPort = -1;
-    private QueryParamStyle queryParamStyle;
-    private final Map<String, Object> headers = new HashMap<>();
 
     @Override
     public Configuration getConfiguration() {
@@ -166,7 +161,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                 Object v = prioCls.getMethod("value").invoke(a);
                 if (v instanceof Integer i) return i;
             }
-        } catch (ReflectiveOperationException ignored) {
+        } catch (ReflectiveOperationException _) {
             //no @Priority annotation or not introspectable — we keep the fallback
         }
         return fallback;
@@ -192,7 +187,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     }
 
     private static void addIfPresent(java.util.List<Class<?>> list, String fqn) {
-        try { list.add(Class.forName(fqn)); } catch (ClassNotFoundException ignored) {}
+        try { list.add(Class.forName(fqn)); } catch (ClassNotFoundException _) { /* absent from the runtime */ }
     }
 
     @Override
@@ -228,7 +223,6 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         if (executor == null) {
             throw new IllegalArgumentException("executorService must not be null");
         }
-        this.executorService = executor;
         configuration.setExecutorService(executor);
         return this;
     }
@@ -271,15 +265,12 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         if (proxyPort < 1 || proxyPort > 65535) {
             throw new IllegalArgumentException("Invalid proxyPort: " + proxyPort + " (expected 1..65535)");
         }
-        this.proxyHost = proxyHost;
-        this.proxyPort = proxyPort;
         configuration.setProxyAddress(proxyHost, proxyPort);
         return this;
     }
 
     @Override
     public RestClientBuilder queryParamStyle(QueryParamStyle style) {
-        this.queryParamStyle = style;
         configuration.setQueryParamStyle(style);
         return this;
     }
@@ -319,7 +310,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                     .getMethod("getOptionalValue", String.class, Class.class)
                     .invoke(config, DISABLE_DEFAULT_MAPPER_PROPERTY, Boolean.class);
             value.ifPresent(v -> property(DISABLE_DEFAULT_MAPPER_PROPERTY, v));
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
+        } catch (ReflectiveOperationException | RuntimeException _) {
             //MP Config absent from the runtime — not an error.
         }
     }
@@ -347,7 +338,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
         for (var listener : restClientListeners) {
             try {
                 listener.onNewClient(clazz, this);
-            } catch (RuntimeException ignored) { /* failed listener — ignored */ }
+            } catch (RuntimeException _) { /* failed listener — ignored */ }
         }
         applyFeatures();
         // Codegen rule (audit CG-01): generated artifacts first (ServiceLoader, then
@@ -401,7 +392,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             for (S service : java.util.ServiceLoader.load(layer, serviceType)) {
                 if (seen.add(service.getClass().getName())) out.add(service);
             }
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException _) {
             // layer unavailable/inaccessible
         }
     }
@@ -468,7 +459,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
                 boolean enabled;
                 try {
                     enabled = feature.configure(context);
-                } catch (RuntimeException ignored) {
+                } catch (RuntimeException _) {
                     continue;
                 }
                 if (enabled) {
