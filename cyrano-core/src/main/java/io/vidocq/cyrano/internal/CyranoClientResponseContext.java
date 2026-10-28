@@ -131,7 +131,7 @@ final class CyranoClientResponseContext implements ClientResponseContext {
     }
     @Override public int getLength() {
         String cl = getHeaderString("Content-Length");
-        try { return cl == null ? -1 : Integer.parseInt(cl); } catch (NumberFormatException _) { return -1; }
+        try { return cl == null ? -1 : Integer.parseInt(cl); } catch (NumberFormatException e) { return -1; }
     }
     @Override public MediaType getMediaType() {
         String ct = getHeaderString("Content-Type");

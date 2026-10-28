@@ -399,7 +399,7 @@ public final class CyranoInterfaceScanner {
     private static ParamBinding.FieldBinding fb(Field f, ParamBinding.FieldBinding.Kind kind, String name, String dflt) {
         //setAccessible: cyrano-core requires user beans to be accessible — for M2 we accept
         //the cost (beans are usually public POJOs open to the JAX-RS framework).
-        try { f.setAccessible(true); } catch (RuntimeException _) { /* field already accessible */ }
+        try { f.setAccessible(true); } catch (RuntimeException ignored) { /* field already accessible */ }
         return new ParamBinding.FieldBinding(f, kind, name, dflt);
     }
 

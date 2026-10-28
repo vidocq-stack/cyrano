@@ -95,13 +95,13 @@ public final class DescriptorConverter {
     private static ParamBinding convertParam(Class<?> iface, ClientMethodDescriptor md,
                                              ClientParamDescriptor pd) {
         return switch (pd) {
-            case ClientParamDescriptor.Path(var index, var name, var defaultValue) -> new ParamBinding.Path(index, name, defaultValue);
-            case ClientParamDescriptor.Query(var index, var name, var defaultValue) -> new ParamBinding.Query(index, name, defaultValue);
-            case ClientParamDescriptor.Header(var index, var name, var defaultValue) -> new ParamBinding.Header(index, name, defaultValue);
-            case ClientParamDescriptor.Cookie(var index, var name, var defaultValue) -> new ParamBinding.Cookie(index, name, defaultValue);
-            case ClientParamDescriptor.Form(var index, var name, var defaultValue) -> new ParamBinding.Form(index, name, defaultValue);
-            case ClientParamDescriptor.Matrix(var index, var name, var defaultValue) -> new ParamBinding.Matrix(index, name, defaultValue);
-            case ClientParamDescriptor.Body(var index) -> new ParamBinding.Body(index);
+            case ClientParamDescriptor.Path p -> new ParamBinding.Path(p.paramIndex(), p.name(), p.defaultValue());
+            case ClientParamDescriptor.Query q -> new ParamBinding.Query(q.paramIndex(), q.name(), q.defaultValue());
+            case ClientParamDescriptor.Header h -> new ParamBinding.Header(h.paramIndex(), h.name(), h.defaultValue());
+            case ClientParamDescriptor.Cookie c -> new ParamBinding.Cookie(c.paramIndex(), c.name(), c.defaultValue());
+            case ClientParamDescriptor.Form f -> new ParamBinding.Form(f.paramIndex(), f.name(), f.defaultValue());
+            case ClientParamDescriptor.Matrix m -> new ParamBinding.Matrix(m.paramIndex(), m.name(), m.defaultValue());
+            case ClientParamDescriptor.Body b -> new ParamBinding.Body(b.paramIndex());
             case ClientParamDescriptor.Bean bean -> convertBean(iface, md, bean);
         };
     }
@@ -128,7 +128,7 @@ public final class DescriptorConverter {
                 // are expected to be open to the framework (M2 trade-off).
                 try {
                     f.setAccessible(true);
-                } catch (RuntimeException _) {
+                } catch (RuntimeException ignored) {
                     // field already accessible
                 }
                 return f;

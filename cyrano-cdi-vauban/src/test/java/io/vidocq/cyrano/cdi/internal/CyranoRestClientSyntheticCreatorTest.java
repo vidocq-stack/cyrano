@@ -41,6 +41,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -93,11 +95,7 @@ class CyranoRestClientSyntheticCreatorTest {
         server.createContext("/echo", exchange -> respond(exchange, 200,
                 exchange.getRequestURI().getQuery() + "|" + exchange.getRequestHeaders().getFirst("X-Provider")));
         server.createContext("/slow", exchange -> {
-            try {
-                Thread.sleep(2_000);
-            } catch (InterruptedException _) {
-                Thread.currentThread().interrupt();
-            }
+            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(2));
             respond(exchange, 200, "late");
         });
         server.createContext("/redirect", exchange -> {

@@ -111,8 +111,10 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
             String fqn, String configKey,
             Function<String, Optional<String>> lookup, RestClientBuilder builder) {
         Optional<String> val = lookup.apply(fqn + "/mp-rest/providers");
-        if ((val.isEmpty() || val.get().isBlank()) && configKey != null && !configKey.isBlank()) {
-            val = lookup.apply(configKey + "/mp-rest/providers");
+        if (val.isEmpty() || val.get().isBlank()) {
+            if (configKey != null && !configKey.isBlank()) {
+                val = lookup.apply(configKey + "/mp-rest/providers");
+            }
         }
         if (val.isEmpty() || val.get().isBlank()) return;
         for (String providerFqn : val.get().split(",")) {
@@ -122,7 +124,7 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
                 Class<?> providerClass = Class.forName(trimmed, true,
                         Thread.currentThread().getContextClassLoader());
                 builder.register(providerClass);
-            } catch (ClassNotFoundException _) {
+            } catch (ClassNotFoundException e) {
                 //provider not on classpath — skip silently
             }
         }

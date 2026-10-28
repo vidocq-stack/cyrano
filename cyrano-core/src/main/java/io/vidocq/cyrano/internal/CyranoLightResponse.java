@@ -44,6 +44,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -149,7 +150,7 @@ public final class CyranoLightResponse extends Response {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private Object readWithProvider(MessageBodyReader reader, Class<?> entityType) {
         InputStream is = new ByteArrayInputStream(
-                body != null ? body.getBytes(StandardCharsets.UTF_8) : new byte[0]);
+                Objects.requireNonNullElse(body, "").getBytes(StandardCharsets.UTF_8));
         try {
             List<ReaderInterceptor> interceptors = configuration.getReaderInterceptors();
             if (interceptors.isEmpty()) {
@@ -183,7 +184,7 @@ public final class CyranoLightResponse extends Response {
     }
 
     private JsonReader jsonReader() {
-        return Json.createReader(new StringReader(body == null ? "" : body));
+        return Json.createReader(new StringReader(Objects.requireNonNullElse(body, "")));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -191,8 +192,8 @@ public final class CyranoLightResponse extends Response {
         if (configuration == null) return null;
         MediaType wildcard = MediaType.WILDCARD_TYPE;
         for (Object inst : configuration.getInstances()) {
-            if (inst instanceof MessageBodyReader r && r.isReadable(entityType, entityType, new Annotation[0], wildcard)) {
-                return r;
+            if (inst instanceof MessageBodyReader r) {
+                if (r.isReadable(entityType, entityType, new Annotation[0], wildcard)) return r;
             }
         }
         return null;

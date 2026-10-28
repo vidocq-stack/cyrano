@@ -53,6 +53,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -202,12 +203,9 @@ class CyranoSseMappingTest {
         });
     }
 
+    /** Lets the client read what was flushed before the next write. */
     private static void sleep() {
-        try {
-            Thread.sleep(20);
-        } catch (InterruptedException _) {
-            Thread.currentThread().interrupt();
-        }
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
     }
 
     @AfterEach

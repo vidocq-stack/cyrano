@@ -187,7 +187,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     }
 
     private static void addIfPresent(java.util.List<Class<?>> list, String fqn) {
-        try { list.add(Class.forName(fqn)); } catch (ClassNotFoundException _) { /* absent from the runtime */ }
+        try { list.add(Class.forName(fqn)); } catch (ClassNotFoundException ignored) {}
     }
 
     @Override
@@ -392,7 +392,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             for (S service : java.util.ServiceLoader.load(layer, serviceType)) {
                 if (seen.add(service.getClass().getName())) out.add(service);
             }
-        } catch (RuntimeException _) {
+        } catch (RuntimeException ignored) {
             // layer unavailable/inaccessible
         }
     }
