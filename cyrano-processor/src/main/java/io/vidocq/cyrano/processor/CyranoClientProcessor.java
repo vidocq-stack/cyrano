@@ -32,7 +32,6 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam;
-import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParams;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -389,10 +388,8 @@ public final class CyranoClientProcessor extends AbstractProcessor {
      */
     private HeaderModel collectHeaders(TypeElement iface, Element target, HeaderModel into)
             throws SkipGeneration {
-        List<ClientHeaderParam> all = new ArrayList<>(List.of(target.getAnnotationsByType(ClientHeaderParam.class)));
-        for (ClientHeaderParams container : target.getAnnotationsByType(ClientHeaderParams.class)) {
-            all.addAll(List.of(container.value()));
-        }
+        // getAnnotationsByType already looks through the @ClientHeaderParams container.
+        List<ClientHeaderParam> all = List.of(target.getAnnotationsByType(ClientHeaderParam.class));
         Set<String> seenNames = new LinkedHashSet<>();
         for (ClientHeaderParam h : all) {
             if (!seenNames.add(h.name())) {

@@ -285,3 +285,24 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
     jar is an automatic module, so such an application cannot be linked until an explicit `org.reactivestreams` module
     is available. With the change, the Vidocq Rest Client example links with `vidocq:jlink` and its image answers
     through the client.
+
+## BUG-20261028-01 — the processor skips every interface with two @ClientHeaderParam on one element
+
+- **Date**: 2026-10-28
+- **Status**: FIXED (branch test/coverage-core — ships with the next release)
+- **Affected module**: `cyrano-processor` (`CyranoClientProcessor.collectHeaders`)
+- **Symptom**: an interface or a method carrying two `@ClientHeaderParam` with distinct names (valid per MP Rest
+  Client 4.0 §7.2, which only forbids the same name twice on one target) gets no `$$CyranoClient`: the processor
+  notes `header 'X-A' declared multiple times` and leaves the interface to the runtime fallback. Behaviour stays
+  correct (the runtime scanner accepts the interface), but the APT-first path (codegen audit CG-01) is lost for
+  such clients.
+- **Minimal repro**: compile with the processor
+  `@RegisterRestClient @ClientHeaderParam(name = "X-A", value = "a") @ClientHeaderParam(name = "X-B", value = "b") interface TwoHeaders { @GET String get(); }`
+  — no `TwoHeaders$$CyranoClient` is generated.
+- **Root cause**: `Element.getAnnotationsByType(ClientHeaderParam.class)` already looks through the
+  `@ClientHeaderParams` container of the repeated annotations; the processor also added the container's values, so
+  each header was counted twice.
+- **Investigations**:
+  - 2026-10-28: found while covering the processor for SonarQube. The container is no longer read separately.
+    Regression test: `CyranoClientProcessorCoverageTest.twoDistinctClientHeaderParams_onOneElement_areGenerated`
+    (and `CyranoClientProcessorDefinitionsTest.a_method_header_overrides_the_interface_header_of_the_same_name`).

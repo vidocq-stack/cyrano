@@ -379,4 +379,32 @@ class CyranoClientProcessorCoverageTest {
         Object proxy = factory.newProxy(invoker);
         ((java.io.Closeable) proxy).close();
     }
+
+    /**
+     * BUG-20261028-01: two distinct {@code @ClientHeaderParam} on one element are valid (MP Rest
+     * Client 4.0 §7.2 only forbids the same name twice on the same target); the processor counted
+     * the repeated annotations twice and skipped the interface.
+     */
+    @Test
+    void twoDistinctClientHeaderParams_onOneElement_areGenerated() throws Exception {
+        var compilation = compile(writeSource("t/TwoHeaders.java", """
+                package t;
+                import jakarta.ws.rs.GET;
+                import jakarta.ws.rs.Path;
+                import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam;
+                import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+
+                @RegisterRestClient
+                @Path("/two")
+                @ClientHeaderParam(name = "X-A", value = "a")
+                @ClientHeaderParam(name = "X-B", value = "b")
+                public interface TwoHeaders {
+                    @GET
+                    String get();
+                }
+                """));
+        ClientProxyFactory factory = factoryOf(compilation, "t.TwoHeaders");
+        assertEquals(Map.of("X-A", List.of("a"), "X-B", List.of("b")),
+                factory.descriptor().methods().getFirst().staticHeaders());
+    }
 }
