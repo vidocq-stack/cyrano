@@ -31,4 +31,9 @@ public final class CyranoRuntime {
     private CyranoRuntime() {
         //utility — no detailing
     }
+
+    /** Runtime implementation identifier. */
+    public static String implementationName() {
+        return IMPLEMENTATION_NAME;
+    }
 }
