@@ -76,28 +76,36 @@ public final class SseEventParser {
         List<SseEventData> out = new ArrayList<>();
         for (int i = 0; i < chunk.length(); i++) {
             char c = chunk.charAt(i);
-            if (atStreamStart) {
-                atStreamStart = false;
-                if (c == 0xFEFF) { //U+FEFF byte-order mark
-                    continue; //WHATWG: one leading BOM is skipped
+            if (!skipped(c)) {
+                switch (c) {
+                    case '\r' -> {
+                        processLine(out);
+                        sawCarriageReturn = true;
+                    }
+                    case '\n' -> processLine(out);
+                    default -> lineBuffer.append(c);
                 }
-            }
-            if (sawCarriageReturn) {
-                sawCarriageReturn = false;
-                if (c == '\n') {
-                    continue; //CRLF: the line was already processed on CR
-                }
-            }
-            switch (c) {
-                case '\r' -> {
-                    processLine(out);
-                    sawCarriageReturn = true;
-                }
-                case '\n' -> processLine(out);
-                default -> lineBuffer.append(c);
             }
         }
         return out;
+    }
+
+    /**
+     * Whether {@code c} is dropped before line splitting: the single leading byte-order mark
+     * (WHATWG skips one) and the LF of a CRLF pair (the line was already processed on CR).
+     */
+    private boolean skipped(char c) {
+        if (atStreamStart) {
+            atStreamStart = false;
+            if (c == 0xFEFF) { //U+FEFF byte-order mark
+                return true;
+            }
+        }
+        if (sawCarriageReturn) {
+            sawCarriageReturn = false;
+            return c == '\n';
+        }
+        return false;
     }
 
     private void processLine(List<SseEventData> out) {
@@ -129,23 +137,27 @@ public final class SseEventParser {
                 eventName = value;
                 sawField = true;
             }
-            case "id" -> {
-                //WHATWG: an id containing NUL is ignored.
-                if (value.indexOf('\0') < 0) {
-                    lastEventId = value;
-                    sawField = true;
-                }
-            }
-            case "retry" -> {
-                //WHATWG: value must consist of ASCII digits only, otherwise ignored.
-                if (!value.isEmpty() && value.chars().allMatch(ch -> ch >= '0' && ch <= '9')) {
-                    retryMillis = Long.parseLong(value);
-                    sawField = true;
-                }
-            }
+            case "id" -> acceptId(value);
+            case "retry" -> acceptRetry(value);
             default -> {
                 //Unknown field: ignored entirely (does not trigger dispatch).
             }
+        }
+    }
+
+    private void acceptId(String value) {
+        //WHATWG: an id containing NUL is ignored.
+        if (value.indexOf('\0') < 0) {
+            lastEventId = value;
+            sawField = true;
+        }
+    }
+
+    private void acceptRetry(String value) {
+        //WHATWG: value must consist of ASCII digits only, otherwise ignored.
+        if (!value.isEmpty() && value.chars().allMatch(ch -> ch >= '0' && ch <= '9')) {
+            retryMillis = Long.parseLong(value);
+            sawField = true;
         }
     }
 

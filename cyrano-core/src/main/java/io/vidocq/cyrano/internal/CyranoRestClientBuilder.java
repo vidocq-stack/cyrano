@@ -187,7 +187,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
     }
 
     private static void addIfPresent(java.util.List<Class<?>> list, String fqn) {
-        try { list.add(Class.forName(fqn)); } catch (ClassNotFoundException ignored) {}
+        try { list.add(Class.forName(fqn)); } catch (ClassNotFoundException _) { /* optional contract absent */ }
     }
 
     @Override
@@ -392,7 +392,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             for (S service : java.util.ServiceLoader.load(layer, serviceType)) {
                 if (seen.add(service.getClass().getName())) out.add(service);
             }
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException _) {
             // layer unavailable/inaccessible
         }
     }
@@ -409,28 +409,38 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             for (String resource : resources) {
                 Enumeration<URL> urls = loader.getResources(resource);
                 while (urls.hasMoreElements()) {
-                    URLConnection connection = urls.nextElement().openConnection();
-                    connection.setUseCaches(false);
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            String className = line.split("#", 2)[0].trim();
-                            if (className.isEmpty() || !seen.add(className)) continue;
-                            try {
-                                Class<?> impl = Class.forName(className, true, loader);
-                                if (!serviceType.isAssignableFrom(impl)) continue;
-                                @SuppressWarnings("unchecked")
-                                S service = (S) impl.getDeclaredConstructor().newInstance();
-                                out.add(service);
-                            } catch (ReflectiveOperationException ignored) {
-                                //invalid impl ignored
-                            }
-                        }
-                    }
+                    readServiceFile(urls.nextElement(), serviceType, loader, out, seen);
                 }
             }
-        } catch (IOException ignored) {
+        } catch (IOException _) {
             //no service file for this classloader
+        }
+    }
+
+    private static <S> void readServiceFile(URL url, Class<S> serviceType, ClassLoader loader,
+                                            List<S> out, Set<String> seen) throws IOException {
+        URLConnection connection = url.openConnection();
+        connection.setUseCaches(false);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String className = line.split("#", 2)[0].trim();
+                if (!className.isEmpty() && seen.add(className)) {
+                    S service = instantiateService(serviceType, className, loader);
+                    if (service != null) out.add(service);
+                }
+            }
+        }
+    }
+
+    /** Instance of a listed implementation, or {@code null} when it is missing, invalid or not a {@code serviceType}. */
+    private static <S> S instantiateService(Class<S> serviceType, String className, ClassLoader loader) {
+        try {
+            Class<?> impl = Class.forName(className, true, loader);
+            if (!serviceType.isAssignableFrom(impl)) return null;
+            return serviceType.cast(impl.getDeclaredConstructor().newInstance());
+        } catch (ReflectiveOperationException _) {
+            return null; //invalid impl ignored
         }
     }
 
@@ -453,21 +463,25 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             progressed = false;
             List<Object> snapshot = List.copyOf(configuration.getInstances());
             for (Object instance : snapshot) {
-                if (!(instance instanceof Feature feature)) continue;
-                Class<?> featureClass = instance.getClass();
-                if (!processed.add(featureClass)) continue;
-                boolean enabled;
-                try {
-                    enabled = feature.configure(context);
-                } catch (RuntimeException _) {
-                    continue;
+                if (instance instanceof Feature feature && processed.add(instance.getClass())) {
+                    progressed |= applyFeature(feature, context);
                 }
-                if (enabled) {
-                    configuration.markFeatureEnabled(feature);
-                }
-                progressed = true;
             }
         } while (progressed);
+    }
+
+    /** Configures one feature; {@code false} when its {@code configure} failed and it is skipped. */
+    private boolean applyFeature(Feature feature, FeatureContext context) {
+        boolean enabled;
+        try {
+            enabled = feature.configure(context);
+        } catch (RuntimeException _) {
+            return false;
+        }
+        if (enabled) {
+            configuration.markFeatureEnabled(feature);
+        }
+        return true;
     }
 
     private final class BuilderFeatureContext implements FeatureContext {

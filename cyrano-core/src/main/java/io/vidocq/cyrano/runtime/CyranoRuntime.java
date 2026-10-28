@@ -25,12 +25,10 @@ package io.vidocq.cyrano.runtime;
  */
 public final class CyranoRuntime {
 
+    /** Runtime implementation identifier. */
+    public static final String IMPLEMENTATION_NAME = "cyrano-core";
+
     private CyranoRuntime() {
         //utility — no detailing
-    }
-
-    /** Runtime implementation identifier. */
-    public static String implementationName() {
-        return "cyrano-core";
     }
 }

@@ -107,27 +107,44 @@ public final class ClientProxyRegistry {
         // classpath case, but a hand-written module-info must work too).
         ModuleLayer layer = iface.getModule().getLayer();
         if (layer != null) {
-            try {
-                for (ClientProxyFactory factory : ServiceLoader.load(layer, ClientProxyFactory.class)) {
-                    if (factory.clientInterface() == iface) {
-                        return fromFactory(Source.SERVICE_LOADER, factory);
-                    }
-                }
-            } catch (java.util.ServiceConfigurationError e) {
-                LOG.log(System.Logger.Level.DEBUG,
-                        () -> "ClientProxyFactory layer scan failed: " + e);
+            Resolved fromLayer = scanLayer(iface, layer);
+            if (fromLayer != null) {
+                return fromLayer;
             }
         }
         for (ClassLoader loader : candidateLoaders(iface)) {
-            try {
-                for (ClientProxyFactory factory : ServiceLoader.load(ClientProxyFactory.class, loader)) {
-                    if (factory.clientInterface() == iface) {
-                        return fromFactory(Source.SERVICE_LOADER, factory);
-                    }
-                }
-            } catch (java.util.ServiceConfigurationError e) {
-                LOG.log(System.Logger.Level.DEBUG,
-                        () -> "ClientProxyFactory ServiceLoader scan failed on " + loader + ": " + e);
+            Resolved fromLoader = scanLoader(iface, loader);
+            if (fromLoader != null) {
+                return fromLoader;
+            }
+        }
+        return null;
+    }
+
+    private static Resolved scanLayer(Class<?> iface, ModuleLayer layer) {
+        try {
+            return firstFactoryFor(iface, ServiceLoader.load(layer, ClientProxyFactory.class));
+        } catch (java.util.ServiceConfigurationError e) {
+            LOG.log(System.Logger.Level.DEBUG,
+                    () -> "ClientProxyFactory layer scan failed: " + e);
+            return null;
+        }
+    }
+
+    private static Resolved scanLoader(Class<?> iface, ClassLoader loader) {
+        try {
+            return firstFactoryFor(iface, ServiceLoader.load(ClientProxyFactory.class, loader));
+        } catch (java.util.ServiceConfigurationError e) {
+            LOG.log(System.Logger.Level.DEBUG,
+                    () -> "ClientProxyFactory ServiceLoader scan failed on " + loader + ": " + e);
+            return null;
+        }
+    }
+
+    private static Resolved firstFactoryFor(Class<?> iface, Iterable<ClientProxyFactory> factories) {
+        for (ClientProxyFactory factory : factories) {
+            if (factory.clientInterface() == iface) {
+                return fromFactory(Source.SERVICE_LOADER, factory);
             }
         }
         return null;

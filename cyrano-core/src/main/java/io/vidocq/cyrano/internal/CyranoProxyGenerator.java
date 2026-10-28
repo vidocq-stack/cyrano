@@ -20,6 +20,7 @@
 package io.vidocq.cyrano.internal;
 
 import java.lang.classfile.ClassFile;
+import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.MethodHandle;
@@ -32,6 +33,7 @@ import java.util.Map;
 
 import static java.lang.constant.ConstantDescs.CD_Object;
 import static java.lang.constant.ConstantDescs.CD_int;
+import static java.lang.constant.ConstantDescs.INIT_NAME;
 import static java.lang.constant.ConstantDescs.MTD_void;
 
 /**
@@ -77,6 +79,8 @@ public final class CyranoProxyGenerator {
     private static final ClassDesc CD_MethodHandle =
             MethodHandle.class.describeConstable().orElseThrow();
     private static final ClassDesc CD_Runnable = Runnable.class.describeConstable().orElseThrow();
+    private static final String FIELD_INVOKER = "invoker";
+    private static final String FIELD_CLOSER = "closer";
     /** {@code (Object proxy, int methodIndex, Object[] args) -> Object}, the shape of {@code invoke}. */
     private static final MethodType INVOKE_TYPE =
             MethodType.methodType(Object.class, Object.class, int.class, Object[].class);
@@ -132,22 +136,22 @@ public final class CyranoProxyGenerator {
             //Always implements Closeable — spec MP Rest Client §8.1: all proxies must be Closeable
             cb.withInterfaceSymbols(ifaceDesc, CD_Closeable);
             cb.withSuperclass(CD_Object);
-            cb.withField("invoker", CD_MethodHandle, ClassFile.ACC_PRIVATE | ClassFile.ACC_FINAL);
-            cb.withField("closer", CD_Runnable, ClassFile.ACC_PRIVATE | ClassFile.ACC_FINAL);
+            cb.withField(FIELD_INVOKER, CD_MethodHandle, ClassFile.ACC_PRIVATE | ClassFile.ACC_FINAL);
+            cb.withField(FIELD_CLOSER, CD_Runnable, ClassFile.ACC_PRIVATE | ClassFile.ACC_FINAL);
 
             // Constructor: Cyrano$X(MethodHandle invoker, Runnable closer)
-            cb.withMethodBody("<init>",
+            cb.withMethodBody(INIT_NAME,
                     MethodTypeDesc.of(java.lang.constant.ConstantDescs.CD_void, CD_MethodHandle, CD_Runnable),
                     ClassFile.ACC_PUBLIC,
                     code -> code
                             .aload(0)
-                            .invokespecial(CD_Object, "<init>", MTD_void)
+                            .invokespecial(CD_Object, INIT_NAME, MTD_void)
                             .aload(0)
                             .aload(1)
-                            .putfield(thisClass, "invoker", CD_MethodHandle)
+                            .putfield(thisClass, FIELD_INVOKER, CD_MethodHandle)
                             .aload(0)
                             .aload(2)
-                            .putfield(thisClass, "closer", CD_Runnable)
+                            .putfield(thisClass, FIELD_CLOSER, CD_Runnable)
                             .return_());
 
             //One method per scan entry, in insertion order.
@@ -163,7 +167,7 @@ public final class CyranoProxyGenerator {
                     ClassFile.ACC_PUBLIC | ClassFile.ACC_FINAL,
                     code -> code
                             .aload(0)
-                            .getfield(thisClass, "closer", CD_Runnable)
+                            .getfield(thisClass, FIELD_CLOSER, CD_Runnable)
                             .invokeinterface(CD_Runnable, "run", MTD_void)
                             .return_());
         });
@@ -177,19 +181,7 @@ public final class CyranoProxyGenerator {
             //interfaces of named modules, the user module must open its
             //package to cyrano-core via `opens`.
             MethodHandles.Lookup target = MethodHandles.privateLookupIn(iface, MethodHandles.lookup());
-            try {
-                return target.defineClass(bytes);
-            } catch (LinkageError _) {
-                //The proxy has already been defined in this classloader (typically because
-                //the CyranoProxyCache cache missed — can happen in
-                //Arquillian/ShrinkWrap contexts where several Class<?> objects represent
-                //the same interface between successive deployments sharing the same
-                //application ClassLoader). Recover the already defined class instead of
-                //failing — proxy idempotence is guaranteed by the stable interface signature.
-                ClassLoader cl = iface.getClassLoader();
-                if (cl == null) cl = ClassLoader.getSystemClassLoader();
-                return Class.forName(binaryName, false, cl);
-            }
+            return defineOrReuse(target, bytes, iface, binaryName);
         } catch (IllegalAccessException e) {
             throw new IllegalStateException(
                     "Cannot define the proxy " + binaryName
@@ -200,6 +192,23 @@ public final class CyranoProxyGenerator {
             throw new IllegalStateException(
                     "LinkageError on " + binaryName + " but class not found via Class.forName — "
                             + "ClassLoader inconsistency.", e);
+        }
+    }
+
+    private static Class<?> defineOrReuse(MethodHandles.Lookup target, byte[] bytes, Class<?> iface, String binaryName)
+            throws IllegalAccessException, ClassNotFoundException {
+        try {
+            return target.defineClass(bytes);
+        } catch (LinkageError _) {
+            //The proxy has already been defined in this classloader (typically because
+            //the CyranoProxyCache cache missed — can happen in
+            //Arquillian/ShrinkWrap contexts where several Class<?> objects represent
+            //the same interface between successive deployments sharing the same
+            //application ClassLoader). Recover the already defined class instead of
+            //failing — proxy idempotence is guaranteed by the stable interface signature.
+            ClassLoader cl = iface.getClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            return Class.forName(binaryName, false, cl);
         }
     }
 
@@ -237,7 +246,7 @@ public final class CyranoProxyGenerator {
                         argsSlot += (p == long.class || p == double.class) ? 2 : 1;
                     }
 
-                    // Object[] args = new Object[paramTypes.length];
+                    //Allocate the argument array (one slot per parameter) and fill it with the boxed parameters.
                     code.loadConstant(paramTypes.length);
                     code.anewarray(CD_Object);
                     int slot = 1;
@@ -251,7 +260,7 @@ public final class CyranoProxyGenerator {
                     }
                     code.astore(argsSlot);
 
-                    // Bloc try { return (T) handler.invoke(methodIndex, args); }
+                    //Protected region: call the bound invoke handle with this proxy, the method index and the arguments.
                     var tryStart = code.newLabel();
                     var tryEnd = code.newLabel();
                     var catchRtEx = code.newLabel();
@@ -260,7 +269,7 @@ public final class CyranoProxyGenerator {
 
                     code.labelBinding(tryStart);
                     code.aload(0);
-                    code.getfield(thisClass, "invoker", CD_MethodHandle);
+                    code.getfield(thisClass, FIELD_INVOKER, CD_MethodHandle);
                     code.aload(0);
                     code.loadConstant(methodIndex);
                     code.aload(argsSlot);
@@ -272,19 +281,19 @@ public final class CyranoProxyGenerator {
                     emitReturn(code, m.getReturnType(), retDesc);
                     code.labelBinding(tryEnd);
 
-                    // catch (RuntimeException re) { throw re; }
+                    //RuntimeException handler: rethrown unchanged.
                     code.labelBinding(catchRtEx);
                     code.athrow();
-                    // catch (Error err) { throw err; }
+                    //Error handler: rethrown unchanged.
                     code.labelBinding(catchError);
                     code.athrow();
-                    // catch (Throwable ex) { throw new RuntimeException(ex); } — invokeExact declares Throwable
+                    //Any other Throwable (invokeExact declares Throwable) is wrapped in a RuntimeException.
                     code.labelBinding(catchOther);
                     code.astore(argsSlot + 1);
                     code.new_(CD_RuntimeException);
                     code.dup();
                     code.aload(argsSlot + 1);
-                    code.invokespecial(CD_RuntimeException, "<init>",
+                    code.invokespecial(CD_RuntimeException, INIT_NAME,
                             MethodTypeDesc.of(java.lang.constant.ConstantDescs.CD_void, CD_Throwable));
                     code.athrow();
 
@@ -303,44 +312,10 @@ public final class CyranoProxyGenerator {
             code.aload(slot);
             return;
         }
-        if (type == long.class) {
-            code.lload(slot);
-            code.invokestatic(ClassDesc.of("java.lang.Long"), "valueOf",
-                    MethodTypeDesc.of(ClassDesc.of("java.lang.Long"), java.lang.constant.ConstantDescs.CD_long));
-        } else if (type == double.class) {
-            code.dload(slot);
-            code.invokestatic(ClassDesc.of("java.lang.Double"), "valueOf",
-                    MethodTypeDesc.of(ClassDesc.of("java.lang.Double"), java.lang.constant.ConstantDescs.CD_double));
-        } else if (type == float.class) {
-            code.fload(slot);
-            code.invokestatic(ClassDesc.of("java.lang.Float"), "valueOf",
-                    MethodTypeDesc.of(ClassDesc.of("java.lang.Float"), java.lang.constant.ConstantDescs.CD_float));
-        } else if (type == boolean.class) {
-            code.iload(slot);
-            code.invokestatic(ClassDesc.of("java.lang.Boolean"), "valueOf",
-                    MethodTypeDesc.of(ClassDesc.of("java.lang.Boolean"), java.lang.constant.ConstantDescs.CD_boolean));
-        } else {
-            //int, short, byte, char — loaded via iload then boxed
-            code.iload(slot);
-            ClassDesc wrapper;
-            ClassDesc prim;
-            if (type == int.class) {
-                wrapper = ClassDesc.of("java.lang.Integer");
-                prim = java.lang.constant.ConstantDescs.CD_int;
-            } else if (type == short.class) {
-                wrapper = ClassDesc.of("java.lang.Short");
-                prim = java.lang.constant.ConstantDescs.CD_short;
-            } else if (type == byte.class) {
-                wrapper = ClassDesc.of("java.lang.Byte");
-                prim = java.lang.constant.ConstantDescs.CD_byte;
-            } else if (type == char.class) {
-                wrapper = ClassDesc.of("java.lang.Character");
-                prim = java.lang.constant.ConstantDescs.CD_char;
-            } else {
-                throw new IllegalStateException("Unknown primitive type: " + type);
-            }
-            code.invokestatic(wrapper, "valueOf", MethodTypeDesc.of(wrapper, prim));
-        }
+        //Typed load (iload for int, short, byte, char and boolean), then Wrapper.valueOf(primitive)
+        ClassDesc wrapper = wrapperOf(type);
+        code.loadLocal(TypeKind.from(type), slot);
+        code.invokestatic(wrapper, "valueOf", MethodTypeDesc.of(wrapper, type.describeConstable().orElseThrow()));
     }
 
     /**
@@ -354,40 +329,22 @@ public final class CyranoProxyGenerator {
             return;
         }
         if (retType.isPrimitive()) {
-            //Unbox from Object returned by handler.invoke
-            ClassDesc wrapper;
-            String unboxName;
-            ClassDesc prim;
-            if (retType == int.class) {
-                wrapper = ClassDesc.of("java.lang.Integer"); unboxName = "intValue"; prim = java.lang.constant.ConstantDescs.CD_int;
-            } else if (retType == long.class) {
-                wrapper = ClassDesc.of("java.lang.Long"); unboxName = "longValue"; prim = java.lang.constant.ConstantDescs.CD_long;
-            } else if (retType == double.class) {
-                wrapper = ClassDesc.of("java.lang.Double"); unboxName = "doubleValue"; prim = java.lang.constant.ConstantDescs.CD_double;
-            } else if (retType == float.class) {
-                wrapper = ClassDesc.of("java.lang.Float"); unboxName = "floatValue"; prim = java.lang.constant.ConstantDescs.CD_float;
-            } else if (retType == short.class) {
-                wrapper = ClassDesc.of("java.lang.Short"); unboxName = "shortValue"; prim = java.lang.constant.ConstantDescs.CD_short;
-            } else if (retType == byte.class) {
-                wrapper = ClassDesc.of("java.lang.Byte"); unboxName = "byteValue"; prim = java.lang.constant.ConstantDescs.CD_byte;
-            } else if (retType == char.class) {
-                wrapper = ClassDesc.of("java.lang.Character"); unboxName = "charValue"; prim = java.lang.constant.ConstantDescs.CD_char;
-            } else if (retType == boolean.class) {
-                wrapper = ClassDesc.of("java.lang.Boolean"); unboxName = "booleanValue"; prim = java.lang.constant.ConstantDescs.CD_boolean;
-            } else {
-                throw new IllegalStateException("Unknown primitive return type: " + retType);
-            }
+            //Unbox the Object returned by handler.invoke with Wrapper.<primitive>Value()
+            ClassDesc wrapper = wrapperOf(retType);
             code.checkcast(wrapper);
-            code.invokevirtual(wrapper, unboxName, MethodTypeDesc.of(prim));
-            if (retType == long.class) code.lreturn();
-            else if (retType == double.class) code.dreturn();
-            else if (retType == float.class) code.freturn();
-            else code.ireturn(); // int, short, byte, char, boolean
+            code.invokevirtual(wrapper, retType.getName() + "Value",
+                    MethodTypeDesc.of(retType.describeConstable().orElseThrow()));
+            code.return_(TypeKind.from(retType));
             return;
         }
         //Reference
         code.checkcast(retDesc);
         code.areturn();
+    }
+
+    /** Wrapper class of a primitive type, e.g. {@code java.lang.Integer} for {@code int}. */
+    private static ClassDesc wrapperOf(Class<?> primitive) {
+        return MethodType.methodType(primitive).wrap().returnType().describeConstable().orElseThrow();
     }
 }
 

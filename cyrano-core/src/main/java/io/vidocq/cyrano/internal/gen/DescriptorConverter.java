@@ -95,25 +95,26 @@ public final class DescriptorConverter {
     private static ParamBinding convertParam(Class<?> iface, ClientMethodDescriptor md,
                                              ClientParamDescriptor pd) {
         return switch (pd) {
-            case ClientParamDescriptor.Path p -> new ParamBinding.Path(p.paramIndex(), p.name(), p.defaultValue());
-            case ClientParamDescriptor.Query q -> new ParamBinding.Query(q.paramIndex(), q.name(), q.defaultValue());
-            case ClientParamDescriptor.Header h -> new ParamBinding.Header(h.paramIndex(), h.name(), h.defaultValue());
-            case ClientParamDescriptor.Cookie c -> new ParamBinding.Cookie(c.paramIndex(), c.name(), c.defaultValue());
-            case ClientParamDescriptor.Form f -> new ParamBinding.Form(f.paramIndex(), f.name(), f.defaultValue());
-            case ClientParamDescriptor.Matrix m -> new ParamBinding.Matrix(m.paramIndex(), m.name(), m.defaultValue());
-            case ClientParamDescriptor.Body b -> new ParamBinding.Body(b.paramIndex());
-            case ClientParamDescriptor.Bean bean -> convertBean(iface, md, bean);
+            case ClientParamDescriptor.Path(var index, var name, var dflt) -> new ParamBinding.Path(index, name, dflt);
+            case ClientParamDescriptor.Query(var index, var name, var dflt) -> new ParamBinding.Query(index, name, dflt);
+            case ClientParamDescriptor.Header(var index, var name, var dflt) -> new ParamBinding.Header(index, name, dflt);
+            case ClientParamDescriptor.Cookie(var index, var name, var dflt) -> new ParamBinding.Cookie(index, name, dflt);
+            case ClientParamDescriptor.Form(var index, var name, var dflt) -> new ParamBinding.Form(index, name, dflt);
+            case ClientParamDescriptor.Matrix(var index, var name, var dflt) -> new ParamBinding.Matrix(index, name, dflt);
+            case ClientParamDescriptor.Body(var index) -> new ParamBinding.Body(index);
+            case ClientParamDescriptor.Bean(var index, var beanType, var fields) ->
+                    convertBean(iface, md, index, beanType, fields);
         };
     }
 
-    private static ParamBinding convertBean(Class<?> iface, ClientMethodDescriptor md,
-                                            ClientParamDescriptor.Bean bean) {
-        List<ParamBinding.FieldBinding> fields = new ArrayList<>(bean.fields().size());
-        for (ClientParamDescriptor.BeanField bf : bean.fields()) {
-            Field field = resolveField(iface, md, bean.beanType(), bf.fieldName());
+    private static ParamBinding convertBean(Class<?> iface, ClientMethodDescriptor md, int index,
+                                            Class<?> beanType, List<ClientParamDescriptor.BeanField> beanFields) {
+        List<ParamBinding.FieldBinding> fields = new ArrayList<>(beanFields.size());
+        for (ClientParamDescriptor.BeanField bf : beanFields) {
+            Field field = resolveField(iface, md, beanType, bf.fieldName());
             fields.add(new ParamBinding.FieldBinding(field, convertKind(bf.kind()), bf.name(), bf.defaultValue()));
         }
-        return new ParamBinding.Bean(bean.paramIndex(), fields);
+        return new ParamBinding.Bean(index, fields);
     }
 
     private static Field resolveField(Class<?> iface, ClientMethodDescriptor md,
@@ -122,16 +123,10 @@ public final class DescriptorConverter {
         Class<?> c = beanType;
         while (c != null && c != Object.class) {
             for (Field f : c.getDeclaredFields()) {
-                if (Modifier.isStatic(f.getModifiers())) continue;
-                if (!f.getName().equals(fieldName)) continue;
-                // Same accessibility contract as CyranoInterfaceScanner#fb — bean POJOs
-                // are expected to be open to the framework (M2 trade-off).
-                try {
-                    f.setAccessible(true);
-                } catch (RuntimeException ignored) {
-                    // field already accessible
+                if (!Modifier.isStatic(f.getModifiers()) && f.getName().equals(fieldName)) {
+                    makeAccessible(f);
+                    return f;
                 }
-                return f;
             }
             c = c.getSuperclass();
         }
@@ -139,6 +134,16 @@ public final class DescriptorConverter {
                 "Descriptor @BeanParam field '" + fieldName + "' not found on "
                         + beanTypeName + " (method " + md.methodName()
                         + " of " + iface.getName() + ") — stale generated class?");
+    }
+
+    private static void makeAccessible(Field f) {
+        // Same accessibility contract as CyranoInterfaceScanner#fb — bean POJOs
+        // are expected to be open to the framework (M2 trade-off).
+        try {
+            f.setAccessible(true);
+        } catch (RuntimeException _) {
+            // field already accessible
+        }
     }
 
     private static ParamBinding.FieldBinding.Kind convertKind(ClientParamDescriptor.BeanField.Kind kind) {

@@ -192,8 +192,8 @@ public final class CyranoLightResponse extends Response {
         if (configuration == null) return null;
         MediaType wildcard = MediaType.WILDCARD_TYPE;
         for (Object inst : configuration.getInstances()) {
-            if (inst instanceof MessageBodyReader r) {
-                if (r.isReadable(entityType, entityType, new Annotation[0], wildcard)) return r;
+            if (inst instanceof MessageBodyReader r && r.isReadable(entityType, entityType, new Annotation[0], wildcard)) {
+                return r;
             }
         }
         return null;
@@ -231,7 +231,7 @@ public final class CyranoLightResponse extends Response {
         for (var entry : stringHeaders.entrySet()) {
             if (entry.getKey().equalsIgnoreCase(name)) return entry.getValue();
         }
-        return null;
+        return List.of();
     }
 
     private static UnsupportedOperationException nope() {

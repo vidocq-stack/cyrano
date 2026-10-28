@@ -113,7 +113,7 @@ public final class SseDataDeserializer {
             if (inst instanceof MessageBodyReader r
                     && (r.isReadable(rawType, genericType, none, mediaType)
                         || r.isReadable(rawType, genericType, none, MediaType.WILDCARD_TYPE))) {
-                return (MessageBodyReader<T>) r;
+                return r;
             }
         }
         return null;

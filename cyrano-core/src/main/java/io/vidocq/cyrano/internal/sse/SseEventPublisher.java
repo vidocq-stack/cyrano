@@ -128,9 +128,9 @@ public final class SseEventPublisher<T> implements Flow.Publisher<T> {
     /** Subscribes only to cancel — drains nothing, releases the HTTP exchange. */
     private static final class CancellingSubscriber implements Flow.Subscriber<List<ByteBuffer>> {
         @Override public void onSubscribe(Flow.Subscription subscription) { subscription.cancel(); }
-        @Override public void onNext(List<ByteBuffer> item) { }
-        @Override public void onError(Throwable throwable) { }
-        @Override public void onComplete() { }
+        @Override public void onNext(List<ByteBuffer> item) { /* cancelled on subscribe: no item is delivered */ }
+        @Override public void onError(Throwable throwable) { /* the exchange is being discarded: nothing to report */ }
+        @Override public void onComplete() { /* the exchange is being discarded: nothing to finish */ }
     }
 
     /**

@@ -35,6 +35,7 @@ import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam;
 import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParams;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -75,12 +76,7 @@ public final class CyranoInterfaceScanner {
         //Headers @ClientHeaderParam declared at interface level — applied to all methods
         Map<String, List<String>> typeStatic = new LinkedHashMap<>();
         Map<String, RequestSpec.DynamicHeader> typeDynamic = new LinkedHashMap<>();
-        validateClientHeaderParams(iface, iface, iface.getAnnotationsByType(ClientHeaderParam.class));
-        collectClientHeaders(iface.getAnnotationsByType(ClientHeaderParam.class), typeStatic, typeDynamic);
-        for (ClientHeaderParams cs : iface.getAnnotationsByType(ClientHeaderParams.class)) {
-            validateClientHeaderParams(iface, iface, cs.value());
-            collectClientHeaders(cs.value(), typeStatic, typeDynamic);
-        }
+        collectAllClientHeaders(iface, iface, typeStatic, typeDynamic);
         // Consumes/Produces at the type level
         List<String> typeConsumes = extractMediaTypes(iface.getAnnotation(Consumes.class));
         List<String> typeProduces = extractMediaTypes(iface.getAnnotation(Produces.class));
@@ -95,12 +91,7 @@ public final class CyranoInterfaceScanner {
 
             Map<String, List<String>> staticHeaders = new LinkedHashMap<>(typeStatic);
             Map<String, RequestSpec.DynamicHeader> dynamicHeaders = new LinkedHashMap<>(typeDynamic);
-            validateClientHeaderParams(iface, m, m.getAnnotationsByType(ClientHeaderParam.class));
-            collectClientHeaders(m.getAnnotationsByType(ClientHeaderParam.class), staticHeaders, dynamicHeaders);
-            for (ClientHeaderParams cs : m.getAnnotationsByType(ClientHeaderParams.class)) {
-                validateClientHeaderParams(iface, m, cs.value());
-                collectClientHeaders(cs.value(), staticHeaders, dynamicHeaders);
-            }
+            collectAllClientHeaders(iface, m, staticHeaders, dynamicHeaders);
 
             List<String> consumes = m.isAnnotationPresent(Consumes.class)
                     ? extractMediaTypes(m.getAnnotation(Consumes.class)) : typeConsumes;
@@ -199,6 +190,18 @@ public final class CyranoInterfaceScanner {
         }
     }
 
+    /** Validates and collects the {@code @ClientHeaderParam}s of {@code element}, repeated or in their container. */
+    private static void collectAllClientHeaders(Class<?> iface, AnnotatedElement element,
+                                                Map<String, List<String>> staticOut,
+                                                Map<String, RequestSpec.DynamicHeader> dynamicOut) {
+        validateClientHeaderParams(iface, element, element.getAnnotationsByType(ClientHeaderParam.class));
+        collectClientHeaders(element.getAnnotationsByType(ClientHeaderParam.class), staticOut, dynamicOut);
+        for (ClientHeaderParams cs : element.getAnnotationsByType(ClientHeaderParams.class)) {
+            validateClientHeaderParams(iface, element, cs.value());
+            collectClientHeaders(cs.value(), staticOut, dynamicOut);
+        }
+    }
+
     private static void validateClientHeaderParams(Class<?> iface, Object target, ClientHeaderParam[] anns) {
         Set<String> seenHeaders = new HashSet<>();
         for (ClientHeaderParam ann : anns) {
@@ -237,27 +240,36 @@ public final class CyranoInterfaceScanner {
     private static boolean hasValidComputeMethod(Class<?> iface, String computeRef) {
         int lastDot = computeRef.lastIndexOf('.');
         if (lastDot > 0) {
-            String fqcn = computeRef.substring(0, lastDot);
-            String methodName = computeRef.substring(lastDot + 1);
-            try {
-                Class<?> ext = Class.forName(fqcn, false, iface.getClassLoader());
-                for (Method m : ext.getMethods()) {
-                    if (!Modifier.isStatic(m.getModifiers())) continue;
-                    if (!m.getName().equals(methodName)) continue;
-                    if (isValidComputeSignature(m)) return true;
-                }
-                return false;
-            } catch (ClassNotFoundException e) {
-                return false;
+            return hasValidExternalComputeMethod(iface, computeRef.substring(0, lastDot),
+                    computeRef.substring(lastDot + 1));
+        }
+        return anyValidComputeMethod(iface.getMethods(), computeRef)
+                || anyValidComputeMethod(iface.getDeclaredMethods(), computeRef);
+    }
+
+    private static boolean hasValidExternalComputeMethod(Class<?> iface, String fqcn, String methodName) {
+        try {
+            Class<?> ext = Class.forName(fqcn, false, iface.getClassLoader());
+            return anyValidStaticComputeMethod(ext.getMethods(), methodName);
+        } catch (ClassNotFoundException _) {
+            return false;
+        }
+    }
+
+    private static boolean anyValidStaticComputeMethod(Method[] candidates, String methodName) {
+        for (Method m : candidates) {
+            if (Modifier.isStatic(m.getModifiers()) && m.getName().equals(methodName) && isValidComputeSignature(m)) {
+                return true;
             }
         }
-        for (Method m : iface.getMethods()) {
-            if (!m.getName().equals(computeRef)) continue;
-            if (isValidComputeSignature(m)) return true;
-        }
-        for (Method m : iface.getDeclaredMethods()) {
-            if (!m.getName().equals(computeRef)) continue;
-            if (isValidComputeSignature(m)) return true;
+        return false;
+    }
+
+    private static boolean anyValidComputeMethod(Method[] candidates, String methodName) {
+        for (Method m : candidates) {
+            if (m.getName().equals(methodName) && isValidComputeSignature(m)) {
+                return true;
+            }
         }
         return false;
     }
@@ -339,26 +351,29 @@ public final class CyranoInterfaceScanner {
         Parameter[] params = m.getParameters();
         List<ParamBinding> out = new ArrayList<>(params.length);
         for (int i = 0; i < params.length; i++) {
-            Parameter p = params[i];
-            String dflt = defaultOf(p);
-            PathParam path = p.getAnnotation(PathParam.class);
-            if (path != null) { out.add(new ParamBinding.Path(i, path.value(), dflt)); continue; }
-            QueryParam query = p.getAnnotation(QueryParam.class);
-            if (query != null) { out.add(new ParamBinding.Query(i, query.value(), dflt)); continue; }
-            HeaderParam header = p.getAnnotation(HeaderParam.class);
-            if (header != null) { out.add(new ParamBinding.Header(i, header.value(), dflt)); continue; }
-            CookieParam cookie = p.getAnnotation(CookieParam.class);
-            if (cookie != null) { out.add(new ParamBinding.Cookie(i, cookie.value(), dflt)); continue; }
-            FormParam form = p.getAnnotation(FormParam.class);
-            if (form != null) { out.add(new ParamBinding.Form(i, form.value(), dflt)); continue; }
-            MatrixParam matrix = p.getAnnotation(MatrixParam.class);
-            if (matrix != null) { out.add(new ParamBinding.Matrix(i, matrix.value(), dflt)); continue; }
-            BeanParam bean = p.getAnnotation(BeanParam.class);
-            if (bean != null) { out.add(new ParamBinding.Bean(i, extractFieldBindings(p.getType()))); continue; }
-            //No recognized annotation → request body (spec §3.1 — one body per method)
-            out.add(new ParamBinding.Body(i));
+            out.add(binding(params[i], i));
         }
         return out;
+    }
+
+    private static ParamBinding binding(Parameter p, int i) {
+        String dflt = defaultOf(p);
+        PathParam path = p.getAnnotation(PathParam.class);
+        if (path != null) return new ParamBinding.Path(i, path.value(), dflt);
+        QueryParam query = p.getAnnotation(QueryParam.class);
+        if (query != null) return new ParamBinding.Query(i, query.value(), dflt);
+        HeaderParam header = p.getAnnotation(HeaderParam.class);
+        if (header != null) return new ParamBinding.Header(i, header.value(), dflt);
+        CookieParam cookie = p.getAnnotation(CookieParam.class);
+        if (cookie != null) return new ParamBinding.Cookie(i, cookie.value(), dflt);
+        FormParam form = p.getAnnotation(FormParam.class);
+        if (form != null) return new ParamBinding.Form(i, form.value(), dflt);
+        MatrixParam matrix = p.getAnnotation(MatrixParam.class);
+        if (matrix != null) return new ParamBinding.Matrix(i, matrix.value(), dflt);
+        BeanParam bean = p.getAnnotation(BeanParam.class);
+        if (bean != null) return new ParamBinding.Bean(i, extractFieldBindings(p.getType()));
+        //No recognized annotation → request body (spec §3.1 — one body per method)
+        return new ParamBinding.Body(i);
     }
 
     private static String defaultOf(Parameter p) {
@@ -373,22 +388,9 @@ public final class CyranoInterfaceScanner {
         var seen = new LinkedHashSet<String>();
         while (c != null && c != Object.class) {
             for (Field f : c.getDeclaredFields()) {
-                if (Modifier.isStatic(f.getModifiers())) continue;
-                if (!seen.add(f.getName())) continue;
-                String dflt = f.isAnnotationPresent(DefaultValue.class)
-                        ? f.getAnnotation(DefaultValue.class).value() : null;
-                if (f.isAnnotationPresent(PathParam.class)) {
-                    out.add(fb(f, ParamBinding.FieldBinding.Kind.PATH, f.getAnnotation(PathParam.class).value(), dflt));
-                } else if (f.isAnnotationPresent(QueryParam.class)) {
-                    out.add(fb(f, ParamBinding.FieldBinding.Kind.QUERY, f.getAnnotation(QueryParam.class).value(), dflt));
-                } else if (f.isAnnotationPresent(HeaderParam.class)) {
-                    out.add(fb(f, ParamBinding.FieldBinding.Kind.HEADER, f.getAnnotation(HeaderParam.class).value(), dflt));
-                } else if (f.isAnnotationPresent(CookieParam.class)) {
-                    out.add(fb(f, ParamBinding.FieldBinding.Kind.COOKIE, f.getAnnotation(CookieParam.class).value(), dflt));
-                } else if (f.isAnnotationPresent(FormParam.class)) {
-                    out.add(fb(f, ParamBinding.FieldBinding.Kind.FORM, f.getAnnotation(FormParam.class).value(), dflt));
-                } else if (f.isAnnotationPresent(MatrixParam.class)) {
-                    out.add(fb(f, ParamBinding.FieldBinding.Kind.MATRIX, f.getAnnotation(MatrixParam.class).value(), dflt));
+                if (!Modifier.isStatic(f.getModifiers()) && seen.add(f.getName())) {
+                    ParamBinding.FieldBinding binding = fieldBinding(f);
+                    if (binding != null) out.add(binding);
                 }
             }
             c = c.getSuperclass();
@@ -396,10 +398,30 @@ public final class CyranoInterfaceScanner {
         return out;
     }
 
+    /** Binding of an annotated {@code @BeanParam} field, or {@code null} when the field carries no parameter annotation. */
+    private static ParamBinding.FieldBinding fieldBinding(Field f) {
+        String dflt = f.isAnnotationPresent(DefaultValue.class)
+                ? f.getAnnotation(DefaultValue.class).value() : null;
+        if (f.isAnnotationPresent(PathParam.class)) {
+            return fb(f, ParamBinding.FieldBinding.Kind.PATH, f.getAnnotation(PathParam.class).value(), dflt);
+        } else if (f.isAnnotationPresent(QueryParam.class)) {
+            return fb(f, ParamBinding.FieldBinding.Kind.QUERY, f.getAnnotation(QueryParam.class).value(), dflt);
+        } else if (f.isAnnotationPresent(HeaderParam.class)) {
+            return fb(f, ParamBinding.FieldBinding.Kind.HEADER, f.getAnnotation(HeaderParam.class).value(), dflt);
+        } else if (f.isAnnotationPresent(CookieParam.class)) {
+            return fb(f, ParamBinding.FieldBinding.Kind.COOKIE, f.getAnnotation(CookieParam.class).value(), dflt);
+        } else if (f.isAnnotationPresent(FormParam.class)) {
+            return fb(f, ParamBinding.FieldBinding.Kind.FORM, f.getAnnotation(FormParam.class).value(), dflt);
+        } else if (f.isAnnotationPresent(MatrixParam.class)) {
+            return fb(f, ParamBinding.FieldBinding.Kind.MATRIX, f.getAnnotation(MatrixParam.class).value(), dflt);
+        }
+        return null;
+    }
+
     private static ParamBinding.FieldBinding fb(Field f, ParamBinding.FieldBinding.Kind kind, String name, String dflt) {
         //setAccessible: cyrano-core requires user beans to be accessible — for M2 we accept
         //the cost (beans are usually public POJOs open to the JAX-RS framework).
-        try { f.setAccessible(true); } catch (RuntimeException ignored) { /* field already accessible */ }
+        try { f.setAccessible(true); } catch (RuntimeException _) { /* field already accessible */ }
         return new ParamBinding.FieldBinding(f, kind, name, dflt);
     }
 
