@@ -22,6 +22,7 @@ package io.vidocq.cyrano.internal;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -135,37 +136,54 @@ public final class CyranoLightResponse extends Response {
     @Override public Object getEntity() { return body; }
 
     @Override
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings("unchecked")
     public <T> T readEntity(Class<T> entityType) {
-        if (configuration != null) {
-            MessageBodyReader reader = findReader(entityType);
-            if (reader != null) {
-                try {
-                    InputStream is = new ByteArrayInputStream(
-                            body != null ? body.getBytes(StandardCharsets.UTF_8) : new byte[0]);
-                    List<ReaderInterceptor> interceptors = configuration.getReaderInterceptors();
-                    if (!interceptors.isEmpty()) {
-                        return (T) new CyranoReaderInterceptorContext(interceptors, reader,
-                                entityType, entityType, new Annotation[0],
-                                getMediaType(), new MultivaluedHashMap<>(), is).proceed();
-                    } else {
-                        return (T) reader.readFrom(entityType, entityType, new Annotation[0],
-                                getMediaType(), new MultivaluedHashMap<>(), is);
-                    }
-                } catch (IOException e) {
-                    throw new ProcessingException(e);
-                }
-            }
+        MessageBodyReader<?> reader = findReader(entityType);
+        if (reader != null) {
+            return (T) readWithProvider(reader, entityType);
         }
+        return readBuiltIn(entityType);
+    }
+
+    /** Spec §4.2 / §6.5: a registered MessageBodyReader, through the ReaderInterceptors when present. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Object readWithProvider(MessageBodyReader reader, Class<?> entityType) {
+        InputStream is = new ByteArrayInputStream(
+                body != null ? body.getBytes(StandardCharsets.UTF_8) : new byte[0]);
+        try {
+            List<ReaderInterceptor> interceptors = configuration.getReaderInterceptors();
+            if (interceptors.isEmpty()) {
+                return reader.readFrom(entityType, entityType, new Annotation[0],
+                        getMediaType(), new MultivaluedHashMap<>(), is);
+            }
+            return new CyranoReaderInterceptorContext(interceptors, reader,
+                    entityType, entityType, new Annotation[0],
+                    getMediaType(), new MultivaluedHashMap<>(), is).proceed();
+        } catch (IOException e) {
+            throw new ProcessingException(e);
+        }
+    }
+
+    /** Entity types readable without any registered provider. */
+    @SuppressWarnings("unchecked")
+    private <T> T readBuiltIn(Class<T> entityType) {
         if (entityType == String.class) return (T) body;
         if (entityType == JsonArray.class) {
-            return (T) Json.createReader(new StringReader(body == null ? "" : body)).readArray();
+            try (JsonReader json = jsonReader()) {
+                return (T) json.readArray();
+            }
         }
         if (entityType == JsonObject.class) {
-            return (T) Json.createReader(new StringReader(body == null ? "" : body)).readObject();
+            try (JsonReader json = jsonReader()) {
+                return (T) json.readObject();
+            }
         }
         throw new UnsupportedOperationException("readEntity(" + entityType.getSimpleName()
                 + ") requires a registered MessageBodyReader");
+    }
+
+    private JsonReader jsonReader() {
+        return Json.createReader(new StringReader(body == null ? "" : body));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

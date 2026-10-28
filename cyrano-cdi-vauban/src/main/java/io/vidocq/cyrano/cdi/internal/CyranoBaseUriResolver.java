@@ -160,7 +160,7 @@ public final class CyranoBaseUriResolver {
                     }
                     @SuppressWarnings("unchecked")
                     Optional<String> value = (Optional<String>) getOptionalValue.invoke(config, key, String.class);
-                    if (value != null && value.isPresent()) return value;
+                    if (value.isPresent()) return value;
                 } catch (ReflectiveOperationException | RuntimeException ignored) {
                     // fall through to system property fallback
                 }

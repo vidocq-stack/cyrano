@@ -318,9 +318,7 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
             var value = (java.util.Optional<Boolean>) configClass
                     .getMethod("getOptionalValue", String.class, Class.class)
                     .invoke(config, DISABLE_DEFAULT_MAPPER_PROPERTY, Boolean.class);
-            if (value != null) {
-                value.ifPresent(v -> property(DISABLE_DEFAULT_MAPPER_PROPERTY, v));
-            }
+            value.ifPresent(v -> property(DISABLE_DEFAULT_MAPPER_PROPERTY, v));
         } catch (ReflectiveOperationException | RuntimeException ignored) {
             //MP Config absent from the runtime — not an error.
         }

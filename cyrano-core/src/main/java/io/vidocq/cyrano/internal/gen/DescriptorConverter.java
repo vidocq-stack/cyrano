@@ -118,6 +118,7 @@ public final class DescriptorConverter {
 
     private static Field resolveField(Class<?> iface, ClientMethodDescriptor md,
                                       Class<?> beanType, String fieldName) {
+        String beanTypeName = beanType.getName();
         Class<?> c = beanType;
         while (c != null && c != Object.class) {
             for (Field f : c.getDeclaredFields()) {
@@ -136,7 +137,7 @@ public final class DescriptorConverter {
         }
         throw new IllegalArgumentException(
                 "Descriptor @BeanParam field '" + fieldName + "' not found on "
-                        + beanType.getName() + " (method " + md.methodName()
+                        + beanTypeName + " (method " + md.methodName()
                         + " of " + iface.getName() + ") — stale generated class?");
     }
 

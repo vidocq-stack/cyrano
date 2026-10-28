@@ -80,10 +80,8 @@ public interface ProviderInstantiator {
      * reflective one. Result is recomputed per call; no thread-safe cache is imposed here.
      */
     static ProviderInstantiator current() {
-        for (ProviderInstantiator pi : ServiceLoader.load(ProviderInstantiator.class)) {
-            return pi;
-        }
-        return defaultInstantiator();
+        return ServiceLoader.load(ProviderInstantiator.class).findFirst()
+                .orElseGet(ProviderInstantiator::defaultInstantiator);
     }
 }
 
