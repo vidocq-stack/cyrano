@@ -33,7 +33,9 @@ class CyranoVersionTest {
     @Test
     void implementationVersionMatchesTheBuildVersion() {
         // project.version is injected by surefire (systemPropertyVariables).
-        assertEquals(System.getProperty("project.version"), Cyrano.IMPLEMENTATION_VERSION,
+        String buildVersion = System.getProperty("project.version");
+        String implementationVersion = Cyrano.IMPLEMENTATION_VERSION;
+        assertEquals(buildVersion, implementationVersion,
                 "Cyrano.IMPLEMENTATION_VERSION must be the Maven build version, not a hardcoded constant");
     }
 

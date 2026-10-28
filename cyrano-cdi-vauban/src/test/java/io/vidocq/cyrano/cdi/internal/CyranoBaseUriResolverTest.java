@@ -83,8 +83,9 @@ class CyranoBaseUriResolverTest {
     @Test
     @DisplayName("§5: no source available -> IllegalStateException")
     void throws_when_no_baseUri_source_available() {
+        var lookup = staticLookup(Map.of());
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> CyranoBaseUriResolver.resolve(FQN, "", "", staticLookup(Map.of())));
+                () -> CyranoBaseUriResolver.resolve(FQN, "", "", lookup));
         assertTrue(ex.getMessage().contains(FQN));
         assertTrue(ex.getMessage().contains("§5"));
     }

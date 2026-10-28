@@ -25,7 +25,6 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.QueryParam;
 import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam;
-import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParams;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -96,10 +95,8 @@ class CyranoInterfaceScannerTest {
         default String invalid(Integer v) { return String.valueOf(v); }
     }
 
-    @ClientHeaderParams({
-            @ClientHeaderParam(name = "X-Test", value = "first"),
-            @ClientHeaderParam(name = "X-Test", value = "second")
-    })
+    @ClientHeaderParam(name = "X-Test", value = "first")
+    @ClientHeaderParam(name = "X-Test", value = "second")
     interface DuplicateClientHeaderOnType {
         @GET String call();
     }

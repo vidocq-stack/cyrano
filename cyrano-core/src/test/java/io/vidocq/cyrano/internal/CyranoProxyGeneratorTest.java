@@ -147,8 +147,8 @@ class CyranoProxyGeneratorTest {
         Class<?> iface = hostInterface(HostModule.named(dir, HOST)
                 .requires("io.vidocq.cyrano.mp.rest.client.api"));
 
-        var failure = assertThrows(RestClientDefinitionException.class, () -> new CyranoRestClientBuilderResolver()
-                .newBuilder().baseUri(URI.create("http://localhost:1")).build(iface));
+        var builder = new CyranoRestClientBuilderResolver().newBuilder().baseUri(URI.create("http://localhost:1"));
+        var failure = assertThrows(RestClientDefinitionException.class, () -> builder.build(iface));
 
         assertTrue(failure.getMessage().contains("opens " + HOST_PACKAGE + " to io.vidocq.cyrano.core"),
                 failure.getMessage());

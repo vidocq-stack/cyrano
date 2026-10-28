@@ -62,8 +62,9 @@ class ClientDescriptorTest {
         var descriptor = new ClientDescriptor(SampleApi.class, methods);
         methods.clear();
         assertEquals(1, descriptor.methods().size());
-        assertThrows(UnsupportedOperationException.class,
-                () -> descriptor.methods().add(sampleMethod()));
+        var copied = descriptor.methods();
+        var extra = sampleMethod();
+        assertThrows(UnsupportedOperationException.class, () -> copied.add(extra));
     }
 
     @Test

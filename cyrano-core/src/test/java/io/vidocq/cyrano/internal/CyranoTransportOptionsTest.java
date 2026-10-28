@@ -32,6 +32,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -80,11 +81,7 @@ class CyranoTransportOptionsTest {
                 payload = "followed redirect".getBytes(StandardCharsets.UTF_8);
                 status = 200;
             } else if ("/slow".equals(path)) {
-                try {
-                    Thread.sleep(400);
-                } catch (InterruptedException _) {
-                    Thread.currentThread().interrupt();
-                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(400));
                 payload = "slow-body".getBytes(StandardCharsets.UTF_8);
                 status = 200;
             } else {
@@ -164,8 +161,8 @@ class CyranoTransportOptionsTest {
 
     @Test
     void proxyAddress_rejects_null_host() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new CyranoRestClientBuilder().proxyAddress(null, 8080));
+        CyranoRestClientBuilder builder = new CyranoRestClientBuilder();
+        assertThrows(IllegalArgumentException.class, () -> builder.proxyAddress(null, 8080));
     }
 
     @Test
@@ -177,8 +174,8 @@ class CyranoTransportOptionsTest {
 
     @Test
     void proxyAddress_rejects_invalid_port_high_values() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new CyranoRestClientBuilder().proxyAddress("localhost", 65536));
+        CyranoRestClientBuilder builder = new CyranoRestClientBuilder();
+        assertThrows(IllegalArgumentException.class, () -> builder.proxyAddress("localhost", 65536));
     }
 }
 

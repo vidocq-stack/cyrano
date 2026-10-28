@@ -20,8 +20,12 @@
 package io.vidocq.cyrano.internal.sse;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -46,14 +50,6 @@ class SseEventParserTest {
         assertNull(ev.comment());
         assertNull(ev.id());
         assertNull(ev.retryMillis());
-    }
-
-    @Test
-    void multiLineData_is_joined_with_newline() {
-        var parser = new SseEventParser();
-        var events = parser.feed("data: line1\ndata: line2\n\n");
-        assertEquals(1, events.size());
-        assertEquals("line1\nline2", events.get(0).data());
     }
 
     @Test
@@ -101,30 +97,27 @@ class SseEventParserTest {
         assertEquals("one\ntwo", events.get(0).comment());
     }
 
-    @Test
-    void fieldWithoutColon_is_treated_as_field_name_with_empty_value() {
+    /**
+     * Data value of a single event, WHATWG field parsing: data lines joined with a newline, a line
+     * without colon is a field name with an empty value, only one leading space is stripped, no
+     * space keeps the value intact, empty data lines accumulate as newlines.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("singleEventData")
+    void single_event_data_follows_the_whatwg_field_parsing(String description, String stream, String expectedData) {
         var parser = new SseEventParser();
-        //WHATWG: a line with no colon is processed with the whole line as the
-        //field name and the empty string as the value.
-        var events = parser.feed("data\n\n");
-        assertEquals(1, events.size());
-        assertEquals("", events.get(0).data());
+        var events = parser.feed(stream);
+        assertEquals(1, events.size(), description);
+        assertEquals(expectedData, events.get(0).data(), description);
     }
 
-    @Test
-    void onlyOneLeadingSpace_after_colon_is_stripped() {
-        var parser = new SseEventParser();
-        var events = parser.feed("data:  spaced\n\n");
-        assertEquals(1, events.size());
-        assertEquals(" spaced", events.get(0).data());
-    }
-
-    @Test
-    void noSpaceAfterColon_keeps_value_intact() {
-        var parser = new SseEventParser();
-        var events = parser.feed("data:tight\n\n");
-        assertEquals(1, events.size());
-        assertEquals("tight", events.get(0).data());
+    static Stream<Arguments> singleEventData() {
+        return Stream.of(
+                Arguments.of("multi-line data is joined with newline", "data: line1\ndata: line2\n\n", "line1\nline2"),
+                Arguments.of("field without colon has an empty value", "data\n\n", ""),
+                Arguments.of("only one leading space is stripped", "data:  spaced\n\n", " spaced"),
+                Arguments.of("no space after colon keeps the value", "data:tight\n\n", "tight"),
+                Arguments.of("empty data lines accumulate as newlines", "data:\ndata:\n\n", "\n"));
     }
 
     @Test
@@ -181,15 +174,6 @@ class SseEventParserTest {
         var events = parser.feed("﻿" + "data: x\n\n"); // first char is a literal U+FEFF BOM
         assertEquals(1, events.size());
         assertEquals("x", events.get(0).data());
-    }
-
-    @Test
-    void empty_data_lines_accumulate_as_newlines() {
-        var parser = new SseEventParser();
-        var events = parser.feed("data:\ndata:\n\n");
-        assertEquals(1, events.size());
-        //Two empty data lines joined with \n.
-        assertEquals("\n", events.get(0).data());
     }
 
     @Test
