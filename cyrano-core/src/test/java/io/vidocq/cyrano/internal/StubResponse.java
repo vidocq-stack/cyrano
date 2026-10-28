@@ -48,6 +48,10 @@ final class StubResponse extends Response {
         return new StubResponse(status, body);
     }
 
+    static StubResponse ofEntity(int status, Object entity) {
+        return new StubResponse(status, entity);
+    }
+
     private StubResponse(int status, Object entity) {
         this.status = status;
         this.entity = entity;
