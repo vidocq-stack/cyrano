@@ -216,7 +216,6 @@ class CyranoRestClientBuilderTest {
         RegisteringFeature feature = new RegisteringFeature();
         RestClientBuilder builder = new CyranoRestClientBuilder().baseUri(BASE)
                 .register(feature)
-                .register(InstanceFeature.class)
                 .register(FailingFeature.class);
 
         PingApi client = builder.build(PingApi.class);
@@ -226,10 +225,24 @@ class CyranoRestClientBuilderTest {
         assertEquals(true, configuration.getProperty("feature.ran"));
         assertTrue(configuration.isEnabled(feature));
         assertTrue(configuration.isEnabled(RegisteringFeature.class));
-        assertFalse(configuration.isEnabled(InstanceFeature.class));
         assertFalse(configuration.isEnabled(FailingFeature.class));
+        assertEquals(Map.of(ClientRequestFilter.class, 10, ClientResponseFilter.class, 10),
+                configuration.getContracts(SecondFilter.class));
+        assertEquals(Map.of(ReaderInterceptor.class, 7), configuration.getContracts(Interceptors.class));
+    }
+
+    @Test
+    void a_feature_registers_provider_instances_and_may_decline_to_be_enabled() {
+        // A separate builder: features run in no defined order, and both features register the same classes.
+        RestClientBuilder builder = new CyranoRestClientBuilder().baseUri(BASE).register(InstanceFeature.class);
+
+        builder.build(PingApi.class);
+
+        Configuration configuration = builder.getConfiguration();
+        assertFalse(configuration.isEnabled(InstanceFeature.class));
         assertEquals(Map.of(ClientRequestFilter.class, 20, ClientResponseFilter.class, 20),
                 configuration.getContracts(SecondFilter.class));
+        assertEquals(Map.of(ClientRequestFilter.class, Priorities.USER), configuration.getContracts(ThirdFilter.class));
         assertEquals(Map.of(WriterInterceptor.class, 3), configuration.getContracts(Interceptors.class));
     }
 
