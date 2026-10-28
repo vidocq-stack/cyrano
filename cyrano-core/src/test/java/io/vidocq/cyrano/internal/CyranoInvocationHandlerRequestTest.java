@@ -148,6 +148,10 @@ class CyranoInvocationHandlerRequestTest {
 
         @Path("/sub/{id}")
         SubApi sub(@PathParam("id") String id);
+
+        @GET
+        @Path("/with space")
+        String spaced();
     }
 
     public interface SubApi {
@@ -181,6 +185,17 @@ class CyranoInvocationHandlerRequestTest {
         @ClientHeaderParam(name = "X-Checked", value = "{checked}")
         String requiredChecked();
 
+        @GET
+        @Path("/h")
+        @ClientHeaderParam(name = "X-Error", value = "{erroring}")
+        String requiredError();
+
+        @GET
+        @Path("/h")
+        @ClientHeaderParam(name = "X-External-Named",
+                value = "{io.vidocq.cyrano.internal.CyranoInvocationHandlerRequestTest.externalNamed}")
+        String externalNamed();
+
         default String computed() {
             return "c";
         }
@@ -204,10 +219,18 @@ class CyranoInvocationHandlerRequestTest {
         default String checked() throws IOException {
             throw new IOException(BOOM);
         }
+
+        default String erroring() {
+            throw new AssertionError(BOOM);
+        }
     }
 
     public static String external() {
         return "ext";
+    }
+
+    public static String externalNamed(String name) {
+        return "ext:" + name;
     }
 
     /** Adds a header and keeps the others (spec §3.3 ClientHeadersFactory). */
@@ -442,6 +465,29 @@ class CyranoInvocationHandlerRequestTest {
 
         client.headers("runtime");
         assertEquals("runtime", last().header(X_STATIC));
+    }
+
+    @Test
+    void external_compute_method_receives_the_header_name_spec_section6_5() {
+        builder().build(HeaderApi.class).externalNamed();
+
+        assertEquals("ext:X-External-Named", last().header("X-External-Named"));
+    }
+
+    @Test
+    void an_error_of_a_compute_method_reaches_the_caller_unchanged() {
+        HeaderApi client = builder().build(HeaderApi.class);
+
+        AssertionError error = assertThrows(AssertionError.class, client::requiredError);
+
+        assertEquals(BOOM, error.getMessage());
+    }
+
+    @Test
+    void a_path_with_a_character_illegal_in_uris_is_percent_encoded() {
+        builder().build(ParamApi.class).spaced();
+
+        assertEquals(BASE + "/with%20space", last().rawPath());
     }
 
     @Test

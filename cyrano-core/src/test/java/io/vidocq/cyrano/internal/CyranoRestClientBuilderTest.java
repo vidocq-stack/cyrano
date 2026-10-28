@@ -35,11 +35,18 @@ import jakarta.ws.rs.ext.WriterInterceptorContext;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.eclipse.microprofile.rest.client.RestClientDefinitionException;
 import org.eclipse.microprofile.rest.client.ext.QueryParamStyle;
+import org.eclipse.microprofile.rest.client.spi.RestClientListener;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
+import java.io.IOException;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -47,6 +54,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -327,6 +335,39 @@ class CyranoRestClientBuilderTest {
 
         RestClientBuilder withUri = new CyranoRestClientBuilder().baseUri(BASE);
         assertThrows(RestClientDefinitionException.class, () -> withUri.build(String.class));
+    }
+
+    /** Counts the clients it is told about; listed in a {@code services/} file, see the test below. */
+    public static final class CountingListener implements RestClientListener {
+        static final AtomicInteger CALLS = new AtomicInteger();
+
+        @Override
+        public void onNewClient(Class<?> serviceInterface, RestClientBuilder builder) {
+            CALLS.incrementAndGet();
+        }
+    }
+
+    @Test
+    void listeners_listed_in_a_services_file_of_the_context_class_loader_are_notified(@TempDir Path dir)
+            throws IOException {
+        Path services = Files.createDirectories(dir.resolve("services"));
+        Files.writeString(services.resolve(RestClientListener.class.getName()), String.join("\n",
+                "# comment line",
+                "",
+                "io.vidocq.cyrano.internal.DoesNotExist",
+                "java.lang.String",
+                CountingListener.class.getName() + " # trailing comment",
+                CountingListener.class.getName()));
+        ClassLoader previous = Thread.currentThread().getContextClassLoader();
+        int before = CountingListener.CALLS.get();
+        try (URLClassLoader loader = new URLClassLoader(new URL[] {dir.toUri().toURL()}, getClass().getClassLoader())) {
+            Thread.currentThread().setContextClassLoader(loader);
+            new CyranoRestClientBuilder().baseUri(BASE).build(PingApi.class);
+        } finally {
+            Thread.currentThread().setContextClassLoader(previous);
+        }
+
+        assertEquals(before + 1, CountingListener.CALLS.get());
     }
 
     @Test
