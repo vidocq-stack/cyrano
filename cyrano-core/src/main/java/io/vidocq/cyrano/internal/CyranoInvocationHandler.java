@@ -36,12 +36,14 @@ import org.eclipse.microprofile.rest.client.annotation.RegisterClientHeaders;
 import org.eclipse.microprofile.rest.client.ext.AsyncInvocationInterceptor;
 import org.eclipse.microprofile.rest.client.ext.AsyncInvocationInterceptorFactory;
 import org.eclipse.microprofile.rest.client.ext.ClientHeadersFactory;
+import org.eclipse.microprofile.rest.client.ext.QueryParamStyle;
 import org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -82,6 +84,7 @@ import java.util.concurrent.Executor;
 public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientInvoker {
 
     private static final System.Logger LOG = System.getLogger(CyranoInvocationHandler.class.getName());
+    private static final String DISABLE_DEFAULT_MAPPER = "microprofile.rest.client.disable.default.mapper";
 
     private final URI baseUri;
     private final List<RequestSpec> specs;
@@ -102,6 +105,12 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         this.configuration = configuration;
     }
 
+    /** Spec §8.1 — called by the synthetic close() of the proxy. */
+    @Override
+    public void markClosed() {
+        this.closed = true;
+    }
+
     /**
      * Single entry point called by each method of the generated proxy.
      *
@@ -110,12 +119,6 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
      * @param methodIndex method index in the {@code specs} list
      * @param args arguments passed by the caller
      */
-    /** Spec §8.1 — called by the synthetic close() of the proxy. */
-    @Override
-    public void markClosed() {
-        this.closed = true;
-    }
-
     @Override
     public Object invoke(Object proxy, int methodIndex, Object[] args) throws Exception {
         RequestSpec spec = specs.get(methodIndex);
@@ -123,10 +126,10 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
                 proxy,
                 spec.method(),
                 args,
-                () -> invokeInternal(proxy, methodIndex, args, spec));
+                () -> invokeInternal(proxy, args, spec));
     }
 
-    private Object invokeInternal(Object proxy, int methodIndex, Object[] args, RequestSpec spec) throws Exception {
+    private Object invokeInternal(Object proxy, Object[] args, RequestSpec spec) {
         if (closed) {
             throw new IllegalStateException(
                     "This REST client has been closed — MP Rest Client 4.0 spec §8.1");
@@ -150,11 +153,38 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         //4. Prepare filtered context (MP Rest Client §4.2 + JAX-RS §6.3, iteration M4-2)
         CyranoClientRequestContext reqCtx = new CyranoClientRequestContext(uri, spec.httpMethod(), configuration);
         seedHeaders(reqCtx, spec, r, proxy, body);
-        seedEntity(reqCtx, spec, r, body);
+        seedEntity(reqCtx, r);
         //MP Rest Client §4.2 — standard filter property
         reqCtx.setProperty("org.eclipse.microprofile.rest.client.invokedMethod", spec.method());
 
         //5. Pipeline ClientRequestFilter (top-up priorities)
+        runRequestFilters(reqCtx, spec);
+
+        //SSE — MP Rest Client 4.0 §10: org.reactivestreams.Publisher<T> return
+        //type streams the text/event-stream response (Accept already seeded
+        //from @Produces). The class is matched by NAME so the reactive-streams
+        //jar stays optional at runtime — only SseReturnSupport imports it.
+        if (isReactiveStreamsPublisher(spec.returnType())) {
+            return ssePublisher(reqCtx, spec);
+        }
+
+        //6. Either we've been aborted or we're actually sending the request.
+        if (asyncReturn) {
+            return invokeAsync(reqCtx, spec);
+        }
+
+        CyranoClientResponseContext respCtx = reqCtx.isAborted()
+                ? CyranoClientResponseContext.fromAbort(reqCtx.abortResponse())
+                : send(reqCtx);
+
+        //7. Pipeline ClientResponseFilter (top-down priorities)
+        runResponseFilters(reqCtx, respCtx);
+
+        // 8. Final mapping of the return value
+        return mapResponse(respCtx, spec);
+    }
+
+    private void runRequestFilters(CyranoClientRequestContext reqCtx, RequestSpec spec) {
         var reqFilters = configuration.getRequestFilters();
         if (Boolean.getBoolean("cyrano.debug.providers")) {
             LOG.log(System.Logger.Level.DEBUG, () -> "req filters for " + spec.method().getName()
@@ -169,96 +199,9 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
             }
             if (reqCtx.isAborted()) break;
         }
+    }
 
-        //SSE — MP Rest Client 4.0 §10: org.reactivestreams.Publisher<T> return
-        //type streams the text/event-stream response (Accept already seeded
-        //from @Produces). The class is matched by NAME so the reactive-streams
-        //jar stays optional at runtime — only SseReturnSupport imports it.
-        if (isReactiveStreamsPublisher(spec.returnType())) {
-            if (reqCtx.isAborted()) {
-                int abortStatus = reqCtx.abortResponse() != null
-                        ? reqCtx.abortResponse().getStatus() : 200;
-                return io.vidocq.cyrano.internal.sse.SseReturnSupport.abortedPublisher(abortStatus);
-            }
-            HttpRequest sseReq = buildHttpRequest(reqCtx);
-            return io.vidocq.cyrano.internal.sse.SseReturnSupport.createPublisher(
-                    transport, sseReq, innerType(spec.genericReturnType()), configuration);
-        }
-
-        //6. Either we've been aborted or we're actually sending the request.
-        if (asyncReturn) {
-            Type asyncGenericType = innerType(spec.genericReturnType());
-            Class<?> asyncRawType = rawType(asyncGenericType);
-            List<AsyncInvocationInterceptor> asyncInterceptors = newAsyncInterceptors();
-            for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
-                try { interceptor.prepareContext(); } catch (RuntimeException ignored) {}
-            }
-            //An aborted request is answered asynchronously too: the response filters, readers and
-            //applyContext() run off the caller's thread, as for a sent request (BUG-20261008-05).
-            if (reqCtx.isAborted()) {
-                return CompletableFuture.supplyAsync(() -> {
-                    for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
-                        try { interceptor.applyContext(); } catch (RuntimeException ignored) {}
-                    }
-                    try {
-                        CyranoClientResponseContext respCtx = CyranoClientResponseContext.fromAbort(reqCtx.abortResponse());
-                        for (var f : configuration.getResponseFilters()) {
-                            try {
-                                f.filter(reqCtx, respCtx);
-                            } catch (IOException ioe) {
-                                throw new jakarta.ws.rs.ProcessingException(ioe);
-                            }
-                        }
-                        return mapResponse(respCtx, spec, asyncRawType, asyncGenericType);
-                    } finally {
-                        for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
-                            try { interceptor.removeContext(); } catch (RuntimeException ignored) {}
-                        }
-                    }
-                }, asyncCallbackExecutor());
-            }
-
-            HttpRequest finalReq = buildHttpRequest(reqCtx);
-            return transport.sendAsync(finalReq).thenApplyAsync(resp -> {
-                for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
-                    try { interceptor.applyContext(); } catch (RuntimeException ignored) {}
-                }
-                try {
-                    CyranoClientResponseContext respCtx = CyranoClientResponseContext.of(resp);
-                    for (var f : configuration.getResponseFilters()) {
-                        try {
-                            f.filter(reqCtx, respCtx);
-                        } catch (IOException ioe) {
-                            throw new jakarta.ws.rs.ProcessingException(ioe);
-                        }
-                    }
-                    return mapResponse(respCtx, spec, asyncRawType, asyncGenericType);
-                } finally {
-                    for (AsyncInvocationInterceptor interceptor : asyncInterceptors) {
-                        try { interceptor.removeContext(); } catch (RuntimeException ignored) {}
-                    }
-                }
-            }, asyncCallbackExecutor());
-        }
-
-        CyranoClientResponseContext respCtx;
-        if (reqCtx.isAborted()) {
-            respCtx = CyranoClientResponseContext.fromAbort(reqCtx.abortResponse());
-        } else {
-            HttpRequest finalReq = buildHttpRequest(reqCtx);
-            HttpResponse<String> resp;
-            try {
-                resp = transport.send(finalReq);
-            } catch (IOException ioe) {
-                throw new jakarta.ws.rs.ProcessingException(ioe);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new jakarta.ws.rs.ProcessingException(ie);
-            }
-            respCtx = CyranoClientResponseContext.of(resp);
-        }
-
-        //7. Pipeline ClientResponseFilter (top-down priorities)
+    private void runResponseFilters(CyranoClientRequestContext reqCtx, CyranoClientResponseContext respCtx) {
         for (var f : configuration.getResponseFilters()) {
             try {
                 f.filter(reqCtx, respCtx);
@@ -266,9 +209,98 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
                 throw new jakarta.ws.rs.ProcessingException(ioe);
             }
         }
+    }
 
-        // 8. Final mapping of the return value
-        return mapResponse(respCtx, spec);
+    private Object ssePublisher(CyranoClientRequestContext reqCtx, RequestSpec spec) {
+        if (reqCtx.isAborted()) {
+            int abortStatus = reqCtx.abortResponse() != null
+                    ? reqCtx.abortResponse().getStatus() : 200;
+            return io.vidocq.cyrano.internal.sse.SseReturnSupport.abortedPublisher(abortStatus);
+        }
+        HttpRequest sseReq = buildHttpRequest(reqCtx);
+        return io.vidocq.cyrano.internal.sse.SseReturnSupport.createPublisher(
+                transport, sseReq, innerType(spec.genericReturnType()), configuration);
+    }
+
+    private CompletableFuture<Object> invokeAsync(CyranoClientRequestContext reqCtx, RequestSpec spec) {
+        Type asyncGenericType = innerType(spec.genericReturnType());
+        Class<?> asyncRawType = rawType(asyncGenericType);
+        List<AsyncInvocationInterceptor> asyncInterceptors = newAsyncInterceptors();
+        prepareContexts(asyncInterceptors);
+        //An aborted request is answered asynchronously too: the response filters, readers and
+        //applyContext() run off the caller's thread, as for a sent request (BUG-20261008-05).
+        if (reqCtx.isAborted()) {
+            return CompletableFuture.supplyAsync(() -> {
+                applyContexts(asyncInterceptors);
+                try {
+                    return filterAndMap(reqCtx, CyranoClientResponseContext.fromAbort(reqCtx.abortResponse()),
+                            spec, asyncRawType, asyncGenericType);
+                } finally {
+                    removeContexts(asyncInterceptors);
+                }
+            }, asyncCallbackExecutor());
+        }
+
+        HttpRequest finalReq = buildHttpRequest(reqCtx);
+        return transport.sendAsync(finalReq).thenApplyAsync(resp -> {
+            applyContexts(asyncInterceptors);
+            try {
+                return filterAndMap(reqCtx, CyranoClientResponseContext.of(resp),
+                        spec, asyncRawType, asyncGenericType);
+            } finally {
+                removeContexts(asyncInterceptors);
+            }
+        }, asyncCallbackExecutor());
+    }
+
+    private Object filterAndMap(CyranoClientRequestContext reqCtx, CyranoClientResponseContext respCtx,
+                                RequestSpec spec, Class<?> rawType, Type genericType) {
+        runResponseFilters(reqCtx, respCtx);
+        return mapResponse(respCtx, spec, rawType, genericType);
+    }
+
+    private static void prepareContexts(List<AsyncInvocationInterceptor> interceptors) {
+        for (AsyncInvocationInterceptor interceptor : interceptors) {
+            try {
+                interceptor.prepareContext();
+            } catch (RuntimeException _) {
+                //a failing interceptor must not prevent the invocation
+            }
+        }
+    }
+
+    private static void applyContexts(List<AsyncInvocationInterceptor> interceptors) {
+        for (AsyncInvocationInterceptor interceptor : interceptors) {
+            try {
+                interceptor.applyContext();
+            } catch (RuntimeException _) {
+                //a failing interceptor must not prevent the response processing
+            }
+        }
+    }
+
+    private static void removeContexts(List<AsyncInvocationInterceptor> interceptors) {
+        for (AsyncInvocationInterceptor interceptor : interceptors) {
+            try {
+                interceptor.removeContext();
+            } catch (RuntimeException _) {
+                //a failing interceptor must not prevent the cleanup of the others
+            }
+        }
+    }
+
+    private CyranoClientResponseContext send(CyranoClientRequestContext reqCtx) {
+        HttpRequest finalReq = buildHttpRequest(reqCtx);
+        HttpResponse<String> resp;
+        try {
+            resp = transport.send(finalReq);
+        } catch (IOException ioe) {
+            throw new jakarta.ws.rs.ProcessingException(ioe);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new jakarta.ws.rs.ProcessingException(ie);
+        }
+        return CyranoClientResponseContext.of(resp);
     }
 
     // ============================================================
@@ -279,125 +311,156 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         if (configuration.getReadTimeoutMs() > 0) {
             b.timeout(Duration.ofMillis(configuration.getReadTimeoutMs()));
         }
+        copyHeaders(ctx, b);
+        b.method(ctx.getMethod(), bodyPublisher(ctx));
+        return b.build();
+    }
+
+    private static void copyHeaders(CyranoClientRequestContext ctx, HttpRequest.Builder b) {
         //Headers — prohibited by JDK HttpClient: Host, Connection, etc. Keep
         // everything else, and silently ignore rejections.
         for (var e : ctx.getStringHeaders().entrySet()) {
             for (String v : e.getValue()) {
                 try { b.header(e.getKey(), v); }
-                catch (IllegalArgumentException ignored) { /* restricted header */ }
+                catch (IllegalArgumentException _) { /* restricted header */ }
             }
         }
-        HttpRequest.BodyPublisher pub;
+    }
+
+    private HttpRequest.BodyPublisher bodyPublisher(CyranoClientRequestContext ctx) {
         Object entity = ctx.getEntity();
         if (entity == null) {
-            pub = HttpRequest.BodyPublishers.noBody();
-        } else if (entity instanceof byte[] bytes) {
-            pub = HttpRequest.BodyPublishers.ofByteArray(bytes);
-        } else {
-            //Apply registered MessageBodyWriter (+interceptors) if applicable (spec §4.2 §6.5)
-            @SuppressWarnings({"rawtypes", "unchecked"})
-            MessageBodyWriter writer = findMessageBodyWriter(entity.getClass());
-            List<WriterInterceptor> writerInterceptors = configuration.getWriterInterceptors();
-            if (writer != null) {
-                String ctHeader = ctx.getHeaderString("Content-Type");
-                MediaType mediaType = parseMediaType(ctHeader);
-                try {
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    MultivaluedHashMap<String, Object> msgHeaders = new MultivaluedHashMap<>();
-                    if (!writerInterceptors.isEmpty()) {
-                        new CyranoWriterInterceptorContext(writerInterceptors, writer,
-                                entity, entity.getClass(), entity.getClass(),
-                                new Annotation[0], mediaType, msgHeaders, baos).proceed();
-                    } else {
-                        writer.writeTo(entity, entity.getClass(), entity.getClass(),
-                                new Annotation[0], mediaType, msgHeaders, baos);
-                    }
-                    pub = HttpRequest.BodyPublishers.ofByteArray(baos.toByteArray());
-                } catch (IOException e) {
-                    throw new jakarta.ws.rs.ProcessingException(e);
-                }
-            } else if (entity instanceof String s) {
-                pub = HttpRequest.BodyPublishers.ofString(s);
-            } else {
-                String json = jsonbFor(entity.getClass()).toJson(entity);
-                pub = HttpRequest.BodyPublishers.ofString(json);
-            }
+            return HttpRequest.BodyPublishers.noBody();
         }
-        b.method(ctx.getMethod(), pub);
-        return b.build();
+        if (entity instanceof byte[] bytes) {
+            return HttpRequest.BodyPublishers.ofByteArray(bytes);
+        }
+        //Apply registered MessageBodyWriter (+interceptors) if applicable (spec §4.2 §6.5)
+        MessageBodyWriter<?> writer = findMessageBodyWriter(entity.getClass());
+        if (writer != null) {
+            MediaType mediaType = parseMediaType(ctx.getHeaderString("Content-Type"));
+            return HttpRequest.BodyPublishers.ofByteArray(writeEntity(writer, entity, mediaType));
+        }
+        if (entity instanceof String s) {
+            return HttpRequest.BodyPublishers.ofString(s);
+        }
+        return HttpRequest.BodyPublishers.ofString(jsonbFor(entity.getClass()).toJson(entity));
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private byte[] writeEntity(MessageBodyWriter writer, Object entity, MediaType mediaType) {
+        List<WriterInterceptor> writerInterceptors = configuration.getWriterInterceptors();
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            MultivaluedHashMap<String, Object> msgHeaders = new MultivaluedHashMap<>();
+            if (!writerInterceptors.isEmpty()) {
+                new CyranoWriterInterceptorContext(writerInterceptors, writer,
+                        entity, entity.getClass(), entity.getClass(),
+                        new Annotation[0], mediaType, msgHeaders, baos).proceed();
+            } else {
+                writer.writeTo(entity, entity.getClass(), entity.getClass(),
+                        new Annotation[0], mediaType, msgHeaders, baos);
+            }
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new jakarta.ws.rs.ProcessingException(e);
+        }
     }
 
     // ============================================================
     //Step 1: Binding resolution (BeanParam expanded)
     // ============================================================
-    private record ResolvedBindings(
-            Map<String, String> pathParams,
-            Map<String, List<String>> queryParams,
-            Map<String, String> matrixParams,
-            Map<String, List<String>> headers,
-            Map<String, String> cookies,
-            Map<String, String> formParams,
-            Object body,
-            boolean hasBody) {
+    /**
+     * Binding values resolved for one invocation. A holder filled in place by the per-binding
+     * helpers — still one object per call, as the former record was.
+     */
+    private static final class ResolvedBindings {
+        private final Map<String, String> pathParams = new LinkedHashMap<>();
+        private final Map<String, List<String>> queryParams = new LinkedHashMap<>();
+        private final Map<String, String> matrixParams = new LinkedHashMap<>();
+        private final Map<String, List<String>> headers = new LinkedHashMap<>();
+        private final Map<String, String> cookies = new LinkedHashMap<>();
+        private final Map<String, String> formParams = new LinkedHashMap<>();
+        private Object body;
+        private boolean hasBody;
+
+        Map<String, String> pathParams() { return pathParams; }
+        Map<String, List<String>> queryParams() { return queryParams; }
+        Map<String, String> matrixParams() { return matrixParams; }
+        Map<String, List<String>> headers() { return headers; }
+        Map<String, String> cookies() { return cookies; }
+        Map<String, String> formParams() { return formParams; }
+        Object body() { return body; }
+        boolean hasBody() { return hasBody; }
+
+        void put(ParamBinding.FieldBinding.Kind kind, String name, String value) {
+            switch (kind) {
+                case PATH -> pathParams.put(name, value);
+                case QUERY -> addMulti(queryParams, name, value);
+                case HEADER -> addMulti(headers, name, value);
+                case COOKIE -> cookies.put(name, value);
+                case FORM -> formParams.put(name, value);
+                case MATRIX -> matrixParams.put(name, value);
+            }
+        }
     }
 
     private static ResolvedBindings resolveBindings(RequestSpec spec, Object[] args) {
-        Map<String, String> pathParams = new LinkedHashMap<>();
-        Map<String, List<String>> queryParams = new LinkedHashMap<>();
-        Map<String, String> matrixParams = new LinkedHashMap<>();
-        Map<String, List<String>> headers = new LinkedHashMap<>();
-        Map<String, String> cookies = new LinkedHashMap<>();
-        Map<String, String> formParams = new LinkedHashMap<>();
-        Object body = null;
-        boolean hasBody = false;
-
+        ResolvedBindings r = new ResolvedBindings();
         for (ParamBinding pb : spec.bindings()) {
-            switch (pb) {
-                case ParamBinding.Path p -> pathParams.put(p.name(), valueOrDefault(args[p.paramIndex()], p.defaultValue()));
-                case ParamBinding.Query q -> {
-                    Object qVal = args == null ? null : args[q.paramIndex()];
-                    if (qVal instanceof java.util.Collection<?> col) {
-                        for (Object item : col) addMulti(queryParams, q.name(), item == null ? null : stringify(item));
-                    } else if (qVal != null && qVal.getClass().isArray()) {
-                        for (Object item : (Object[]) qVal) addMulti(queryParams, q.name(), item == null ? null : stringify(item));
-                    } else {
-                        addMulti(queryParams, q.name(), valueOrDefault(qVal, q.defaultValue()));
-                    }
-                }
-                case ParamBinding.Header h -> addMulti(headers, h.name(), valueOrDefault(args[h.paramIndex()], h.defaultValue()));
-                case ParamBinding.Cookie c -> cookies.put(c.name(), valueOrDefault(args[c.paramIndex()], c.defaultValue()));
-                case ParamBinding.Form f -> formParams.put(f.name(), valueOrDefault(args[f.paramIndex()], f.defaultValue()));
-                case ParamBinding.Matrix mx -> matrixParams.put(mx.name(), valueOrDefault(args[mx.paramIndex()], mx.defaultValue()));
-                case ParamBinding.Body bd -> {
-                    body = args[bd.paramIndex()];
-                    hasBody = true;
-                }
-                case ParamBinding.Bean bean -> {
-                    Object beanObj = args[bean.paramIndex()];
-                    if (beanObj != null) {
-                        for (ParamBinding.FieldBinding fb : bean.fields()) {
-                            Object v;
-                            try { v = fb.field().get(beanObj); }
-                            catch (IllegalAccessException ex) {
-                                throw new IllegalStateException(
-                                        "@BeanParam.field access denied: " + fb.field(), ex);
-                            }
-                            String str = valueOrDefault(v, fb.defaultValue());
-                            if (str == null) continue;
-                            switch (fb.kind()) {
-                                case PATH -> pathParams.put(fb.name(), str);
-                                case QUERY -> addMulti(queryParams, fb.name(), str);
-                                case HEADER -> addMulti(headers, fb.name(), str);
-                                case COOKIE -> cookies.put(fb.name(), str);
-                                case FORM -> formParams.put(fb.name(), str);
-                                case MATRIX -> matrixParams.put(fb.name(), str);
-                            }
-                        }
-                    }
-                }
+            bind(r, pb, args);
+        }
+        return r;
+    }
+
+    private static void bind(ResolvedBindings r, ParamBinding pb, Object[] args) {
+        switch (pb) {
+            case ParamBinding.Path(var index, var name, var dflt) ->
+                    r.pathParams.put(name, valueOrDefault(args[index], dflt));
+            case ParamBinding.Query(var index, var name, var dflt) ->
+                    bindQuery(r.queryParams, name, args == null ? null : args[index], dflt);
+            case ParamBinding.Header(var index, var name, var dflt) ->
+                    addMulti(r.headers, name, valueOrDefault(args[index], dflt));
+            case ParamBinding.Cookie(var index, var name, var dflt) ->
+                    r.cookies.put(name, valueOrDefault(args[index], dflt));
+            case ParamBinding.Form(var index, var name, var dflt) ->
+                    r.formParams.put(name, valueOrDefault(args[index], dflt));
+            case ParamBinding.Matrix(var index, var name, var dflt) ->
+                    r.matrixParams.put(name, valueOrDefault(args[index], dflt));
+            case ParamBinding.Body(var index) -> {
+                r.body = args[index];
+                r.hasBody = true;
+            }
+            case ParamBinding.Bean(var index, var fields) -> bindBean(r, fields, args[index]);
+        }
+    }
+
+    private static void bindQuery(Map<String, List<String>> queryParams, String name, Object value, String dflt) {
+        if (value instanceof java.util.Collection<?> col) {
+            for (Object item : col) addMulti(queryParams, name, item == null ? null : stringify(item));
+        } else if (value != null && value.getClass().isArray()) {
+            for (Object item : (Object[]) value) addMulti(queryParams, name, item == null ? null : stringify(item));
+        } else {
+            addMulti(queryParams, name, valueOrDefault(value, dflt));
+        }
+    }
+
+    private static void bindBean(ResolvedBindings r, List<ParamBinding.FieldBinding> fields, Object beanObj) {
+        if (beanObj == null) {
+            return;
+        }
+        for (ParamBinding.FieldBinding fb : fields) {
+            Object v;
+            try { v = fb.field().get(beanObj); }
+            catch (IllegalAccessException ex) {
+                throw new IllegalStateException(
+                        "@BeanParam.field access denied: " + fb.field(), ex);
+            }
+            String str = valueOrDefault(v, fb.defaultValue());
+            if (str != null) {
+                r.put(fb.kind(), fb.name(), str);
             }
         }
-        return new ResolvedBindings(pathParams, queryParams, matrixParams, headers, cookies, formParams, body, hasBody);
     }
 
     private static String valueOrDefault(Object v, String dflt) {
@@ -427,51 +490,61 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         }
         //Matrix params: added to the last segment of the path (before ?query)
         if (!r.matrixParams().isEmpty()) {
-            StringBuilder sb = new StringBuilder(path);
-            for (var e : r.matrixParams().entrySet()) {
-                if (e.getValue() == null) continue;
-                sb.append(';').append(URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8))
-                        .append('=').append(URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8));
-            }
-            path = sb.toString();
+            path = appendMatrixParams(path, r.matrixParams());
         }
         //Query string — spec MP Rest Client §3.4 QueryParamStyle
-        String query = "";
-        if (!r.queryParams().isEmpty()) {
-            var style = configuration.getQueryParamStyle();
-            List<String> pairs = new ArrayList<>();
-            for (var e : r.queryParams().entrySet()) {
-                String rawKey = e.getKey();
-                List<String> values = e.getValue().stream().filter(v -> v != null).toList();
-                if (values.isEmpty()) continue;
-                switch (style) {
-                    case COMMA_SEPARATED -> {
-                        String key = URLEncoder.encode(rawKey, StandardCharsets.UTF_8);
-                        String joined = values.stream()
-                                .map(v -> URLEncoder.encode(v, StandardCharsets.UTF_8))
-                                .collect(java.util.stream.Collectors.joining(","));
-                        pairs.add(key + "=" + joined);
-                    }
-                    case ARRAY_PAIRS -> {
-                        // RFC note: [] are technically invalid in URIs but widely used in practice.
-                        //Don't URL-encode [] — Java's URI(scheme, ssp, null) preserves them.
-                        String key = URLEncoder.encode(rawKey, StandardCharsets.UTF_8) + "[]";
-                        for (String v : values) pairs.add(key + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8));
-                    }
-                    default -> { // MULTI_PAIRS
-                        String key = URLEncoder.encode(rawKey, StandardCharsets.UTF_8);
-                        for (String v : values) pairs.add(key + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8));
-                    }
-                }
-            }
-            if (!pairs.isEmpty()) query = "?" + String.join("&", pairs);
-        }
+        String query = r.queryParams().isEmpty() ? "" : queryString(r.queryParams());
         String base = baseUri.toString();
         if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
         //If the path is just "/" (explicit @Path method), do not add a slash
         //Final that is not part of the contract (ConfigKeyForMultipleInterfacesTest §6.5).
         if ("/".equals(path) && query.isEmpty()) path = "";
         return buildFinalUri(base + path + query);
+    }
+
+    private static String appendMatrixParams(String path, Map<String, String> matrixParams) {
+        StringBuilder sb = new StringBuilder(path);
+        for (var e : matrixParams.entrySet()) {
+            if (e.getValue() != null) {
+                sb.append(';').append(URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8))
+                        .append('=').append(URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8));
+            }
+        }
+        return sb.toString();
+    }
+
+    private String queryString(Map<String, List<String>> queryParams) {
+        var style = configuration.getQueryParamStyle();
+        List<String> pairs = new ArrayList<>();
+        for (var e : queryParams.entrySet()) {
+            List<String> values = e.getValue().stream().filter(v -> v != null).toList();
+            if (!values.isEmpty()) {
+                addQueryPairs(pairs, style, e.getKey(), values);
+            }
+        }
+        return pairs.isEmpty() ? "" : "?" + String.join("&", pairs);
+    }
+
+    private static void addQueryPairs(List<String> pairs, QueryParamStyle style, String rawKey, List<String> values) {
+        switch (style) {
+            case COMMA_SEPARATED -> {
+                String key = URLEncoder.encode(rawKey, StandardCharsets.UTF_8);
+                String joined = values.stream()
+                        .map(v -> URLEncoder.encode(v, StandardCharsets.UTF_8))
+                        .collect(java.util.stream.Collectors.joining(","));
+                pairs.add(key + "=" + joined);
+            }
+            case ARRAY_PAIRS -> {
+                // RFC note: [] are technically invalid in URIs but widely used in practice.
+                //Don't URL-encode [] — Java's URI(scheme, ssp, null) preserves them.
+                String key = URLEncoder.encode(rawKey, StandardCharsets.UTF_8) + "[]";
+                for (String v : values) pairs.add(key + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8));
+            }
+            default -> { // MULTI_PAIRS
+                String key = URLEncoder.encode(rawKey, StandardCharsets.UTF_8);
+                for (String v : values) pairs.add(key + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8));
+            }
+        }
     }
 
     private static String encodePathParam(String value) {
@@ -510,13 +583,13 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private static URI buildFinalUri(String rawUrl) {
         try {
             return URI.create(rawUrl);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             // [] in query string: try the scheme+ssp constructor which preserves raw chars
             int colon = rawUrl.indexOf(':');
             if (colon > 0) {
                 try {
                     return new java.net.URI(rawUrl.substring(0, colon), rawUrl.substring(colon + 1), null);
-                } catch (java.net.URISyntaxException e2) {
+                } catch (java.net.URISyntaxException _) {
                     // Final fallback: percent-encode []
                     return URI.create(rawUrl.replace("[", "%5B").replace("]", "%5D"));
                 }
@@ -574,50 +647,72 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         }
         //@ClientHeaderParam static — replaced by @HeaderParam at runtime with the same name (spec §6.5)
         Set<String> runtimeOverrides = r.headers().keySet();
-        for (var e : spec.staticHeaders().entrySet()) {
-            if (runtimeOverrides.contains(e.getKey())) continue;
-            for (String v : e.getValue()) headers.add(e.getKey(), v);
-        }
+        addStaticHeaders(headers, spec, runtimeOverrides);
         // @ClientHeaderParam dynamic
-        for (var e : spec.dynamicHeaders().entrySet()) {
-            if (runtimeOverrides.contains(e.getKey())) continue;
-            RequestSpec.DynamicHeader dh = e.getValue();
-            String value;
-            try {
-                value = invokeHeaderMethod(proxy, spec.method().getDeclaringClass(),
-                        dh.methodName(), e.getKey());
-            } catch (RuntimeException ex) {
-                if (dh.required()) throw ex;
-                continue;
-            }
-            if (value != null) headers.add(e.getKey(), value);
-        }
+        addDynamicHeaders(headers, spec, runtimeOverrides, proxy);
         //Headers installed via RestClientBuilder.header() — spec §3.2, low priority (overridden by @HeaderParam)
         for (var e : configuration.getBuilderHeaders().entrySet()) {
-            if (!r.headers().containsKey(e.getKey())) {
+            if (!runtimeOverrides.contains(e.getKey())) {
                 headers.add(e.getKey(), String.valueOf(e.getValue()));
             }
         }
         // @HeaderParam runtime
-        for (var e : r.headers().entrySet()) {
+        addRuntimeHeaders(headers, r.headers());
+        //@CookieParam → combined "Cookie" header
+        if (!r.cookies().isEmpty()) {
+            addCookieHeader(headers, r.cookies());
+        }
+
+        applyClientHeadersFactory(spec, headers);
+    }
+
+    private static void addStaticHeaders(MultivaluedMap<String, Object> headers, RequestSpec spec,
+                                         Set<String> runtimeOverrides) {
+        for (var e : spec.staticHeaders().entrySet()) {
+            if (!runtimeOverrides.contains(e.getKey())) {
+                for (String v : e.getValue()) headers.add(e.getKey(), v);
+            }
+        }
+    }
+
+    private static void addDynamicHeaders(MultivaluedMap<String, Object> headers, RequestSpec spec,
+                                          Set<String> runtimeOverrides, Object proxy) {
+        for (var e : spec.dynamicHeaders().entrySet()) {
+            if (!runtimeOverrides.contains(e.getKey())) {
+                String value = dynamicHeaderValue(proxy, spec, e.getKey(), e.getValue());
+                if (value != null) headers.add(e.getKey(), value);
+            }
+        }
+    }
+
+    /** Value of a computed header, or {@code null} when it is absent or its optional compute method failed. */
+    private static String dynamicHeaderValue(Object proxy, RequestSpec spec, String headerName,
+                                             RequestSpec.DynamicHeader dh) {
+        try {
+            return invokeHeaderMethod(proxy, spec.method().getDeclaringClass(), dh.methodName(), headerName);
+        } catch (RuntimeException ex) {
+            if (dh.required()) throw ex;
+            return null;
+        }
+    }
+
+    private static void addRuntimeHeaders(MultivaluedMap<String, Object> headers, Map<String, List<String>> runtime) {
+        for (var e : runtime.entrySet()) {
             for (String v : e.getValue()) {
                 if (v != null) headers.add(e.getKey(), v);
             }
         }
-        //@CookieParam → combined "Cookie" header
-        if (!r.cookies().isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            boolean first = true;
-            for (var e : r.cookies().entrySet()) {
-                if (e.getValue() == null) continue;
-                if (!first) sb.append("; ");
-                sb.append(e.getKey()).append('=').append(e.getValue());
-                first = false;
-            }
-            if (sb.length() > 0) headers.putSingle("Cookie", sb.toString());
-        }
+    }
 
-        applyClientHeadersFactory(spec, headers);
+    private static void addCookieHeader(MultivaluedMap<String, Object> headers, Map<String, String> cookies) {
+        StringBuilder sb = new StringBuilder();
+        for (var e : cookies.entrySet()) {
+            if (e.getValue() != null) {
+                if (!sb.isEmpty()) sb.append("; ");
+                sb.append(e.getKey()).append('=').append(e.getValue());
+            }
+        }
+        if (!sb.isEmpty()) headers.putSingle("Cookie", sb.toString());
     }
 
     private void applyClientHeadersFactory(RequestSpec spec, MultivaluedMap<String, Object> headers) {
@@ -652,7 +747,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     }
 
     /** Stores the business entity in the context (POJO for JSON-B; form-encoded String for @FormParam). */
-    private void seedEntity(CyranoClientRequestContext ctx, RequestSpec spec, ResolvedBindings r, BodyPayload body) {
+    private static void seedEntity(CyranoClientRequestContext ctx, ResolvedBindings r) {
         if (!r.formParams().isEmpty()) {
             //For form-encoded, the already encoded string is stored as an entity — a filter
             // can replace it if desired.
@@ -685,31 +780,34 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
             throw new IllegalStateException("@ClientHeaderParam method not found: "
                     + iface.getName() + "#" + methodName + " — spec §6.5");
         }
-        Class<?>[] pt = dm.getParameterTypes();
+        Object target = Modifier.isStatic(dm.getModifiers()) ? null : proxy;
+        Object[] callArgs = dm.getParameterCount() == 0 ? new Object[0] : new Object[]{headerName};
         Object result;
         try {
-            if (Modifier.isStatic(dm.getModifiers())) {
-                result = dm.invoke(null, pt.length == 0 ? new Object[0] : new Object[]{headerName});
-            } else {
-                result = dm.invoke(proxy, pt.length == 0 ? new Object[0] : new Object[]{headerName});
-            }
+            result = dm.invoke(target, callArgs);
         } catch (java.lang.reflect.InvocationTargetException ite) {
-            //Spec §6.5: the caller must see the exception as-is (or the header is
-            //silently omitted if required=false — decided upstream by applyHeaders).
-            Throwable cause = ite.getCause();
-            if (cause instanceof RuntimeException re) throw re;
-            if (cause instanceof Error err) throw err;
-            throw new IllegalStateException("@ClientHeaderParam(" + methodName + ") failed",
-                    cause != null ? cause : ite);
+            throw headerMethodFailure(ite, methodName);
         } catch (IllegalAccessException iae) {
             throw new IllegalStateException("Access denied to @ClientHeaderParam("
                     + methodName + ") sur " + iface.getName(), iae);
         }
-        if (result == null) return null;
         if (result instanceof String[] arr) {
             return String.join(",", arr);
         }
-        return result.toString();
+        return result == null ? null : result.toString();
+    }
+
+    /**
+     * Spec §6.5: the caller must see the exception of a compute method as-is (or the header is
+     * silently omitted if required=false — decided upstream by dynamicHeaderValue).
+     */
+    private static RuntimeException headerMethodFailure(java.lang.reflect.InvocationTargetException ite,
+                                                        String methodName) {
+        Throwable cause = ite.getCause();
+        if (cause instanceof RuntimeException re) return re;
+        if (cause instanceof Error err) throw err;
+        return new IllegalStateException("@ClientHeaderParam(" + methodName + ") failed",
+                cause != null ? cause : ite);
     }
 
     private static Method findHeaderMethod(Class<?> iface, String name) {
@@ -721,30 +819,40 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
             String mname = name.substring(lastDot + 1);
             try {
                 Class<?> ext = Class.forName(fqcn, false, iface.getClassLoader());
-                Method bestMatch = null;
-                for (Method m : ext.getMethods()) {
-                    if (!Modifier.isStatic(m.getModifiers())) continue;
-                    if (!m.getName().equals(mname)) continue;
-                    int pc = m.getParameterCount();
-                    if (pc == 0) return m;
-                    if (pc == 1 && m.getParameterTypes()[0] == String.class) bestMatch = m;
-                }
-                return bestMatch;
-            } catch (ClassNotFoundException ignored) {
+                return findStaticHeaderMethod(ext, mname);
+            } catch (ClassNotFoundException _) {
                 // fall back to the local lookup below
             }
         }
+        return findLocalHeaderMethod(iface, name);
+    }
+
+    private static Method findStaticHeaderMethod(Class<?> ext, String methodName) {
+        Method bestMatch = null;
+        for (Method m : ext.getMethods()) {
+            if (Modifier.isStatic(m.getModifiers()) && m.getName().equals(methodName)) {
+                int pc = m.getParameterCount();
+                if (pc == 0) return m;
+                if (pc == 1 && m.getParameterTypes()[0] == String.class) bestMatch = m;
+            }
+        }
+        return bestMatch;
+    }
+
+    private static Method findLocalHeaderMethod(Class<?> iface, String name) {
         for (Method m : iface.getMethods()) {
-            if (!m.getName().equals(name)) continue;
-            int pc = m.getParameterCount();
-            if (pc == 0) return m;
-            if (pc == 1 && m.getParameterTypes()[0] == String.class) return m;
+            if (m.getName().equals(name) && isHeaderMethodSignature(m)) return m;
         }
         //search in declared methods (edge cases)
         for (Method m : iface.getDeclaredMethods()) {
             if (m.getName().equals(name)) return m;
         }
         return null;
+    }
+
+    private static boolean isHeaderMethodSignature(Method m) {
+        int pc = m.getParameterCount();
+        return pc == 0 || (pc == 1 && m.getParameterTypes()[0] == String.class);
     }
 
     // ============================================================
@@ -765,26 +873,11 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
 
         //User-registered ResponseExceptionMapper run for ALL status codes (spec §5.4).
         //A mapper can handle any status — e.g. TestResponseExceptionMapper handles 200.
-        Optional<RuntimeException> userEx = applyExceptionMappers(respCtx, body, spec);
+        Optional<RuntimeException> userEx = applyExceptionMappers(respCtx, body);
         if (userEx.isPresent()) throw userEx.get();
 
         if (status >= 400) {
-            if (rt == Optional.class && status == 404) {
-                return Optional.empty();
-            }
-            //spec §8: microprofile.rest.client.disable.default.mapper=true → return raw response
-            Object disableProp = configuration.getProperty("microprofile.rest.client.disable.default.mapper");
-            if (disableProp == null) {
-                disableProp = System.getProperty("microprofile.rest.client.disable.default.mapper");
-            }
-            boolean defaultMapperDisabled = Boolean.TRUE.equals(disableProp)
-                    || "true".equalsIgnoreCase(String.valueOf(disableProp));
-            if (defaultMapperDisabled) {
-                if (rt == Response.class) return CyranoLightResponse.of(respCtx, body, configuration);
-                if (rt == void.class || rt == Void.class) return null;
-                return CyranoLightResponse.of(respCtx, body, configuration);
-            }
-            throw defaultException(respCtx, body);
+            return mapErrorResponse(respCtx, body, rt, status);
         }
 
         if (rt == void.class || rt == Void.class) return null;
@@ -792,52 +885,74 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         if (rt == Response.class) return CyranoLightResponse.of(respCtx, body, configuration);
 
         //MessageBodyReader (+interceptors) — check registered readers before the default path
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        MessageBodyReader reader = findMessageBodyReader(rt);
+        MessageBodyReader<?> reader = findMessageBodyReader(rt);
         if (reader != null && body != null) {
-            MediaType mediaType = extractResponseMediaType(respCtx);
-            List<ReaderInterceptor> readerInterceptors = configuration.getReaderInterceptors();
-            try {
-                var is = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));
-                if (!readerInterceptors.isEmpty()) {
-                    return new CyranoReaderInterceptorContext(readerInterceptors, reader, rt,
-                            genericType, new Annotation[0], mediaType,
-                            new MultivaluedHashMap<>(), is).proceed();
-                } else {
-                    return reader.readFrom(rt, genericType, new Annotation[0],
-                            mediaType, new MultivaluedHashMap<>(), is);
-                }
-            } catch (IOException e) {
-                throw new jakarta.ws.rs.ProcessingException(e);
-            }
+            return readEntity(reader, respCtx, body, rt, genericType);
         }
+        return mapDefaultEntity(body, rt, genericType);
+    }
 
+    private Object mapErrorResponse(CyranoClientResponseContext respCtx, String body, Class<?> rt, int status) {
+        if (rt == Optional.class && status == 404) {
+            return Optional.empty();
+        }
+        //spec §8: microprofile.rest.client.disable.default.mapper=true → return raw response
+        if (!isDefaultMapperDisabled()) {
+            throw defaultException(respCtx, body);
+        }
+        if (rt == void.class || rt == Void.class) return null;
+        return CyranoLightResponse.of(respCtx, body, configuration);
+    }
+
+    private boolean isDefaultMapperDisabled() {
+        Object disableProp = configuration.getProperty(DISABLE_DEFAULT_MAPPER);
+        if (disableProp == null) {
+            disableProp = System.getProperty(DISABLE_DEFAULT_MAPPER);
+        }
+        return Boolean.TRUE.equals(disableProp)
+                || "true".equalsIgnoreCase(String.valueOf(disableProp));
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Object readEntity(MessageBodyReader reader, CyranoClientResponseContext respCtx, String body,
+                              Class<?> rt, Type genericType) {
+        MediaType mediaType = extractResponseMediaType(respCtx);
+        List<ReaderInterceptor> readerInterceptors = configuration.getReaderInterceptors();
+        try {
+            var is = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));
+            if (!readerInterceptors.isEmpty()) {
+                return new CyranoReaderInterceptorContext(readerInterceptors, reader, rt,
+                        genericType, new Annotation[0], mediaType,
+                        new MultivaluedHashMap<>(), is).proceed();
+            } else {
+                return reader.readFrom(rt, genericType, new Annotation[0],
+                        mediaType, new MultivaluedHashMap<>(), is);
+            }
+        } catch (IOException e) {
+            throw new jakarta.ws.rs.ProcessingException(e);
+        }
+    }
+
+    /** Return types mapped without a registered reader: text, primitives, JSON-B containers and POJOs. */
+    private Object mapDefaultEntity(String body, Class<?> rt, Type genericType) {
         if (rt == String.class) return body;
         if (rt.isPrimitive() || Number.class.isAssignableFrom(rt)
                 || rt == Boolean.class || rt == Character.class) {
             return parsePrimitive(body, rt);
         }
         if (rt == Optional.class) {
-            Type t = innerType(genericType);
-            Object value = readJson(body, t);
-            return Optional.ofNullable(value);
-        }
-        if (rt == List.class || rt == java.util.Collection.class) {
-            return readJson(body, genericType);
+            return Optional.ofNullable(readJson(body, innerType(genericType)));
         }
         if (rt == Set.class) {
             Object asList = readJson(body, listOf(innerType(genericType)));
             return new LinkedHashSet<>((List<?>) asList);
         }
-        if (rt == Map.class) {
-            return readJson(body, genericType);
-        }
-        // POJO
+        // List, Collection, Map and POJO
         return readJson(body, genericType);
     }
 
     private Optional<RuntimeException> applyExceptionMappers(CyranoClientResponseContext respCtx,
-                                                             String body, RequestSpec spec) {
+                                                             String body) {
         Response light = CyranoLightResponse.of(respCtx, body);
         //Collect all ResponseExceptionMapper saved via builder.register(...)
         List<MapperEntry> mappers = new ArrayList<>();
@@ -942,62 +1057,91 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
 
     private static void patchPrivateFieldsFromJson(Object target, Class<?> rawType, String body) {
         if (target == null || body == null || body.isBlank()) return;
-        jakarta.json.JsonObject json;
-        try (var reader = jakarta.json.Json.createReader(new java.io.StringReader(body))) {
-            json = reader.readObject();
-        } catch (RuntimeException ex) {
-            return;
-        }
+        jakarta.json.JsonObject json = readJsonObjectOrNull(body);
+        if (json == null) return;
         Class<?> cursor = rawType;
         while (cursor != null && cursor != Object.class) {
             for (var field : cursor.getDeclaredFields()) {
-                if (Modifier.isStatic(field.getModifiers()) || Modifier.isFinal(field.getModifiers())) continue;
-                if (field.getAnnotation(JsonbTransient.class) != null) continue;
-                String jsonName = field.getName();
-                JsonbProperty named = field.getAnnotation(JsonbProperty.class);
-                if (named != null && named.value() != null && !named.value().isBlank()) {
-                    jsonName = named.value();
-                }
-                if (!json.containsKey(jsonName)) continue;
-                Object value = jsonValue(json.get(jsonName), field.getType());
-                if (value == null) continue;
-                try {
-                    MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(cursor, MethodHandles.lookup());
-                    VarHandle handle = lookup.findVarHandle(cursor, field.getName(), field.getType());
-                    handle.set(target, value);
-                } catch (RuntimeException | ReflectiveOperationException ignored) {
-                    //best-effort fallback only
+                if (isPatchable(field)) {
+                    patchField(target, cursor, field, json);
                 }
             }
             cursor = cursor.getSuperclass();
         }
     }
 
+    private static jakarta.json.JsonObject readJsonObjectOrNull(String body) {
+        try (var reader = jakarta.json.Json.createReader(new java.io.StringReader(body))) {
+            return reader.readObject();
+        } catch (RuntimeException _) {
+            return null; //not a JSON object: nothing to patch
+        }
+    }
+
+    private static boolean isPatchable(Field field) {
+        return !Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())
+                && field.getAnnotation(JsonbTransient.class) == null;
+    }
+
+    private static void patchField(Object target, Class<?> owner, Field field, jakarta.json.JsonObject json) {
+        String jsonName = jsonNameOf(field);
+        if (!json.containsKey(jsonName)) return;
+        Object value = jsonValue(json.get(jsonName), field.getType());
+        if (value == null) return;
+        try {
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(owner, MethodHandles.lookup());
+            VarHandle handle = lookup.findVarHandle(owner, field.getName(), field.getType());
+            handle.set(target, value);
+        } catch (RuntimeException | ReflectiveOperationException _) {
+            //best-effort fallback only
+        }
+    }
+
+    private static String jsonNameOf(Field field) {
+        JsonbProperty named = field.getAnnotation(JsonbProperty.class);
+        if (named != null && named.value() != null && !named.value().isBlank()) {
+            return named.value();
+        }
+        return field.getName();
+    }
+
     private static Object jsonValue(jakarta.json.JsonValue value, Class<?> targetType) {
         if (value == null || value == jakarta.json.JsonValue.NULL) return null;
         if (targetType == String.class) {
-            if (value.getValueType() == jakarta.json.JsonValue.ValueType.STRING) {
-                return ((jakarta.json.JsonString) value).getString();
-            }
-            return value.toString();
+            return jsonString(value);
         }
         if (targetType == int.class || targetType == Integer.class) {
-            if (value.getValueType() == jakarta.json.JsonValue.ValueType.NUMBER) {
-                return ((jakarta.json.JsonNumber) value).intValue();
-            }
-            return Integer.parseInt(value.toString());
+            return jsonInt(value);
         }
         if (targetType == long.class || targetType == Long.class) {
-            if (value.getValueType() == jakarta.json.JsonValue.ValueType.NUMBER) {
-                return ((jakarta.json.JsonNumber) value).longValue();
-            }
-            return Long.parseLong(value.toString());
+            return jsonLong(value);
         }
         if (targetType == boolean.class || targetType == Boolean.class) {
             return value == jakarta.json.JsonValue.TRUE
                     || "true".equalsIgnoreCase(value.toString());
         }
         return null;
+    }
+
+    private static Object jsonString(jakarta.json.JsonValue value) {
+        if (value.getValueType() == jakarta.json.JsonValue.ValueType.STRING) {
+            return ((jakarta.json.JsonString) value).getString();
+        }
+        return value.toString();
+    }
+
+    private static Object jsonInt(jakarta.json.JsonValue value) {
+        if (value.getValueType() == jakarta.json.JsonValue.ValueType.NUMBER) {
+            return ((jakarta.json.JsonNumber) value).intValue();
+        }
+        return Integer.parseInt(value.toString());
+    }
+
+    private static Object jsonLong(jakarta.json.JsonValue value) {
+        if (value.getValueType() == jakarta.json.JsonValue.ValueType.NUMBER) {
+            return ((jakarta.json.JsonNumber) value).longValue();
+        }
+        return Long.parseLong(value.toString());
     }
 
     @SuppressWarnings("unchecked")
@@ -1029,15 +1173,17 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
 
     private static Object parsePrimitive(String body, Class<?> type) {
         String s = body == null ? "" : body.trim();
-        if (type == int.class || type == Integer.class) return Integer.parseInt(s);
-        if (type == long.class || type == Long.class) return Long.parseLong(s);
-        if (type == short.class || type == Short.class) return Short.parseShort(s);
-        if (type == byte.class || type == Byte.class) return Byte.parseByte(s);
-        if (type == double.class || type == Double.class) return Double.parseDouble(s);
-        if (type == float.class || type == Float.class) return Float.parseFloat(s);
-        if (type == boolean.class || type == Boolean.class) return Boolean.parseBoolean(s);
-        if (type == char.class || type == Character.class) return s.isEmpty() ? '\0' : s.charAt(0);
-        throw new UnsupportedOperationException("Unsupported primitive: " + type);
+        return switch (type.getName()) {
+            case "int", "java.lang.Integer" -> Integer.parseInt(s);
+            case "long", "java.lang.Long" -> Long.parseLong(s);
+            case "short", "java.lang.Short" -> Short.parseShort(s);
+            case "byte", "java.lang.Byte" -> Byte.parseByte(s);
+            case "double", "java.lang.Double" -> Double.parseDouble(s);
+            case "float", "java.lang.Float" -> Float.parseFloat(s);
+            case "boolean", "java.lang.Boolean" -> Boolean.parseBoolean(s);
+            case "char", "java.lang.Character" -> s.isEmpty() ? '\0' : s.charAt(0);
+            default -> throw new UnsupportedOperationException("Unsupported primitive: " + type);
+        };
     }
 
     /** Find the first registered MessageBodyReader applicable to the given type. */
@@ -1045,10 +1191,8 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private MessageBodyReader<?> findMessageBodyReader(Class<?> type) {
         MediaType wildcard = MediaType.WILDCARD_TYPE;
         for (Object inst : configuration.getInstances()) {
-            if (inst instanceof MessageBodyReader r) {
-                if (r.isReadable(type, type, new Annotation[0], wildcard)) {
-                    return r;
-                }
+            if (inst instanceof MessageBodyReader r && r.isReadable(type, type, new Annotation[0], wildcard)) {
+                return r;
             }
         }
         return null;
@@ -1059,10 +1203,8 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private MessageBodyWriter<?> findMessageBodyWriter(Class<?> type) {
         MediaType wildcard = MediaType.WILDCARD_TYPE;
         for (Object inst : configuration.getInstances()) {
-            if (inst instanceof MessageBodyWriter w) {
-                if (w.isWriteable(type, type, new Annotation[0], wildcard)) {
-                    return w;
-                }
+            if (inst instanceof MessageBodyWriter w && w.isWriteable(type, type, new Annotation[0], wildcard)) {
+                return w;
             }
         }
         return null;
@@ -1071,7 +1213,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private static MediaType parseMediaType(String ct) {
         if (ct == null || ct.isBlank()) return MediaType.APPLICATION_JSON_TYPE;
         try { return MediaType.valueOf(ct); }
-        catch (IllegalArgumentException e) { return MediaType.APPLICATION_JSON_TYPE; }
+        catch (IllegalArgumentException _) { return MediaType.APPLICATION_JSON_TYPE; }
     }
 
     private static MediaType extractResponseMediaType(CyranoClientResponseContext respCtx) {
