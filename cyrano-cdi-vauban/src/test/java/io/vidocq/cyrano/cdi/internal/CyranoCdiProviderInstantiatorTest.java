@@ -175,4 +175,23 @@ class CyranoCdiProviderInstantiatorTest {
                     }));
         }
     }
+
+    @Test
+    void error_of_the_invocation_is_not_lost_in_the_interceptor_chain() throws Exception {
+        try (var _ = container()) {
+            Method call = method(InterceptedApi.class, "call");
+            Object[] args = {"x"};
+            AssertionError error = new AssertionError("error");
+
+            Exception thrown = assertThrows(Exception.class,
+                    () -> instantiator.aroundInvoke(this, call, args, () -> {
+                        throw error;
+                    }));
+            Throwable root = thrown;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            assertSame(error, root);
+        }
+    }
 }

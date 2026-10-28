@@ -28,6 +28,7 @@ import jakarta.interceptor.InvocationContext;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -192,7 +193,17 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
 
         @SuppressWarnings({"rawtypes", "unchecked"})
         private static Object intercept(InterceptorInvocation current, InvocationContext ctx) throws Exception {
-            return ((Interceptor) current.interceptor()).intercept(InterceptionType.AROUND_INVOKE, current.instance(), ctx);
+            try {
+                return ((Interceptor) current.interceptor()).intercept(InterceptionType.AROUND_INVOKE, current.instance(), ctx);
+            } catch (InvocationTargetException wrapped) {
+                //A container that calls the @AroundInvoke method reflectively may hand back the reflection
+                //wrapper: the caller must see the exception of the invocation itself (Jakarta Interceptors
+                //2.2 §2.5) — BUG-20261028-11.
+                if (wrapped.getCause() instanceof Exception cause) {
+                    throw cause;
+                }
+                throw wrapped;
+            }
         }
     }
 }

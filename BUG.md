@@ -310,7 +310,8 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
 ## BUG-20261028-11 — an exception thrown by an intercepted client method reaches the caller as InvocationTargetException
 
 - **Date**: 2026-10-28
-- **Status**: OPEN — regression test `CyranoCdiProviderInstantiatorTest#exceptions_of_the_invocation_cross_the_interceptor_chain`
+- **Status**: FIXED in cyrano (defensive unwrap); container-side cause to report to Vauban — regression test
+  `CyranoCdiProviderInstantiatorTest#exceptions_of_the_invocation_cross_the_interceptor_chain`
 - **Affected module**: `cyrano-cdi-vauban` (`CyranoCdiProviderInstantiator`)
 - **Symptom**: when a CDI interceptor is bound to a Rest Client method (MP Rest Client 4.0 §4.2.4), any exception
   thrown by the invocation — a `WebApplicationException` of the default mapper (§8), a checked exception of a
@@ -326,3 +327,6 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
 - **Investigations**:
   - 2026-10-28: found by a new unit test; the TCK `CDIInterceptorTest` only exercises a method that returns
     normally. The container-side cause belongs to Vauban and is to be reported there.
+  - 2026-10-28: `CyranoCdiProviderInstantiator` now rethrows the cause of an `InvocationTargetException` coming out of
+    `Interceptor.intercept` when it is an `Exception`, so the caller sees the invocation's own exception whatever
+    the container does.
