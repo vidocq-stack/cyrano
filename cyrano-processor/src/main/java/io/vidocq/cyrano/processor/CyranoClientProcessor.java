@@ -518,9 +518,9 @@ public final class CyranoClientProcessor extends AbstractProcessor {
     private static Set<String> boundPathNames(List<ParamModel> params) {
         Set<String> bound = new LinkedHashSet<>();
         for (ParamModel p : params) {
-            if (p instanceof ParamModel.Simple(var kind, var _, var name, var _) && kind.equals("Path")) {
+            if (p instanceof ParamModel.Simple(var kind, _, var name, _) && kind.equals("Path")) {
                 bound.add(name);
-            } else if (p instanceof ParamModel.Bean(var _, var _, var fields)) {
+            } else if (p instanceof ParamModel.Bean(_, _, var fields)) {
                 for (BeanFieldModel f : fields) {
                     if (f.kind().equals("PATH")) bound.add(f.name());
                 }

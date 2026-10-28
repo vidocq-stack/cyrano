@@ -1057,8 +1057,8 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
 
     private static void patchPrivateFieldsFromJson(Object target, Class<?> rawType, String body) {
         if (target == null || body == null || body.isBlank()) return;
-        jakarta.json.JsonObject json = readJsonObjectOrNull(body);
-        if (json == null) return;
+        jakarta.json.JsonObject json = readJsonObjectOrEmpty(body);
+        if (json.isEmpty()) return;
         Class<?> cursor = rawType;
         while (cursor != null && cursor != Object.class) {
             for (var field : cursor.getDeclaredFields()) {
@@ -1070,11 +1070,11 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         }
     }
 
-    private static jakarta.json.JsonObject readJsonObjectOrNull(String body) {
+    private static jakarta.json.JsonObject readJsonObjectOrEmpty(String body) {
         try (var reader = jakarta.json.Json.createReader(new java.io.StringReader(body))) {
             return reader.readObject();
         } catch (RuntimeException _) {
-            return null; //not a JSON object: nothing to patch
+            return jakarta.json.JsonValue.EMPTY_JSON_OBJECT; //not a JSON object: nothing to patch
         }
     }
 
