@@ -82,7 +82,7 @@ public final class CyranoRestClientInstanceSyntheticCreator implements Synthetic
         @Override
         @SuppressWarnings("unchecked")
         public Instance<Object> select(Annotation... qualifiers) {
-            return (Instance<Object>) CDI.current().select((Class) targetType, qualifiers);
+            return CDI.current().select((Class) targetType, qualifiers);
         }
 
         @Override

@@ -61,7 +61,7 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
             //CDI not yet started (or outside CDI) — delegates to reflective fallback
             return null;
         }
-        var beans = bm.getBeans(componentClass, new Annotation[0]);
+        var beans = bm.getBeans(componentClass);
         if (beans == null || beans.isEmpty()) return null;
         var bean = bm.resolve(beans);
         if (bean == null) return null;
@@ -175,15 +175,8 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
                 return terminal.call();
             }
             InterceptorInvocation current = chain.get(index++);
-            try {
-                return intercept(current, this);
-            } catch (RuntimeException ex) {
-                throw ex;
-            } catch (Exception ex) {
-                throw ex;
-            } catch (Throwable th) {
-                throw new Exception(th);
-            }
+            //Exceptions and errors of the interceptor or of the invocation cross the chain unchanged.
+            return intercept(current, this);
         }
 
         @Override

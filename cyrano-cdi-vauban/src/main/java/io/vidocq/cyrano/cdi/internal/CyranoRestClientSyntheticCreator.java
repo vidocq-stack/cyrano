@@ -80,10 +80,9 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
             builder.queryParamStyle(qps);
         }
 
-        Boolean followRedirects = resolveBooleanProperty(interfaceFqn, configKey, configLookup, "/mp-rest/followRedirects");
-        if (followRedirects != null) {
-            builder.followRedirects(followRedirects);
-        }
+        resolveProperty(interfaceFqn, configKey, configLookup, "/mp-rest/followRedirects")
+                .map(value -> Boolean.parseBoolean(value.trim()))
+                .ifPresent(builder::followRedirects);
 
         Long connectTimeoutMs = resolveLongProperty(interfaceFqn, configKey, configLookup, "/mp-rest/connectTimeout");
         if (connectTimeoutMs != null) {
@@ -111,10 +110,8 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
             String fqn, String configKey,
             Function<String, Optional<String>> lookup, RestClientBuilder builder) {
         Optional<String> val = lookup.apply(fqn + "/mp-rest/providers");
-        if (val.isEmpty() || val.get().isBlank()) {
-            if (configKey != null && !configKey.isBlank()) {
-                val = lookup.apply(configKey + "/mp-rest/providers");
-            }
+        if ((val.isEmpty() || val.get().isBlank()) && configKey != null && !configKey.isBlank()) {
+            val = lookup.apply(configKey + "/mp-rest/providers");
         }
         if (val.isEmpty() || val.get().isBlank()) return;
         for (String providerFqn : val.get().split(",")) {
@@ -124,7 +121,7 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
                 Class<?> providerClass = Class.forName(trimmed, true,
                         Thread.currentThread().getContextClassLoader());
                 builder.register(providerClass);
-            } catch (ClassNotFoundException e) {
+            } catch (ClassNotFoundException _) {
                 //provider not on classpath — skip silently
             }
         }
@@ -140,13 +137,6 @@ public class CyranoRestClientSyntheticCreator implements SyntheticBeanCreator<Ob
             case "ARRAY_PAIRS"     -> QueryParamStyle.ARRAY_PAIRS;
             default                -> QueryParamStyle.MULTI_PAIRS;
         };
-    }
-
-    private static Boolean resolveBooleanProperty(
-            String fqn, String configKey, Function<String, Optional<String>> lookup, String suffix) {
-        Optional<String> val = resolveProperty(fqn, configKey, lookup, suffix);
-        if (val.isEmpty()) return null;
-        return Boolean.parseBoolean(val.get().trim());
     }
 
     private static Long resolveLongProperty(

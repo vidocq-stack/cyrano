@@ -45,6 +45,9 @@ public final class Cyrano {
      */
     public static final String IMPLEMENTATION_VERSION = loadVersion();
 
+    /** Version reported when the filtered version resource cannot be read. */
+    private static final String UNKNOWN_VERSION = "unknown";
+
     private Cyrano() {
         // utility — no instantiation
     }
@@ -52,13 +55,13 @@ public final class Cyrano {
     private static String loadVersion() {
         try (InputStream in = Cyrano.class.getResourceAsStream("version.properties")) {
             if (in == null) {
-                return "unknown";
+                return UNKNOWN_VERSION;
             }
             Properties props = new Properties();
             props.load(in);
-            return props.getProperty("version", "unknown");
-        } catch (IOException e) {
-            return "unknown";
+            return props.getProperty("version", UNKNOWN_VERSION);
+        } catch (IOException _) {
+            return UNKNOWN_VERSION;
         }
     }
 }

@@ -140,36 +140,41 @@ public final class CyranoBaseUriResolver {
                     "org.eclipse.microprofile.config.ConfigProvider", true,
                     tccl != null ? tccl : self);
             Class<?> configClass = Class.forName("org.eclipse.microprofile.config.Config");
-            Method configAccessor;
-            try {
-                configAccessor = providerClass.getMethod("getConfig", ClassLoader.class);
-            } catch (NoSuchMethodException noClMethod) {
-                configAccessor = providerClass.getMethod("getConfig");
-            }
-            final Method getConfig = configAccessor;
+            final Method getConfig = configAccessor(providerClass);
             final Method getOptionalValue = configClass.getMethod("getOptionalValue", String.class, Class.class);
-            return key -> {
-                try {
-                    Object config;
-                    if (getConfig.getParameterCount() == 1) {
-                        ClassLoader cl = Thread.currentThread().getContextClassLoader();
-                        if (cl == null) cl = CyranoBaseUriResolver.class.getClassLoader();
-                        config = getConfig.invoke(null, cl);
-                    } else {
-                        config = getConfig.invoke(null);
-                    }
-                    @SuppressWarnings("unchecked")
-                    Optional<String> value = (Optional<String>) getOptionalValue.invoke(config, key, String.class);
-                    if (value.isPresent()) return value;
-                } catch (ReflectiveOperationException | RuntimeException ignored) {
-                    // fall through to system property fallback
-                }
-                //Fallback: system property (used by TckConfigBridge in TCK mode)
-                return Optional.ofNullable(System.getProperty(key));
-            };
-        } catch (ClassNotFoundException | NoClassDefFoundError | NoSuchMethodException ignored) {
+            return key -> lookupConfig(getConfig, getOptionalValue, key);
+        } catch (ClassNotFoundException | NoClassDefFoundError | NoSuchMethodException _) {
             //MP Config absent — complete fallback to system properties
             return key -> Optional.ofNullable(System.getProperty(key));
         }
+    }
+
+    /** {@code ConfigProvider.getConfig(ClassLoader)} when the API offers it, else {@code getConfig()}. */
+    private static Method configAccessor(Class<?> providerClass) throws NoSuchMethodException {
+        try {
+            return providerClass.getMethod("getConfig", ClassLoader.class);
+        } catch (NoSuchMethodException _) {
+            return providerClass.getMethod("getConfig");
+        }
+    }
+
+    private static Optional<String> lookupConfig(Method getConfig, Method getOptionalValue, String key) {
+        try {
+            Object config;
+            if (getConfig.getParameterCount() == 1) {
+                ClassLoader cl = Thread.currentThread().getContextClassLoader();
+                if (cl == null) cl = CyranoBaseUriResolver.class.getClassLoader();
+                config = getConfig.invoke(null, cl);
+            } else {
+                config = getConfig.invoke(null);
+            }
+            @SuppressWarnings("unchecked")
+            Optional<String> value = (Optional<String>) getOptionalValue.invoke(config, key, String.class);
+            if (value.isPresent()) return value;
+        } catch (ReflectiveOperationException | RuntimeException _) {
+            // fall through to system property fallback
+        }
+        //Fallback: system property (used by TckConfigBridge in TCK mode)
+        return Optional.ofNullable(System.getProperty(key));
     }
 }

@@ -49,7 +49,7 @@ public class CyranoRestClientInstanceProducer {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> Instance<T> produce(InjectionPoint injectionPoint) {
         Class<T> targetType = (Class<T>) extractTargetType(injectionPoint);
-        return (Instance<T>) CDI.current().select((Class) targetType, REST_CLIENT);
+        return CDI.current().select((Class) targetType, REST_CLIENT);
     }
 
     private static Class<?> extractTargetType(InjectionPoint ip) {
