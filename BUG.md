@@ -330,6 +330,10 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
   - 2026-10-28: `CyranoCdiProviderInstantiator` now rethrows the cause of an `InvocationTargetException` coming out of
     `Interceptor.intercept` when it is an `Exception`, so the caller sees the invocation's own exception whatever
     the container does.
+  - 2026-10-28: an `Error` of the invocation still came out wrapped, and `error_of_the_invocation_is_not_lost_in_the_
+    interceptor_chain` only checked that it was the root cause. The unwrap now rethrows an `Error` as itself too,
+    and the test requires the error unchanged. The container-side cause is fixed in Vauban (vauban#229,
+    VAU-INT-010); the defensive unwrap stays for the containers that still wrap.
 
 ## BUG-20261028-21 — the response media type handed to a MessageBodyReader ignores most Content-Type headers
 

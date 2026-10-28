@@ -192,10 +192,11 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
                 //A container that calls the @AroundInvoke method reflectively may hand back the reflection
                 //wrapper: the caller must see the exception of the invocation itself (Jakarta Interceptors
                 //2.2 §2.5) — BUG-20261028-11.
-                if (wrapped.getCause() instanceof Exception cause) {
-                    throw cause;
+                switch (wrapped.getCause()) {
+                    case Exception cause -> throw cause;
+                    case Error error -> throw error;
+                    case null, default -> throw wrapped;
                 }
-                throw wrapped;
             }
         }
     }

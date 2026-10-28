@@ -183,15 +183,11 @@ class CyranoCdiProviderInstantiatorTest {
             Object[] args = {"x"};
             AssertionError error = new AssertionError("error");
 
-            Exception thrown = assertThrows(Exception.class,
+            AssertionError thrown = assertThrows(AssertionError.class,
                     () -> instantiator.aroundInvoke(this, call, args, () -> {
                         throw error;
                     }));
-            Throwable root = thrown;
-            while (root.getCause() != null) {
-                root = root.getCause();
-            }
-            assertSame(error, root);
+            assertSame(error, thrown);
         }
     }
 }
