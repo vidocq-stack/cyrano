@@ -41,6 +41,8 @@ import java.util.Map;
  * @param dynamicHeaders calculated via {@code @ClientHeaderParam(value="{methodName}")} —
  * each value captures the method name and flag {@code required}
  * @param method reference to the source method (used by dynamic headers)
+ * @param clientInterface the client interface the method belongs to, which may inherit it from a super-interface:
+ *                        its type-level annotations and compute methods apply to the method
  */
 public record RequestSpec(
         String httpMethod,
@@ -52,7 +54,8 @@ public record RequestSpec(
         List<String> produces,
         Map<String, List<String>> staticHeaders,
         Map<String, DynamicHeader> dynamicHeaders,
-        Method method
+        Method method,
+        Class<?> clientInterface
 ) {
     public RequestSpec {
         bindings = List.copyOf(bindings);

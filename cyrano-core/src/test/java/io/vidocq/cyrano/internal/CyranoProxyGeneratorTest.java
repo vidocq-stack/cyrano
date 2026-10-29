@@ -172,7 +172,7 @@ class CyranoProxyGeneratorTest {
                             String.class, String.class,
                             List.of(), List.of(),
                             java.util.Map.of(), java.util.Map.of(),
-                            findEchoMethod())),
+                            findEchoMethod(), Echo.class)),
                     new CyranoHttpTransport());
         }
         private static java.lang.reflect.Method findEchoMethod() {

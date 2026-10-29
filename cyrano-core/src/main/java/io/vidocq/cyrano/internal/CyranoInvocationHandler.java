@@ -123,6 +123,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     public Object invoke(Object proxy, int methodIndex, Object[] args) throws Exception {
         RequestSpec spec = specs.get(methodIndex);
         return io.vidocq.cyrano.runtime.ProviderInstantiator.current().aroundInvoke(
+                spec.clientInterface(),
                 proxy,
                 spec.method(),
                 args,
@@ -689,7 +690,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private static String dynamicHeaderValue(Object proxy, RequestSpec spec, String headerName,
                                              RequestSpec.DynamicHeader dh) {
         try {
-            return invokeHeaderMethod(proxy, spec.method().getDeclaringClass(), dh.methodName(), headerName);
+            return invokeHeaderMethod(proxy, spec, dh.methodName(), headerName);
         } catch (RuntimeException ex) {
             if (dh.required()) throw ex;
             return null;
@@ -716,7 +717,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     }
 
     private void applyClientHeadersFactory(RequestSpec spec, MultivaluedMap<String, Object> headers) {
-        RegisterClientHeaders ann = spec.method().getDeclaringClass().getAnnotation(RegisterClientHeaders.class);
+        RegisterClientHeaders ann = spec.clientInterface().getAnnotation(RegisterClientHeaders.class);
         if (ann == null) return;
 
         Object instance = io.vidocq.cyrano.runtime.ProviderInstantiator.current().create(ann.value());
@@ -773,9 +774,15 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     //(legacy removed: applyHeaders → replaced by seeHeaders + buildHttpRequest)
     // ============================================================
 
-    private static String invokeHeaderMethod(Object proxy, Class<?> iface, String methodName, String headerName) {
+    private static String invokeHeaderMethod(Object proxy, RequestSpec spec, String methodName, String headerName) {
         //Spec §6.5: allowed signature = no arg / string (header name).
+        // The client interface sees its own methods and the default ones it inherits; a static method of the
+        // super-interface that declares the client method is not inherited, so it is looked up there next.
+        Class<?> iface = spec.clientInterface();
         Method dm = findHeaderMethod(iface, methodName);
+        if (dm == null && spec.method().getDeclaringClass() != iface) {
+            dm = findHeaderMethod(spec.method().getDeclaringClass(), methodName);
+        }
         if (dm == null) {
             throw new IllegalStateException("@ClientHeaderParam method not found: "
                     + iface.getName() + "#" + methodName + " — spec §6.5");

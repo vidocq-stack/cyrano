@@ -60,6 +60,18 @@ public interface ProviderInstantiator {
     }
 
     /**
+     * Surrounds a call of {@code method} on the client interface {@code clientInterface}, which may inherit the
+     * method from a super-interface: the interceptor bindings the client interface declares apply to it. The
+     * default implementation delegates to {@link #aroundInvoke(Object, Method, Object[], Callable)}.
+     *
+     * @since 0.4.0
+     */
+    default Object aroundInvoke(Class<?> clientInterface, Object target, Method method, Object[] args,
+                                Callable<Object> invocation) throws Exception {
+        return aroundInvoke(target, method, args, invocation);
+    }
+
+    /**
      * Instantiator " plain Java" — invokes {@link Class#getDeclaredConstructor()}.
      * Used in pure SE mode (without CDI).
      */

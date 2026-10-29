@@ -107,7 +107,7 @@ public final class CyranoInterfaceScanner {
                             m.getReturnType(), m.getGenericReturnType(),
                             consumes, produces,
                             staticHeaders, dynamicHeaders,
-                            m));
+                            m, iface));
                 }
                 continue;
             }
@@ -119,7 +119,7 @@ public final class CyranoInterfaceScanner {
                     m.getReturnType(), m.getGenericReturnType(),
                     consumes, produces,
                     staticHeaders, dynamicHeaders,
-                    m));
+                    m, iface));
         }
         if (specs.isEmpty()) {
             throw new IllegalArgumentException(

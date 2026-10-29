@@ -71,6 +71,12 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
 
     @Override
     public Object aroundInvoke(Object target, Method method, Object[] args, Callable<Object> invocation) throws Exception {
+        return aroundInvoke(method.getDeclaringClass(), target, method, args, invocation);
+    }
+
+    @Override
+    public Object aroundInvoke(Class<?> clientInterface, Object target, Method method, Object[] args,
+                               Callable<Object> invocation) throws Exception {
         BeanManager bm;
         try {
             bm = CDI.current().getBeanManager();
@@ -78,7 +84,7 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
             return invocation.call();
         }
 
-        Annotation[] bindings = interceptorBindings(method);
+        Annotation[] bindings = interceptorBindings(clientInterface, method);
         if (bindings.length == 0) {
             return invocation.call();
         }
@@ -98,16 +104,24 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
         return new InvocationContextImpl(target, method, args, invocation, chain).proceed();
     }
 
-    private static Annotation[] interceptorBindings(Method method) {
+    /**
+     * The method's own bindings, then for each other binding type the one the client interface declares, else the one
+     * the super-interface declaring an inherited method declares: the nearest declaration wins.
+     */
+    private static Annotation[] interceptorBindings(Class<?> clientInterface, Method method) {
         List<Annotation> out = new ArrayList<>();
-        collectBindings(out, method.getDeclaringClass().getAnnotations());
         collectBindings(out, method.getAnnotations());
+        collectBindings(out, clientInterface.getAnnotations());
+        if (method.getDeclaringClass() != clientInterface) {
+            collectBindings(out, method.getDeclaringClass().getAnnotations());
+        }
         return out.toArray(new Annotation[0]);
     }
 
     private static void collectBindings(List<Annotation> out, Annotation[] candidates) {
         for (Annotation candidate : candidates) {
-            if (candidate.annotationType().isAnnotationPresent(jakarta.interceptor.InterceptorBinding.class)) {
+            if (candidate.annotationType().isAnnotationPresent(jakarta.interceptor.InterceptorBinding.class)
+                    && out.stream().noneMatch(a -> a.annotationType() == candidate.annotationType())) {
                 out.add(candidate);
             }
         }

@@ -103,6 +103,16 @@ class CyranoCdiProviderInstantiatorTest {
         String call(String arg);
     }
 
+    /** A super-interface without binding, whose method a bound client interface inherits. */
+    public interface PlainBase {
+        String call(String arg);
+    }
+
+    /** A client interface bound as a whole, inheriting its method. */
+    @Wrapped
+    public interface WrappedChild extends PlainBase {
+    }
+
     private final CyranoCdiProviderInstantiator instantiator = new CyranoCdiProviderInstantiator();
 
     private static Method method(Class<?> type, String name) throws NoSuchMethodException {
@@ -146,6 +156,14 @@ class CyranoCdiProviderInstantiatorTest {
             assertNull(WrappingInterceptor.SEEN.get(5));
             assertEquals("[" + RESULT + "]", instantiator.aroundInvoke(this, method(WrappedApi.class, "call"),
                     new Object[] {"x"}, () -> RESULT));
+        }
+    }
+
+    @Test
+    void the_client_interface_binding_surrounds_an_inherited_method() throws Exception {
+        try (var _ = container()) {
+            assertEquals("[" + RESULT + "]", instantiator.aroundInvoke(WrappedChild.class, this,
+                    method(WrappedChild.class, "call"), new Object[] {"x"}, () -> RESULT));
         }
     }
 

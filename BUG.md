@@ -350,3 +350,25 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
   `getHeaders().get("Content-Type")`, while HTTP header names are case-insensitive (RFC 9110 §5.1).
 - **Fix**: the lookup goes through `CyranoClientResponseContext.getHeaderString`, which is case-insensitive.
 - **Regression test**: the test above (red before the fix, green after).
+
+## BUG-20261029-02 — what the client interface declares does not apply to a method it inherits
+
+- **Date**: 2026-10-29
+- **Status**: FIXED (branch fix/client-interface-annotations)
+- **Affected module**: `cyrano-core`, `cyrano-cdi-vauban`
+- **Symptom**: for a method the client interface inherits from a super-interface, the type-level declarations of the
+  client interface were looked up on the super-interface instead:
+  - a `@ClientHeaderParam(value = "{computed}")` whose `computed` default method is on the client interface fails
+    every call with `IllegalStateException: @ClientHeaderParam method not found: …Base#computed`;
+  - a `@RegisterClientHeaders` factory on the client interface is never called;
+  - a CDI interceptor binding on the client interface does not surround the call.
+- **Minimal repro**: `InheritedClientMethodTest` (cyrano-core), and
+  `CyranoCdiProviderInstantiatorTest.the_client_interface_binding_surrounds_an_inherited_method`.
+- **Root cause**: `CyranoInvocationHandler` and `CyranoCdiProviderInstantiator` used `Method.getDeclaringClass()`
+  as the client interface; it is the super-interface for an inherited method.
+- **Fix**: `RequestSpec` carries the client interface. Compute methods are looked up there, then on the declaring
+  super-interface (its static methods are not inherited). `@RegisterClientHeaders` is read there. The SPI gains
+  `ProviderInstantiator.aroundInvoke(Class<?> clientInterface, …)`, whose default delegates to the former method;
+  the CDI side takes the method's bindings, then the client interface's, then the declaring super-interface's,
+  the nearest declaration winning for each binding type.
+- **Regression tests**: the two tests above.

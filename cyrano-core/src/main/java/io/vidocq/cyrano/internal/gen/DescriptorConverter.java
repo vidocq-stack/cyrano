@@ -78,7 +78,7 @@ public final class DescriptorConverter {
                 method.getReturnType(), method.getGenericReturnType(),
                 md.consumes(), md.produces(),
                 md.staticHeaders(), dynamicHeaders,
-                method);
+                method, iface);
     }
 
     private static Method resolveMethod(Class<?> iface, ClientMethodDescriptor md) {
