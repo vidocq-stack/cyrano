@@ -115,7 +115,7 @@ public record RequestSpec(
 
 . **`ServiceLoader` of `ClientProxyFactory`** — the Java-Modules-friendly path. The module layer is consulted first (`ServiceLoader.load(layer, ClientProxyFactory.class)`), then the candidate class loaders: a strict module declares `provides ClientProxyFactory with com.acme.MyApi$$CyranoClient$Factory` and keeps the client package fully encapsulated.
 . **Naming convention** — `Class.forName(iface.getName() + "$$CyranoClient")` then its nested `Factory`. Works on the classpath and for exported packages.
-. **Runtime fallback** — `CyranoProxyGenerator` (Class-File API) + `CyranoInterfaceScanner`, for interfaces compiled without the Cyrano annotation processor (e.g. pre-compiled TCK jars).
+. **Runtime fallback** — `CyranoProxyGenerator` (Class-File API) + `CyranoInterfaceScanner`, for interfaces compiled without the Cyrano annotation processor (e.g. pre-compiled TCK jars). Each interface served this way is announced once per JVM by a framed `WARNING` (`CYRANO — RUNTIME CODE GENERATION FALLBACK`) that names it and tells how to fix the build: the fallback costs startup time and has no ahead-of-time equivalent.
 
 Resolution is cached per interface (`ConcurrentHashMap`); the counters (`serviceLoaderHits()`, `preGeneratedHits()`, `runtimeGeneratedHits()`) count resolutions, not cache hits, so tests can assert which tier actually did the work.
 

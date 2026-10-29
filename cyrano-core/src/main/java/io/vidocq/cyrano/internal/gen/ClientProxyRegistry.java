@@ -184,6 +184,7 @@ public final class ClientProxyRegistry {
 
     private static Resolved runtimeFallback(Class<?> iface) {
         CyranoProxyCache.Entry entry = CyranoProxyCache.getOrGenerate(iface);
+        RuntimeGeneration.generated(iface);
         return new Resolved(Source.RUNTIME_GENERATED, entry.specs(),
                 handler -> CyranoProxyGenerator.instantiate(entry.proxyClass(), handler));
     }

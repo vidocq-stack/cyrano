@@ -87,6 +87,8 @@ source) or `Cyrano$MyService` (runtime fallback) → `CyranoInvocationHandler`
    generates a real named class `Cyrano$<InterfaceName>` via the JDK 25 `ClassFile` API
    (JEP 484), cached by `CyranoProxyCache` and loaded with
    `MethodHandles.Lookup.defineClass`. No `java.lang.reflect.Proxy`, no ASM/Byte Buddy.
+   Announced once per interface by a framed WARNING (`RuntimeGeneration`, same pattern as
+   Vauban and Cassini).
 
 The processor never fails a build: any construct it cannot emit faithfully (including
 definitions the runtime scanner would reject with `RestClientDefinitionException`) is
