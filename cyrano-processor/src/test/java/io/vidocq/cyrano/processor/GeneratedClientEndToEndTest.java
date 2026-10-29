@@ -111,6 +111,52 @@ class GeneratedClientEndToEndTest {
                 "Exactly one resolution, served by a generated tier");
     }
 
+    /**
+     * A generated client lives next to its interface, outside the class that nests it: a private nested interface
+     * cannot be implemented there. The processor leaves it to the runtime fallback instead of writing a source that
+     * fails the build.
+     */
+    @Test
+    void privateNestedInterface_compilesAndIsServedByTheFallback() throws Exception {
+        var outer = ProcessorTestHarness.writeSource(tempDir, "t/Outer.java", """
+                package t;
+                import jakarta.ws.rs.GET;
+                import jakarta.ws.rs.Path;
+                import jakarta.ws.rs.Produces;
+                import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+
+                public class Outer {
+                    @RegisterRestClient
+                    @Path("/hidden")
+                    private interface Hidden {
+                        @GET
+                        @Produces("text/plain")
+                        String get();
+                    }
+
+                    public static Class<?> hidden() {
+                        return Hidden.class;
+                    }
+                }
+                """);
+        var compilation = ProcessorTestHarness.compileWithProcessor(tempDir, outer);
+
+        assertTrue(compilation.diagnostics().stream()
+                        .anyMatch(d -> d.getMessage(java.util.Locale.ROOT).contains("t.Outer.Hidden$$CyranoClient")),
+                "the processor says why it leaves the interface to the runtime fallback");
+        assertFalse(new java.io.File(compilation.outputDir(), "t/Outer$Hidden$$CyranoClient.class").exists());
+
+        Class<?> hidden = (Class<?>) compilation.loader().loadClass("t.Outer").getMethod("hidden").invoke(null);
+        @SuppressWarnings("unchecked")
+        Object client = RestClientBuilder.newBuilder()
+                .baseUri(URI.create("http://127.0.0.1:" + port))
+                .build((Class<Object>) hidden);
+        java.lang.reflect.Method get = hidden.getMethod("get");
+        get.setAccessible(true);
+        assertEquals("echo:GET:/hidden", get.invoke(client));
+        assertEquals(1, ClientProxyRegistry.runtimeGeneratedHits());
+    }
+
     @Test
     void interfaceWithoutGeneratedClient_stillWorksThroughFallback() throws Exception {
         Object client = RestClientBuilder.newBuilder()

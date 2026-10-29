@@ -44,6 +44,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
@@ -223,6 +224,10 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         if (!iface.getTypeParameters().isEmpty()) {
             throw new SkipGeneration("generic client interfaces are not emitted as source");
         }
+        String hidden = inaccessibleFromItsPackage(iface);
+        if (hidden != null) {
+            throw new SkipGeneration(hidden + " cannot be implemented from its package, where the client is generated");
+        }
         String basePath = normalize(pathOf(iface));
         HeaderModel typeHeaders = collectHeaders(iface, iface, new HeaderModel(new LinkedHashMap<>(), new LinkedHashMap<>()));
         List<String> typeConsumes = mediaTypes(iface.getAnnotation(Consumes.class));
@@ -246,6 +251,22 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         }
         emit(iface, models);
         return subResources;
+    }
+
+    /**
+     * The type that keeps {@code iface} out of reach of a class of its package, or {@code null}: a local interface, or a
+     * private one or one nested in a private type.
+     */
+    private static String inaccessibleFromItsPackage(TypeElement iface) {
+        if (iface.getNestingKind() == NestingKind.LOCAL) {
+            return "local interface " + iface.getSimpleName();
+        }
+        for (Element e = iface; e instanceof TypeElement type; e = e.getEnclosingElement()) {
+            if (type.getModifiers().contains(Modifier.PRIVATE)) {
+                return "private type " + type.getQualifiedName();
+            }
+        }
+        return null;
     }
 
     /** Abstract interface methods, Object members and static/default methods excluded. */

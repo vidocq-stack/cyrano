@@ -400,3 +400,17 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
   through a chain of super-interfaces), on the generated and the runtime paths; the runtime scanner keeps the
   abstract methods only, like the processor.
 - **Regression tests**: `GenericSuperInterfaceTest` (4 cases, red before), `GenericTypesTest`.
+
+## BUG-20261029-03 — a private nested client interface fails the build
+
+- **Date**: 2026-10-29
+- **Status**: FIXED (branch fix/private-nested-client)
+- **Affected module**: `cyrano-processor`
+- **Symptom**: compiling a `@RegisterRestClient` interface declared `private` inside a class, with the processor on
+  the processor path, fails the build: `t.Outer.Hidden has private access in t.Outer`.
+- **Minimal repro**: `GeneratedClientEndToEndTest.privateNestedInterface_compilesAndIsServedByTheFallback`.
+- **Root cause**: the generated `$$CyranoClient` is a top-level class of the interface's package, which cannot
+  implement a private nested interface (nor a local one, nor one nested in a private type). The processor emitted
+  it anyway, against its rule never to fail a build.
+- **Fix**: the processor skips such an interface with a NOTE; the runtime fallback serves it.
+- **Regression test**: the test above (red before the fix).
