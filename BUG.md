@@ -372,3 +372,31 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
   the CDI side takes the method's bindings, then the client interface's, then the declaring super-interface's,
   the nearest declaration winning for each binding type.
 - **Regression tests**: the two tests above.
+
+## BUG-20261029-01 — a client interface that parameterizes a generic super-interface cannot be built, or reads the wrong type
+
+- **Date**: 2026-10-29
+- **Status**: FIXED (branch fix/generic-super-interface)
+- **Affected module**: `cyrano-processor`, `cyrano-core`
+- **Symptom**: with `interface Echo<T> { @POST String post(T body); @GET T get(String id); }` and
+  `@RegisterRestClient interface EchoClient extends Echo<String> {}`:
+  - compiled with the processor, `build(EchoClient.class)` throws `RestClientDefinitionException: Descriptor method
+    post[class java.lang.String] not found on t.EchoClient — stale generated class?`;
+  - compiled without it, `get` reads the response as `Object`, so through JSON-B (`JsonParsingException` on a
+    `text/plain` body);
+  - redeclaring `@GET String get(String id)` in `EchoClient` makes javac add a bridge `Object get(String)` carrying
+    the same annotations: the runtime proxy overrides it as a client method with an `Object` return, and a call
+    through `Echo` reads the body as JSON.
+- **Minimal repro**: `GenericSuperInterfaceTest` (cyrano-processor), with and without the processor.
+- **Root cause**:
+  - the processor wrote in the descriptor the parameter types as the client interface binds them (`post(String)`),
+    while the runtime looks the method up by its JVM signature (`post(Object)`);
+  - both paths took the return type from `Method.getGenericReturnType()`, which reports the type variable `T` of
+    the declaring interface, never resolved against the client interface;
+  - the runtime scanner kept every public method of `getMethods()`, bridges and default methods included, while
+    the processor keeps the abstract ones only.
+- **Fix**: the descriptor carries the erasure of the declared parameter types; `GenericTypes.returnType` replaces
+  the type variables of the return type by what the client interface binds them to (also inside `List<T>`, `T[]`,
+  through a chain of super-interfaces), on the generated and the runtime paths; the runtime scanner keeps the
+  abstract methods only, like the processor.
+- **Regression tests**: `GenericSuperInterfaceTest` (4 cases, red before), `GenericTypesTest`.

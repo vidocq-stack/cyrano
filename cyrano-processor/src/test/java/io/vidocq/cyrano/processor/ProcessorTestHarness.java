@@ -66,6 +66,15 @@ final class ProcessorTestHarness {
     }
 
     static Compilation compileWithProcessor(Path tempDir, File... sources) throws Exception {
+        return compile(tempDir, "-proc:full", sources);
+    }
+
+    /** Compiles {@code sources} without the processor: the runtime generator serves their clients. */
+    static Compilation compileWithoutProcessor(Path tempDir, File... sources) throws Exception {
+        return compile(tempDir, "-proc:none", sources);
+    }
+
+    private static Compilation compile(Path tempDir, String proc, File... sources) throws Exception {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         assertNotNull(compiler, "javax.tools.JavaCompiler not available in this JDK");
 
@@ -101,7 +110,7 @@ final class ProcessorTestHarness {
         fm.setLocation(StandardLocation.ANNOTATION_PROCESSOR_PATH, dedupCp);
 
         boolean success = compiler.getTask(null, fm, diags,
-                List.of("--release", "25", "-proc:full"), null,
+                List.of("--release", "25", proc), null,
                 fm.getJavaFileObjects(sources)).call();
         if (!success) {
             StringBuilder sb = new StringBuilder("Compilation failed:\n");

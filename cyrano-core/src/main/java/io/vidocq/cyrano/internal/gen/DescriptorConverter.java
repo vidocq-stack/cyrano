@@ -19,6 +19,7 @@
  */
 package io.vidocq.cyrano.internal.gen;
 
+import io.vidocq.cyrano.internal.GenericTypes;
 import io.vidocq.cyrano.internal.ParamBinding;
 import io.vidocq.cyrano.internal.RequestSpec;
 import io.vidocq.cyrano.spi.gen.ClientDescriptor;
@@ -29,6 +30,7 @@ import io.vidocq.cyrano.spi.gen.DynamicHeaderDescriptor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -73,9 +75,10 @@ public final class DescriptorConverter {
             dynamicHeaders.put(e.getKey(),
                     new RequestSpec.DynamicHeader(e.getValue().methodName(), e.getValue().required()));
         }
+        Type returnType = GenericTypes.returnType(iface, method);
         return new RequestSpec(
                 md.httpMethod(), md.pathTemplate(), bindings,
-                method.getReturnType(), method.getGenericReturnType(),
+                GenericTypes.rawType(returnType), returnType,
                 md.consumes(), md.produces(),
                 md.staticHeaders(), dynamicHeaders,
                 method, iface);

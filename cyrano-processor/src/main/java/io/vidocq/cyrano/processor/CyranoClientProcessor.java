@@ -613,7 +613,9 @@ public final class CyranoClientProcessor extends AbstractProcessor {
             out.append(ARG_INDENT).append(quote(m.element().getSimpleName().toString()))
                     .append(",\n");
             out.append("                            java.util.List.of(");
-            List<? extends TypeMirror> paramTypes = m.resolved().getParameterTypes();
+            // The JVM signature the runtime looks the method up by: the erasure of the declared parameter types, not of
+            // the types the client interface binds them to (post(T) inherited as post(String) is still post(Object)).
+            List<? extends TypeMirror> paramTypes = ((ExecutableType) m.element().asType()).getParameterTypes();
             for (int p = 0; p < paramTypes.size(); p++) {
                 if (p > 0) out.append(", ");
                 out.append(erasedClassLiteral(paramTypes.get(p)));

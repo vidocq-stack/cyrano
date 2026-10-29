@@ -40,6 +40,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -83,6 +84,12 @@ public final class CyranoInterfaceScanner {
 
         Map<Method, RequestSpec> specs = new LinkedHashMap<>();
         for (Method m : iface.getMethods()) {
+            // Client methods are the abstract ones, as for the annotation processor: a default method keeps its body,
+            // and so does a bridge javac adds when a redeclaration narrows an inherited generic method, which calls it.
+            if (!Modifier.isAbstract(m.getModifiers())) {
+                continue;
+            }
+            Type returnType = GenericTypes.returnType(iface, m);
             String httpMethod = extractHttpMethod(m, iface);
             String subPath = normalize(extractPath(m));
             String template = joinPath(basePath, subPath);
@@ -104,7 +111,7 @@ public final class CyranoInterfaceScanner {
                 if (m.isAnnotationPresent(Path.class) && m.getReturnType().isInterface()) {
                     specs.put(m, new RequestSpec(
                             null, template, bindings,
-                            m.getReturnType(), m.getGenericReturnType(),
+                            GenericTypes.rawType(returnType), returnType,
                             consumes, produces,
                             staticHeaders, dynamicHeaders,
                             m, iface));
@@ -116,7 +123,7 @@ public final class CyranoInterfaceScanner {
 
             specs.put(m, new RequestSpec(
                     httpMethod, template, bindings,
-                    m.getReturnType(), m.getGenericReturnType(),
+                    GenericTypes.rawType(returnType), returnType,
                     consumes, produces,
                     staticHeaders, dynamicHeaders,
                     m, iface));
