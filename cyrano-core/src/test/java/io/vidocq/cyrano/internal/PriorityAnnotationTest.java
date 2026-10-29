@@ -22,6 +22,9 @@ package io.vidocq.cyrano.internal;
 import jakarta.annotation.Priority;
 import org.junit.jupiter.api.Test;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** {@code @Priority} is read by name on a provider class (MicroProfile Rest Client 4.0 §4.2, JAX-RS §6.3). */
@@ -31,7 +34,12 @@ class PriorityAnnotationTest {
     static final class Prioritised {
     }
 
-    @Deprecated
+    /** An annotation other than {@code @Priority}, which the lookup must pass over. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @interface Other {
+    }
+
+    @Other
     static final class Unprioritised {
     }
 
