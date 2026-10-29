@@ -42,15 +42,25 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class CyranoClientConfigurationTest {
 
     static final class Late implements ClientRequestFilter, ClientResponseFilter, ReaderInterceptor, WriterInterceptor {
-        @Override public void filter(ClientRequestContext request) { }
-        @Override public void filter(ClientRequestContext request, ClientResponseContext response) { }
+        @Override public void filter(ClientRequestContext request) {
+            // only its place in the chain matters
+        }
+        @Override public void filter(ClientRequestContext request, ClientResponseContext response) {
+            // only its place in the chain matters
+        }
         @Override public Object aroundReadFrom(ReaderInterceptorContext context) { return null; }
-        @Override public void aroundWriteTo(WriterInterceptorContext context) { }
+        @Override public void aroundWriteTo(WriterInterceptorContext context) {
+            // only its place in the chain matters
+        }
     }
 
     static final class Early implements ClientRequestFilter, ClientResponseFilter {
-        @Override public void filter(ClientRequestContext request) { }
-        @Override public void filter(ClientRequestContext request, ClientResponseContext response) { }
+        @Override public void filter(ClientRequestContext request) {
+            // only its place in the chain matters
+        }
+        @Override public void filter(ClientRequestContext request, ClientResponseContext response) {
+            // only its place in the chain matters
+        }
     }
 
     @Test

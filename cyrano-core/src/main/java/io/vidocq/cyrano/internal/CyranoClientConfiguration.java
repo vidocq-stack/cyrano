@@ -58,7 +58,8 @@ public final class CyranoClientConfiguration implements Configuration {
     private boolean followRedirects;
     private String proxyHost;
     /** The chains every call reads, built on first use and dropped by a registration. */
-    private volatile Chains chains;
+    private final java.util.concurrent.atomic.AtomicReference<Chains> chains =
+            new java.util.concurrent.atomic.AtomicReference<>();
     private int proxyPort = -1;
     private ExecutorService executorService;
     private javax.net.ssl.SSLContext sslContext;
@@ -182,13 +183,13 @@ public final class CyranoClientConfiguration implements Configuration {
         }
         instances.put(componentClass, instance);
         contracts.put(componentClass, contractsMap);
-        chains = null;
+        chains.set(null);
     }
 
     void registerProvider(Object component, Map<Class<?>, Integer> contractsMap) {
         instances.put(component.getClass(), component);
         contracts.put(component.getClass(), contractsMap);
-        chains = null;
+        chains.set(null);
     }
 
     void markFeatureEnabled(Feature feature) {
@@ -263,11 +264,11 @@ public final class CyranoClientConfiguration implements Configuration {
     }
 
     private Chains chains() {
-        Chains current = chains;
+        Chains current = chains.get();
         if (current == null) {
             current = new Chains(sortRequestFilters(), sortResponseFilters(),
                     collect(ReaderInterceptor.class), collect(WriterInterceptor.class));
-            chains = current;
+            chains.compareAndSet(null, current);
         }
         return current;
     }
