@@ -28,7 +28,6 @@ import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
 import org.eclipse.microprofile.rest.client.ext.QueryParamStyle;
 
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -58,6 +57,8 @@ public final class CyranoClientConfiguration implements Configuration {
     private long readTimeoutMs = -1;
     private boolean followRedirects;
     private String proxyHost;
+    /** The chains every call reads, built on first use and dropped by a registration. */
+    private volatile Chains chains;
     private int proxyPort = -1;
     private ExecutorService executorService;
     private javax.net.ssl.SSLContext sslContext;
@@ -181,11 +182,13 @@ public final class CyranoClientConfiguration implements Configuration {
         }
         instances.put(componentClass, instance);
         contracts.put(componentClass, contractsMap);
+        chains = null;
     }
 
     void registerProvider(Object component, Map<Class<?>, Integer> contractsMap) {
         instances.put(component.getClass(), component);
         contracts.put(component.getClass(), contractsMap);
+        chains = null;
     }
 
     void markFeatureEnabled(Feature feature) {
@@ -221,6 +224,10 @@ public final class CyranoClientConfiguration implements Configuration {
      * otherwise {@code Priorities.USER} = 5000.
      */
     List<ClientRequestFilter> getRequestFilters() {
+        return chains().requestFilters();
+    }
+
+    private List<ClientRequestFilter> sortRequestFilters() {
         List<FilterEntry<ClientRequestFilter>> entries = new ArrayList<>();
         for (Object inst : instances.values()) {
             if (inst instanceof ClientRequestFilter f) {
@@ -230,7 +237,7 @@ public final class CyranoClientConfiguration implements Configuration {
         entries.sort((a, b) -> Integer.compare(a.priority(), b.priority()));
         List<ClientRequestFilter> out = new ArrayList<>(entries.size());
         for (var e : entries) out.add(e.filter());
-        return out;
+        return List.copyOf(out);
     }
 
     /**
@@ -239,6 +246,10 @@ public final class CyranoClientConfiguration implements Configuration {
      * to JAX-RS §6.3.
      */
     List<ClientResponseFilter> getResponseFilters() {
+        return chains().responseFilters();
+    }
+
+    private List<ClientResponseFilter> sortResponseFilters() {
         List<FilterEntry<ClientResponseFilter>> entries = new ArrayList<>();
         for (Object inst : instances.values()) {
             if (inst instanceof ClientResponseFilter f) {
@@ -248,7 +259,25 @@ public final class CyranoClientConfiguration implements Configuration {
         entries.sort((a, b) -> Integer.compare(b.priority(), a.priority()));
         List<ClientResponseFilter> out = new ArrayList<>(entries.size());
         for (var e : entries) out.add(e.filter());
-        return out;
+        return List.copyOf(out);
+    }
+
+    private Chains chains() {
+        Chains current = chains;
+        if (current == null) {
+            current = new Chains(sortRequestFilters(), sortResponseFilters(),
+                    collect(ReaderInterceptor.class), collect(WriterInterceptor.class));
+            chains = current;
+        }
+        return current;
+    }
+
+    private <T> List<T> collect(Class<T> contract) {
+        List<T> result = new ArrayList<>();
+        for (Object inst : instances.values()) {
+            if (contract.isInstance(inst)) result.add(contract.cast(inst));
+        }
+        return List.copyOf(result);
     }
 
     private int resolvePriority(Object component, Class<?> contract) {
@@ -262,38 +291,20 @@ public final class CyranoClientConfiguration implements Configuration {
                 if (only != null) return only;
             }
         }
-        //jakarta.annotation.Priority — Reflective detection to avoid adding compile-time dependency
-        try {
-            @SuppressWarnings("unchecked")
-            Class<? extends Annotation> prioCls =
-                    (Class<? extends Annotation>) Class.forName("jakarta.annotation.Priority");
-            Annotation a = component.getClass().getAnnotation(prioCls);
-            if (a != null) {
-                Integer v = (Integer) prioCls.getMethod("value").invoke(a);
-                if (v != null) return v;
-            }
-        } catch (ReflectiveOperationException _) {
-            // jakarta.annotation is absent, or the value is unreadable — falls back to Priorities.USER
-        }
-        return jakarta.ws.rs.Priorities.USER; // 5000
+        return PriorityAnnotation.of(component.getClass(), jakarta.ws.rs.Priorities.USER); // 5000
     }
 
     List<WriterInterceptor> getWriterInterceptors() {
-        List<WriterInterceptor> result = new ArrayList<>();
-        for (Object inst : instances.values()) {
-            if (inst instanceof WriterInterceptor wi) result.add(wi);
-        }
-        return result;
+        return chains().writerInterceptors();
     }
 
     List<ReaderInterceptor> getReaderInterceptors() {
-        List<ReaderInterceptor> result = new ArrayList<>();
-        for (Object inst : instances.values()) {
-            if (inst instanceof ReaderInterceptor ri) result.add(ri);
-        }
-        return result;
+        return chains().readerInterceptors();
     }
 
     private record FilterEntry<F>(F filter, int priority) {}
+
+    private record Chains(List<ClientRequestFilter> requestFilters, List<ClientResponseFilter> responseFilters,
+                          List<ReaderInterceptor> readerInterceptors, List<WriterInterceptor> writerInterceptors) {}
 }
 

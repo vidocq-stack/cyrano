@@ -90,6 +90,11 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private final List<RequestSpec> specs;
     private final CyranoHttpTransport transport;
     private final CyranoClientConfiguration configuration;
+    /** Looked up once per client, not per call: a {@code ServiceLoader} scan costs more than the call itself. */
+    private final io.vidocq.cyrano.runtime.ProviderInstantiator instantiator;
+    /** The {@code @ClientHeaderParam} compute methods, resolved on their first use. */
+    private final java.util.concurrent.ConcurrentHashMap<HeaderMethodKey, Method> headerMethods =
+            new java.util.concurrent.ConcurrentHashMap<>();
     private volatile boolean closed = false;
 
     public CyranoInvocationHandler(URI baseUri, List<RequestSpec> specs, CyranoHttpTransport transport) {
@@ -103,6 +108,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         this.specs = List.copyOf(specs);
         this.transport = transport;
         this.configuration = configuration;
+        this.instantiator = io.vidocq.cyrano.runtime.ProviderInstantiator.current();
     }
 
     /** Spec §8.1 — called by the synthetic close() of the proxy. */
@@ -122,7 +128,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     @Override
     public Object invoke(Object proxy, int methodIndex, Object[] args) throws Exception {
         RequestSpec spec = specs.get(methodIndex);
-        return io.vidocq.cyrano.runtime.ProviderInstantiator.current().aroundInvoke(
+        return instantiator.aroundInvoke(
                 spec.clientInterface(),
                 proxy,
                 spec.method(),
@@ -676,7 +682,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         }
     }
 
-    private static void addDynamicHeaders(MultivaluedMap<String, Object> headers, RequestSpec spec,
+    private void addDynamicHeaders(MultivaluedMap<String, Object> headers, RequestSpec spec,
                                           Set<String> runtimeOverrides, Object proxy) {
         for (var e : spec.dynamicHeaders().entrySet()) {
             if (!runtimeOverrides.contains(e.getKey())) {
@@ -687,7 +693,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     }
 
     /** Value of a computed header, or {@code null} when it is absent or its optional compute method failed. */
-    private static String dynamicHeaderValue(Object proxy, RequestSpec spec, String headerName,
+    private String dynamicHeaderValue(Object proxy, RequestSpec spec, String headerName,
                                              RequestSpec.DynamicHeader dh) {
         try {
             return invokeHeaderMethod(proxy, spec, dh.methodName(), headerName);
@@ -720,7 +726,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         RegisterClientHeaders ann = spec.clientInterface().getAnnotation(RegisterClientHeaders.class);
         if (ann == null) return;
 
-        Object instance = io.vidocq.cyrano.runtime.ProviderInstantiator.current().create(ann.value());
+        Object instance = instantiator.create(ann.value());
         if (instance == null) {
             instance = io.vidocq.cyrano.runtime.ProviderInstantiator.defaultInstantiator().create(ann.value());
         }
@@ -774,15 +780,13 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     //(legacy removed: applyHeaders → replaced by seeHeaders + buildHttpRequest)
     // ============================================================
 
-    private static String invokeHeaderMethod(Object proxy, RequestSpec spec, String methodName, String headerName) {
+    private String invokeHeaderMethod(Object proxy, RequestSpec spec, String methodName, String headerName) {
         //Spec §6.5: allowed signature = no arg / string (header name).
         // The client interface sees its own methods and the default ones it inherits; a static method of the
         // super-interface that declares the client method is not inherited, so it is looked up there next.
         Class<?> iface = spec.clientInterface();
-        Method dm = findHeaderMethod(iface, methodName);
-        if (dm == null && spec.method().getDeclaringClass() != iface) {
-            dm = findHeaderMethod(spec.method().getDeclaringClass(), methodName);
-        }
+        Method dm = headerMethods.computeIfAbsent(new HeaderMethodKey(spec.method().getDeclaringClass(), methodName),
+                key -> resolveHeaderMethod(iface, key));
         if (dm == null) {
             throw new IllegalStateException("@ClientHeaderParam method not found: "
                     + iface.getName() + "#" + methodName + " — spec §6.5");
@@ -816,6 +820,17 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         return new IllegalStateException("@ClientHeaderParam(" + methodName + ") failed",
                 cause != null ? cause : ite);
     }
+
+    private static Method resolveHeaderMethod(Class<?> iface, HeaderMethodKey key) {
+        Method found = findHeaderMethod(iface, key.name());
+        if (found == null && key.declaringClass() != iface) {
+            found = findHeaderMethod(key.declaringClass(), key.name());
+        }
+        return found;
+    }
+
+    /** A compute method named in {@code @ClientHeaderParam} on a method of {@code declaringClass}. */
+    private record HeaderMethodKey(Class<?> declaringClass, String name) {}
 
     private static Method findHeaderMethod(Class<?> iface, String name) {
         //Spec §6.5 — FQN reference to an external static method:

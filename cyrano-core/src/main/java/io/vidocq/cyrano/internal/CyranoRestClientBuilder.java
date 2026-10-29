@@ -152,43 +152,23 @@ public final class CyranoRestClientBuilder implements RestClientBuilder {
 
     /** Reads {@code jakarta.annotation.Priority} without a compile-time dependency. */
     private static int readPriorityAnnotation(Class<?> componentClass, int fallback) {
-        try {
-            @SuppressWarnings("unchecked")
-            Class<? extends java.lang.annotation.Annotation> prioCls =
-                    (Class<? extends java.lang.annotation.Annotation>) Class.forName("jakarta.annotation.Priority");
-            var a = componentClass.getAnnotation(prioCls);
-            if (a != null) {
-                Object v = prioCls.getMethod("value").invoke(a);
-                if (v instanceof Integer i) return i;
-            }
-        } catch (ReflectiveOperationException _) {
-            //no @Priority annotation or not introspectable — we keep the fallback
-        }
-        return fallback;
+        return PriorityAnnotation.of(componentClass, fallback);
     }
 
-    private static final Class<?>[] KNOWN_CONTRACT_TYPES = buildKnownContractTypes();
-
-    private static Class<?>[] buildKnownContractTypes() {
-        java.util.List<Class<?>> list = new java.util.ArrayList<>();
-        addIfPresent(list, "jakarta.ws.rs.client.ClientRequestFilter");
-        addIfPresent(list, "jakarta.ws.rs.client.ClientResponseFilter");
-        addIfPresent(list, "jakarta.ws.rs.ext.MessageBodyReader");
-        addIfPresent(list, "jakarta.ws.rs.ext.MessageBodyWriter");
-        addIfPresent(list, "jakarta.ws.rs.ext.ReaderInterceptor");
-        addIfPresent(list, "jakarta.ws.rs.ext.WriterInterceptor");
-        addIfPresent(list, "jakarta.ws.rs.ext.ContextResolver");
-        addIfPresent(list, "jakarta.ws.rs.ext.ExceptionMapper");
-        addIfPresent(list, "jakarta.ws.rs.ext.ParamConverterProvider");
-        addIfPresent(list, "jakarta.ws.rs.core.Feature");
-        addIfPresent(list, "org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper");
-        addIfPresent(list, "org.eclipse.microprofile.rest.client.ext.AsyncInvocationInterceptorFactory");
-        return list.toArray(new Class<?>[0]);
-    }
-
-    private static void addIfPresent(java.util.List<Class<?>> list, String fqn) {
-        try { list.add(Class.forName(fqn)); } catch (ClassNotFoundException _) { /* optional contract absent */ }
-    }
+    private static final Class<?>[] KNOWN_CONTRACT_TYPES = {
+            jakarta.ws.rs.client.ClientRequestFilter.class,
+            jakarta.ws.rs.client.ClientResponseFilter.class,
+            jakarta.ws.rs.ext.MessageBodyReader.class,
+            jakarta.ws.rs.ext.MessageBodyWriter.class,
+            jakarta.ws.rs.ext.ReaderInterceptor.class,
+            jakarta.ws.rs.ext.WriterInterceptor.class,
+            jakarta.ws.rs.ext.ContextResolver.class,
+            jakarta.ws.rs.ext.ExceptionMapper.class,
+            jakarta.ws.rs.ext.ParamConverterProvider.class,
+            jakarta.ws.rs.core.Feature.class,
+            org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper.class,
+            org.eclipse.microprofile.rest.client.ext.AsyncInvocationInterceptorFactory.class,
+    };
 
     @Override
     public RestClientBuilder baseUrl(URL url) {
