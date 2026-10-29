@@ -91,11 +91,42 @@ public final class GenericTypes {
             }
             case GenericArrayType a -> {
                 Type component = substitute(a.getGenericComponentType(), bindings);
-                yield component == a.getGenericComponentType() ? a
-                        : component instanceof Class<?> c ? c.arrayType() : (GenericArrayType) () -> component;
+                if (component == a.getGenericComponentType()) {
+                    yield a;
+                }
+                yield component instanceof Class<?> c ? c.arrayType() : new GenericArray(component);
             }
             default -> type;
         };
+    }
+
+    /** An array of a substituted parameterized type; equal to the JDK's own for the same component. */
+    private record GenericArray(Type component) implements GenericArrayType {
+
+        @Override
+        public Type getGenericComponentType() {
+            return component;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof GenericArrayType a && component.equals(a.getGenericComponentType());
+        }
+
+        @Override
+        public int hashCode() {
+            return component.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return getTypeName();
+        }
+
+        @Override
+        public String getTypeName() {
+            return component.getTypeName() + "[]";
+        }
     }
 
     /** A parameterized type whose arguments were substituted; equal to the JDK's own for the same arguments. */

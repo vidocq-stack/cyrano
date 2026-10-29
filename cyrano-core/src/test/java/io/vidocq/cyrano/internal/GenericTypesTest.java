@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class GenericTypesTest {
 
@@ -38,6 +39,10 @@ class GenericTypesTest {
         T[] page();
 
         Map<K, List<T>> byKey();
+
+        List<T>[] batches();
+
+        <N extends Number> N number();
     }
 
     interface Keyed<T> extends Crud<T, UUID> {
@@ -68,6 +73,48 @@ class GenericTypesTest {
     @Test
     void anArrayOfATypeVariableBecomesAnArrayOfItsBinding() throws Exception {
         assertEquals(String[].class, returnType("page"));
+    }
+
+    @Test
+    void anArrayOfAParameterizedTypeKeepsItsArguments() throws Exception {
+        Type batches = returnType("batches");
+        assertEquals("java.util.List<java.lang.String>[]", batches.getTypeName());
+        assertEquals(List[].class, GenericTypes.rawType(batches));
+        Type declared = Holder.class.getDeclaredField("batches").getGenericType();
+        assertEquals(declared, batches);
+        assertEquals(batches, declared);
+        assertEquals(declared.hashCode(), batches.hashCode());
+    }
+
+    @Test
+    void aSubstitutedTypeEqualsTheOneTheJdkReportsForTheSameArguments() throws Exception {
+        Type substituted = returnType("all");
+        Type declared = Holder.class.getDeclaredField("strings").getGenericType();
+        assertEquals(declared, substituted);
+        assertEquals(substituted, declared);
+        assertEquals(declared.hashCode(), substituted.hashCode());
+        assertEquals(declared.toString(), substituted.toString());
+        assertNull(((java.lang.reflect.ParameterizedType) substituted).getOwnerType());
+    }
+
+    @Test
+    void aMethodTypeVariableIsLeftAndErasesToItsBound() throws Exception {
+        Type number = returnType("number");
+        assertEquals("N", number.getTypeName());
+        assertEquals(Number.class, GenericTypes.rawType(number));
+    }
+
+    @Test
+    void aWildcardErasesToObject() throws Exception {
+        Type wildcard = ((java.lang.reflect.ParameterizedType) Holder.class.getDeclaredField("anything")
+                .getGenericType()).getActualTypeArguments()[0];
+        assertEquals(Object.class, GenericTypes.rawType(wildcard));
+    }
+
+    static final class Holder {
+        List<String> strings;
+        List<?> anything;
+        List<String>[] batches;
     }
 
     @Test

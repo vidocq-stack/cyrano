@@ -83,12 +83,9 @@ public final class CyranoInterfaceScanner {
         List<String> typeProduces = extractMediaTypes(iface.getAnnotation(Produces.class));
 
         Map<Method, RequestSpec> specs = new LinkedHashMap<>();
-        for (Method m : iface.getMethods()) {
-            // Client methods are the abstract ones, as for the annotation processor: a default method keeps its body,
-            // and so does a bridge javac adds when a redeclaration narrows an inherited generic method, which calls it.
-            if (!Modifier.isAbstract(m.getModifiers())) {
-                continue;
-            }
+        // Client methods are the abstract ones, as for the annotation processor: a default method keeps its body, and so
+        // does a bridge javac adds when a redeclaration narrows an inherited generic method, which calls it.
+        for (Method m : Arrays.stream(iface.getMethods()).filter(candidate -> Modifier.isAbstract(candidate.getModifiers())).toList()) {
             Type returnType = GenericTypes.returnType(iface, m);
             String httpMethod = extractHttpMethod(m, iface);
             String subPath = normalize(extractPath(m));
