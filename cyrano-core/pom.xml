@@ -55,6 +55,12 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Tests only: @Priority on test providers (Cyrano reads it by name, without this API). -->
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Implémentation JSON-B (Jakarta JSON Binding) pour les tests d'intégration -->
         <dependency>
             <groupId>io.vidocq.champollion</groupId>
@@ -104,6 +110,10 @@
                                 <arg>jdk.httpserver</arg>
                                 <arg>--add-reads</arg>
                                 <arg>io.vidocq.cyrano.core=jdk.httpserver</arg>
+                                <arg>--add-modules</arg>
+                                <arg>jakarta.annotation</arg>
+                                <arg>--add-reads</arg>
+                                <arg>io.vidocq.cyrano.core=jakarta.annotation</arg>
                             </compilerArgs>
                         </configuration>
                     </execution>
@@ -121,6 +131,8 @@
                         @{argLine}
                         --add-modules jdk.httpserver
                         --add-reads io.vidocq.cyrano.core=jdk.httpserver
+                        --add-modules jakarta.annotation
+                        --add-reads io.vidocq.cyrano.core=jakarta.annotation
                         --add-opens io.vidocq.cyrano.core/io.vidocq.cyrano.internal=io.vidocq.champollion.jsonb
                         --add-opens io.vidocq.cyrano.core/io.vidocq.cyrano.internal.sse=io.vidocq.champollion.jsonb
                     </argLine>
