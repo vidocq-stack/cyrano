@@ -4,4 +4,8 @@
 [.lead]
 New in the `{project-version}` development line — everything listed here landed **after the {release-version} release** and is not part of it. Every entry links to the section that documents it, and those sections carry the [.tag-new]#NEW# badge. Each brick of the suite keeps its own page of this kind; xref:home::whats-new.adoc[the ecosystem index] gathers them. When the next release train ships, this page is frozen with it and restarts empty on the dev line.
 
-_Nothing documented yet for this cycle. Add entries here (and place [.tag-new]#NEW# badges on the relevant pages) as features land on main._
+* *A client generated at run time is announced* — when a client interface reaches the run-time proxy instead of the class `cyrano-processor` generates at build time, Cyrano logs a framed `CYRANO — RUNTIME CODE GENERATION FALLBACK` warning naming the interface, so a missing processor or a skipped interface no longer goes unnoticed.
+* *Interfaces the processor now serves* — several `@ClientHeaderParam` on one element (BUG-20261028-01); an interface that parameterizes a generic super-interface; a method inherited from a super-interface takes the client interface's own declarations (path, headers, providers). An interface its package cannot implement (for instance a non-public one in another module) is left to the run-time fallback instead of breaking the build.
+* *Exceptions through CDI interceptors* — the exception a client invocation throws, an `Error` included, reaches the caller unchanged through CDI interceptors, instead of wrapped.
+* *Responses* — the media type a `MessageBodyReader` declares is matched case-insensitively; the JSON readers `readEntity` opens are closed.
+* *Faster calls* — providers, filter chains and header methods are resolved once per client method, not on every call.
