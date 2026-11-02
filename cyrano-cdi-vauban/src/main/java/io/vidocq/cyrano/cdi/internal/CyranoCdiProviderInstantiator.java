@@ -106,7 +106,8 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
      * never destroyed (BUG-20261102-04).
      */
     private final Object lock = new Object();
-    private volatile BeanManager instancesOf;
+    private final java.util.concurrent.atomic.AtomicReference<BeanManager> instancesOf =
+            new java.util.concurrent.atomic.AtomicReference<>();
     private volatile boolean released;
     /** By interceptor class: a container may describe the same interceptor with a new Interceptor object each time. */
     private final Map<Class<?>, Object> instances = new HashMap<>();
@@ -115,17 +116,17 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
             new java.util.concurrent.ConcurrentHashMap<>();
 
     private List<InterceptorInvocation> chainFor(BeanManager bm, BindingsOf call, Annotation[] bindings) {
-        if (bm == instancesOf) {
+        if (bm == instancesOf.get()) {
             List<InterceptorInvocation> known = chains.get(call);
             if (known != null) {
                 return known;
             }
         }
         synchronized (lock) {
-            if (bm != instancesOf) {
+            if (bm != instancesOf.get()) {
                 // another container (a reload): the instances of the previous one are not used any more
                 releaseInstances();
-                instancesOf = bm;
+                instancesOf.set(bm);
             }
             return chains.computeIfAbsent(call, k -> buildChain(bm, bindings));
         }
@@ -154,7 +155,7 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
         released = true;
         synchronized (lock) {
             releaseInstances();
-            instancesOf = null;
+            instancesOf.set(null);
         }
     }
 
