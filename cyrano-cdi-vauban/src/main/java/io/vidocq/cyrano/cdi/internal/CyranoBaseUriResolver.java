@@ -131,6 +131,50 @@ public final class CyranoBaseUriResolver {
      * a function that systematically returns {@link Optional#empty()}.
      */
     static Function<String, Optional<String>> defaultMpConfigLookup() {
+        // MicroProfile Config on the module path (the standard Vidocq case): read it directly, without reflection.
+        Function<String, Optional<String>> direct = DirectMpConfig.lookup();
+        return direct != null ? direct : reflectiveMpConfigLookup();
+    }
+
+    /** Whether the MicroProfile Config API is read directly, not by reflection. Package-private for the test. */
+    static boolean readsMpConfigDirectly() {
+        return DirectMpConfig.lookup() != null;
+    }
+
+    /**
+     * Direct access to MicroProfile Config, in its own class so that nothing of the API is loaded when it is absent.
+     * Same lookup as the reflective one: the configuration of the context class loader, then the system property.
+     */
+    private static final class DirectMpConfig {
+        static Function<String, Optional<String>> lookup() {
+            try {
+                Class<?> api = org.eclipse.microprofile.config.ConfigProvider.class;
+                return api == null ? null : DirectMpConfig::value;
+            } catch (NoClassDefFoundError _) {
+                return null;
+            }
+        }
+
+        private static Optional<String> value(String key) {
+            try {
+                ClassLoader cl = Thread.currentThread().getContextClassLoader();
+                if (cl == null) cl = CyranoBaseUriResolver.class.getClassLoader();
+                Optional<String> value = org.eclipse.microprofile.config.ConfigProvider.getConfig(cl)
+                        .getOptionalValue(key, String.class);
+                if (value.isPresent()) return value;
+            } catch (RuntimeException | LinkageError _) {
+                // fall through to system property fallback
+            }
+            //Fallback: system property (used by TckConfigBridge in TCK mode)
+            return Optional.ofNullable(System.getProperty(key));
+        }
+    }
+
+    /**
+     * The reflective lookup, kept as the fallback when the MicroProfile Config API is not readable as a module
+     * (portable containers, class path setups): unchanged.
+     */
+    static Function<String, Optional<String>> reflectiveMpConfigLookup() {
         //Hide reflective resolution in lambda — introspection failure
         // (ClassNotFound, NoClassDefFound) triggers a fallback to system properties.
         try {

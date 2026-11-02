@@ -17,6 +17,14 @@
             <groupId>io.vidocq.cyrano</groupId>
             <artifactId>cyrano-core</artifactId>
         </dependency>
+        <!-- MicroProfile Config API (module org.eclipse.microprofile.config): optional, read directly when the
+             application has it, reflection otherwise. -->
+        <dependency>
+            <groupId>io.vidocq.ravel</groupId>
+            <artifactId>ravel-mp-config-api</artifactId>
+            <version>${ravel.version}</version>
+            <optional>true</optional>
+        </dependency>
         <!-- Jakarta REST: `provided`, the container brings it (vidocq-workspace#17). -->
         <dependency>
             <groupId>jakarta.ws.rs</groupId>

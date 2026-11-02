@@ -41,6 +41,8 @@ module io.vidocq.cyrano.cdi.vauban {
     requires static jakarta.cdi;
     requires static jakarta.inject;
     requires static jakarta.annotation;
+    // MicroProfile Config read directly when present (Ravel in Vidocq); reflection stays the fallback without it.
+    requires static org.eclipse.microprofile.config;
     // Compile-only (optional at runtime): supplies the VaubanComponentProvider service type.
     requires static io.vidocq.vauban.api;
 

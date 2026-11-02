@@ -422,3 +422,30 @@ back with compiler plugin 3.13 either). Workaround removed; the shared execution
   it anyway, against its rule never to fail a build.
 - **Fix**: the processor skips such an interface with a NOTE; the runtime fallback serves it.
 - **Regression test**: the test above (red before the fix).
+
+## BUG-20261102-02 — the base URI lookup reads MicroProfile Config by reflection on every client creation
+
+- **Opened**: 2026-11-02
+- **Status**: ✅ FIXED 2026-11-02
+
+### Symptom
+
+`CyranoBaseUriResolver.defaultMpConfigLookup()` resolved `ConfigProvider` and `Config` with `Class.forName` and
+`getMethod`, then called `getConfig` and `getOptionalValue` through `Method.invoke`, even in a Vidocq application
+where the MicroProfile Config API (Ravel) is on the module path.
+
+### Minimal Repro
+
+```bash
+grep -n "forName\|getMethod\|invoke" cyrano-cdi-vauban/src/main/java/io/vidocq/cyrano/cdi/internal/CyranoBaseUriResolver.java
+```
+
+### Root Cause
+
+`cyrano-cdi-vauban` did not depend on the MicroProfile Config API, so reflection was the only way to read it.
+
+### Resolution
+
+`requires static org.eclipse.microprofile.config` plus an optional `ravel-mp-config-api` dependency: the API is read
+directly when it is present. The reflective lookup is unchanged and stays the fallback when the API is not readable
+(portable containers, class path setups). `CyranoBaseUriDirectConfigTest` covers both lookups.
