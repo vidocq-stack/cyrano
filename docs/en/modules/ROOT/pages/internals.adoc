@@ -4,6 +4,51 @@
 [.lead]
 This page describes the full pipeline of a Cyrano REST call, from the moment the interface is annotated to the moment the typed value is returned. Everything is build-time-friendly: no dynamic reflection, no hot classpath scan, no `synchronized` on the hot path.
 
+[#generated-code]
+== Generated code and reflective fallback [.tag-new]#NEW#
+
+Every brick of the suite documents, in a section of this name, what it generates, who generates it and when, what
+looks it up at run time, and what runs instead when it is missing. For Cyrano that is the client proxy of each
+`@RegisterRestClient` interface; the run-time generator stays as the fallback, unchanged. The resolution chain is
+detailed in <<_4_proxy_resolution_clientproxyregistry_generated_artifacts_first>>.
+
+[cols="2,2,3,3"]
+|===
+| Generated | By, and when | Used at run time by | Without it
+
+| `<Interface>$$CyranoClient` and its nested `Factory`, a `ClientProxyFactory`, with the interface's
+  `ClientDescriptor` as literals (methods, parameter bindings, headers)
+| `cyrano-processor` in javac, for every `@RegisterRestClient` interface it can emit faithfully; on Vidocq the
+  `vidocq-runtime-cyrano-rest-client-extension-codegen` bundle puts it on the processor path
+| `ClientProxyRegistry`, when a client is first built: the `ServiceLoader` of `ClientProxyFactory` (module layer,
+  then class loaders), then `Class.forName(<interface>$$CyranoClient)`
+| `CyranoInterfaceScanner` reads the interface by reflection and `CyranoProxyGenerator` generates `Cyrano$<Name>`
+  in the interface's package with the Class-File API (<<runtime-fallback>>), announced.
+
+| The beans of the injected clients
+| `CyranoRestClientCdiExtension`, a Build Compatible Extension that Vauban runs in javac when `cyrano-cdi-vauban` is on
+  the processor path
+| Vauban, from the synthetic metadata the processor wrote
+| The extension runs at boot.
+|===
+
+=== When the fallback runs
+
+* An interface compiled without `cyrano-processor`: a client jar of another build, the pre-compiled TCK interfaces.
+* An interface the processor skipped: a construct it cannot emit faithfully, or a definition the specification
+  rejects, which the run-time path then reports with `RestClientDefinitionException`. The processor says so with a
+  compiler `NOTE`; it never fails the build.
+* A `$$CyranoClient` that serves another interface than the one asked for (a stale jar).
+
+On the module path the fallback needs the interface's package opened to `io.vidocq.cyrano.core`.
+
+=== Which path ran
+
+* A framed `WARNING`, _CYRANO — RUNTIME CODE GENERATION FALLBACK_, names each interface served by the run-time
+  generator, once per JVM, and how to fix the build.
+* `ClientProxyRegistry.serviceLoaderHits()`, `preGeneratedHits()` and `runtimeGeneratedHits()` count which tier
+  resolved each interface.
+
 == Call pipeline
 
 [mermaid]
