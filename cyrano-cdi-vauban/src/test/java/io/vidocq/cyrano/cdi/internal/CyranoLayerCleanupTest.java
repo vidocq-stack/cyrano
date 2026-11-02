@@ -35,7 +35,7 @@ class CyranoLayerCleanupTest {
     void theSharedCachesAreDroppedWhenTheContainerIsDestroyed() {
         int before = CyranoMaintenance.resetCount();
 
-        try (var container = VaubanContainer.builder().addBeanClass(CyranoLayerCleanup.class).build()) {
+        try (var _ = VaubanContainer.builder().addBeanClass(CyranoLayerCleanup.class).build()) {
             assertEquals(before, CyranoMaintenance.resetCount(), "nothing is dropped while the layer runs");
         }
 
