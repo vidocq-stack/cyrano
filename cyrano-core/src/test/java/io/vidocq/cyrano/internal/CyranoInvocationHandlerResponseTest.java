@@ -330,13 +330,17 @@ class CyranoInvocationHandlerResponseTest {
         assertNull(client().payload());
     }
 
+    /**
+     * Private fields without accessors keep JSON-B's default visibility: the client no longer fills them behind
+     * JSON-B by reflection on every response (BUG-20261102-01).
+     */
     @Test
-    void private_fields_without_accessors_are_filled_from_the_json_body() {
+    void private_fields_without_accessors_are_left_to_json_b() {
         server.respond(200, HIDDEN_JSON);
 
         Hidden hidden = client().hidden();
 
-        assertEquals("n/41/9000000000/true/null/7/fixed/shared", hidden.describe());
+        assertEquals("null/0/0/false/null/null/fixed/shared", hidden.describe());
     }
 
     /** BUG-20261028-21: header names are case-insensitive, JDK servers send {@code Content-type}. */

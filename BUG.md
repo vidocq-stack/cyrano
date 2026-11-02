@@ -79,6 +79,14 @@ descriptor. Most likely the failure dated from the Maven 4 RC / compiler-plugin 
 back with compiler plugin 3.13 either). Workaround removed; the shared execution in vidocq-parent goes next
 (Vidocq/vidocq-parent#13).
 
+## BUG-20261102-01 — a client call reads and writes by reflection on every request
+
+- **Date**: 2026-11-02
+- **Symptom**: the reflection audit of 2026-11-02 traced, per client call: `patchPrivateFieldsFromJson` re-reading the JSON body with `JsonProvider.provider()` (a `ServiceLoader` scan and a `newInstance`) and writing private fields through `getDeclaredFields` + `privateLookupIn` + `VarHandle`; `applyClientHeadersFactory` reading `@RegisterClientHeaders` and creating a new `ClientHeadersFactory`; `CyranoCdiProviderInstantiator.interceptorBindings` reading annotations and creating annotation proxies.
+- **Repro**: `CyranoPerRequestReflectionTest` (a factory created 3 times for 3 calls; a private field without accessor filled behind JSON-B), `CyranoCdiBindingsCacheTest` (two reads, two arrays).
+- **Cause**: the private-field patch, from the initial import, filled fields JSON-B's default visibility leaves alone — a non-standard behaviour, now also unneeded since JSON-B bindings are generated at build time; the factory and the bindings were simply not kept.
+- **Status**: FIXED (branch `fix/per-request-reflection`) — the patch is removed (private fields without accessors follow JSON-B, as on any other client); the `ClientHeadersFactory` is created once per client interface and handler; the interceptor bindings are read once per client method and instantiator (no global cache: a reloaded application does not keep the previous classes). MP Rest Client TCK unchanged. The reflection the trace attributes to `CyranoHttpTransport.send` is inside the JDK `HttpClient`.
+
 ## BUG-20260712-01 — hardcoded implementation version constant in the published api artifact
 
 - **Date** : 2026-07-12

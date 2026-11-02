@@ -95,6 +95,9 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     /** The {@code @ClientHeaderParam} compute methods, resolved on their first use. */
     private final java.util.concurrent.ConcurrentHashMap<HeaderMethodKey, Method> headerMethods =
             new java.util.concurrent.ConcurrentHashMap<>();
+    /** The {@code @RegisterClientHeaders} factory of each client interface this handler serves. */
+    private final java.util.concurrent.ConcurrentHashMap<Class<?>, Optional<ClientHeadersFactory>> headersFactories =
+            new java.util.concurrent.ConcurrentHashMap<>();
     private volatile boolean closed = false;
 
     public CyranoInvocationHandler(URI baseUri, List<RequestSpec> specs, CyranoHttpTransport transport) {
@@ -722,15 +725,25 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         if (!sb.isEmpty()) headers.putSingle("Cookie", sb.toString());
     }
 
-    private void applyClientHeadersFactory(RequestSpec spec, MultivaluedMap<String, Object> headers) {
-        RegisterClientHeaders ann = spec.clientInterface().getAnnotation(RegisterClientHeaders.class);
-        if (ann == null) return;
-
+    /**
+     * The {@code @RegisterClientHeaders} factory of a client interface, created once per client: reading the
+     * annotation and creating the factory on every request cost reflection each time.
+     */
+    private Optional<ClientHeadersFactory> headersFactoryOf(Class<?> clientInterface) {
+        RegisterClientHeaders ann = clientInterface.getAnnotation(RegisterClientHeaders.class);
+        if (ann == null) return Optional.empty();
         Object instance = instantiator.create(ann.value());
         if (instance == null) {
             instance = io.vidocq.cyrano.runtime.ProviderInstantiator.defaultInstantiator().create(ann.value());
         }
-        if (!(instance instanceof ClientHeadersFactory factory)) {
+        return instance instanceof ClientHeadersFactory factory ? Optional.of(factory) : Optional.empty();
+    }
+
+    private void applyClientHeadersFactory(RequestSpec spec, MultivaluedMap<String, Object> headers) {
+        ClientHeadersFactory factory = headersFactories
+                .computeIfAbsent(spec.clientInterface(), this::headersFactoryOf)
+                .orElse(null);
+        if (factory == null) {
             return;
         }
 
@@ -1070,100 +1083,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
 
     private Object readJson(String body, Type type) {
         if (body == null || body.isEmpty()) return null;
-        Object mapped = jsonbFor(rawType(type)).fromJson(body, type);
-        if (type instanceof Class<?> cls) {
-            patchPrivateFieldsFromJson(mapped, cls, body);
-        }
-        return mapped;
-    }
-
-    private static void patchPrivateFieldsFromJson(Object target, Class<?> rawType, String body) {
-        if (target == null || body == null || body.isBlank()) return;
-        jakarta.json.JsonObject json = readJsonObjectOrEmpty(body);
-        if (json.isEmpty()) return;
-        Class<?> cursor = rawType;
-        while (cursor != null && cursor != Object.class) {
-            for (var field : cursor.getDeclaredFields()) {
-                if (isPatchable(field)) {
-                    patchField(target, cursor, field, json);
-                }
-            }
-            cursor = cursor.getSuperclass();
-        }
-    }
-
-    private static jakarta.json.JsonObject readJsonObjectOrEmpty(String body) {
-        try (var reader = jakarta.json.Json.createReader(new java.io.StringReader(body))) {
-            return reader.readObject();
-        } catch (RuntimeException _) {
-            return jakarta.json.JsonValue.EMPTY_JSON_OBJECT; //not a JSON object: nothing to patch
-        }
-    }
-
-    private static boolean isPatchable(Field field) {
-        return !Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())
-                && field.getAnnotation(JsonbTransient.class) == null;
-    }
-
-    private static void patchField(Object target, Class<?> owner, Field field, jakarta.json.JsonObject json) {
-        String jsonName = jsonNameOf(field);
-        if (!json.containsKey(jsonName)) return;
-        Object value = jsonValue(json.get(jsonName), field.getType());
-        if (value == null) return;
-        try {
-            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(owner, MethodHandles.lookup());
-            VarHandle handle = lookup.findVarHandle(owner, field.getName(), field.getType());
-            handle.set(target, value);
-        } catch (RuntimeException | ReflectiveOperationException _) {
-            //best-effort fallback only
-        }
-    }
-
-    private static String jsonNameOf(Field field) {
-        JsonbProperty named = field.getAnnotation(JsonbProperty.class);
-        if (named != null && named.value() != null && !named.value().isBlank()) {
-            return named.value();
-        }
-        return field.getName();
-    }
-
-    private static Object jsonValue(jakarta.json.JsonValue value, Class<?> targetType) {
-        if (value == null || value == jakarta.json.JsonValue.NULL) return null;
-        if (targetType == String.class) {
-            return jsonString(value);
-        }
-        if (targetType == int.class || targetType == Integer.class) {
-            return jsonInt(value);
-        }
-        if (targetType == long.class || targetType == Long.class) {
-            return jsonLong(value);
-        }
-        if (targetType == boolean.class || targetType == Boolean.class) {
-            return value == jakarta.json.JsonValue.TRUE
-                    || "true".equalsIgnoreCase(value.toString());
-        }
-        return null;
-    }
-
-    private static Object jsonString(jakarta.json.JsonValue value) {
-        if (value.getValueType() == jakarta.json.JsonValue.ValueType.STRING) {
-            return ((jakarta.json.JsonString) value).getString();
-        }
-        return value.toString();
-    }
-
-    private static Object jsonInt(jakarta.json.JsonValue value) {
-        if (value.getValueType() == jakarta.json.JsonValue.ValueType.NUMBER) {
-            return ((jakarta.json.JsonNumber) value).intValue();
-        }
-        return Integer.parseInt(value.toString());
-    }
-
-    private static Object jsonLong(jakarta.json.JsonValue value) {
-        if (value.getValueType() == jakarta.json.JsonValue.ValueType.NUMBER) {
-            return ((jakarta.json.JsonNumber) value).longValue();
-        }
-        return Long.parseLong(value.toString());
+        return jsonbFor(rawType(type)).fromJson(body, type);
     }
 
     @SuppressWarnings("unchecked")
