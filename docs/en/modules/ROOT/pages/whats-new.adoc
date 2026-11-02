@@ -10,3 +10,4 @@ New in the `{project-version}` development line — everything listed here lande
 * *Exceptions through CDI interceptors* — the exception a client invocation throws, an `Error` included, reaches the caller unchanged through CDI interceptors, instead of wrapped.
 * *Responses* — the media type a `MessageBodyReader` declares is matched case-insensitively; the JSON readers `readEntity` opens are closed.
 * *Faster calls* — providers, filter chains and header methods are resolved once per client method, not on every call.
+* *Hot reload no longer keeps the previous application layers in memory* — the generated and run-time client proxies are cached with the interface they describe, and the shared `Jsonb` is dropped when the container of the layer is destroyed (`CyranoMaintenance.resetCaches()` for other hosts), so a `vidocq dev` session no longer grows by a layer at every reload.

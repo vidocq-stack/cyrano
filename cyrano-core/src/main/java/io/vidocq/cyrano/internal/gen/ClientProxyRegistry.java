@@ -27,7 +27,6 @@ import io.vidocq.cyrano.spi.gen.ClientProxyFactory;
 
 import java.util.List;
 import java.util.ServiceLoader;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -50,7 +49,9 @@ import java.util.function.Function;
  * </ol>
  *
  * <p>Resolution is cached per interface; counters count resolutions, not cache
- * hits, so tests can assert which tier actually did the work.</p>
+ * hits, so tests can assert which tier actually did the work. The cache is a {@link ClassValue}: an
+ * entry lives and dies with the interface it describes, so the application layer a hot reload discards
+ * (a fresh class loader, in the same JVM) is not kept reachable by a JVM-wide table keyed by its classes.</p>
  */
 public final class ClientProxyRegistry {
 
@@ -71,7 +72,17 @@ public final class ClientProxyRegistry {
         }
     }
 
-    private static final ConcurrentHashMap<Class<?>, Resolved> CACHE = new ConcurrentHashMap<>();
+    /** A cached resolution and the {@link #resetForTests() reset} generation it was made in. */
+    private record Slot(int generation, Resolved resolved) {
+    }
+
+    private static final AtomicInteger GENERATION = new AtomicInteger();
+    private static final ClassValue<Slot> CACHE = new ClassValue<>() {
+        @Override
+        protected Slot computeValue(Class<?> iface) {
+            return new Slot(GENERATION.get(), doResolve(iface));
+        }
+    };
     private static final AtomicInteger SERVICE_LOADER_HITS = new AtomicInteger();
     private static final AtomicInteger PRE_GENERATED_HITS = new AtomicInteger();
     private static final AtomicInteger RUNTIME_GENERATED_HITS = new AtomicInteger();
@@ -81,7 +92,12 @@ public final class ClientProxyRegistry {
     }
 
     public static Resolved resolve(Class<?> iface) {
-        return CACHE.computeIfAbsent(iface, ClientProxyRegistry::doResolve);
+        Slot slot = CACHE.get(iface);
+        if (slot.generation() != GENERATION.get()) {
+            CACHE.remove(iface);
+            slot = CACHE.get(iface);
+        }
+        return slot.resolved();
     }
 
     private static Resolved doResolve(Class<?> iface) {
@@ -218,7 +234,7 @@ public final class ClientProxyRegistry {
 
     /** Clears cache and counters — test isolation only. */
     public static void resetForTests() {
-        CACHE.clear();
+        GENERATION.incrementAndGet();
         SERVICE_LOADER_HITS.set(0);
         PRE_GENERATED_HITS.set(0);
         RUNTIME_GENERATED_HITS.set(0);

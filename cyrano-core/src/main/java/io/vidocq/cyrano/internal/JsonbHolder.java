@@ -22,27 +22,38 @@ package io.vidocq.cyrano.internal;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * Lazy + thread-safe holder of a {@link Jsonb} instance shared by all Cyrano
  * invocations. {@code JsonbBuilder.create()} loads the implementation via
  * {@link java.util.ServiceLoader ServiceLoader} — champollion at runtime.
  *
- * <p>No {@code synchronized}: initialization via the holder pattern (lazy class
- * init is guaranteed thread-safe by the JVM).</p>
+ * <p>No {@code synchronized}: a benign race may build two instances on the first use, one wins. The instance
+ * belongs to the application layer that used it (it holds the entity classes it has seen): the host drops it with
+ * {@link io.vidocq.cyrano.runtime.CyranoMaintenance#resetCaches()} when the layer stops.</p>
  *
  * <p>Public (but in the unexported {@code internal} package) so that the SSE
  * support in {@code io.vidocq.cyrano.internal.sse} can share the instance.</p>
  */
 public final class JsonbHolder {
 
+    private static final AtomicReference<Jsonb> INSTANCE = new AtomicReference<>();
+
     private JsonbHolder() {}
 
     public static Jsonb get() {
-        return Lazy.INSTANCE;
+        Jsonb jsonb = INSTANCE.get();
+        if (jsonb != null) {
+            return jsonb;
+        }
+        INSTANCE.compareAndSet(null, JsonbBuilder.create());
+        return INSTANCE.get();
     }
 
-    private static final class Lazy {
-        static final Jsonb INSTANCE = JsonbBuilder.create();
+    /** Forgets the shared instance: the next {@link #get()} builds one for the application layer then current. */
+    public static void reset() {
+        INSTANCE.set(null);
     }
 }
 

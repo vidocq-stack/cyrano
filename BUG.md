@@ -79,6 +79,14 @@ descriptor. Most likely the failure dated from the Maven 4 RC / compiler-plugin 
 back with compiler plugin 3.13 either). Workaround removed; the shared execution in vidocq-parent goes next
 (Vidocq/vidocq-parent#13).
 
+## BUG-20261102-05 — a hot reload keeps the previous application layers reachable through Cyrano's statics
+
+- **Date**: 2026-11-02
+- **Symptom**: in `vidocq dev`, 15 hot reloads of an application that calls a REST client left 16 live `VaubanClassLoader`s instead of one (about 0.8 MB of heap per reload): the static audit of vidocq-workspace#40 (item 25) traced the chain with a heap dump.
+- **Repro**: `ClientProxyLayerLeakTest` (a layer whose client interface was resolved, through the generated tier and through the run-time tier, is collectable once dropped) and `JsonbHolderResetTest` (the shared `Jsonb` is dropped by `CyranoMaintenance.resetCaches()`); both failed before the fix. `CyranoLayerCleanupTest` (cyrano-cdi-vauban): destroying the container drops the caches.
+- **Cause**: `ClientProxyRegistry.CACHE` and `CyranoProxyCache.CACHE` were JVM-wide `ConcurrentHashMap`s keyed by the client interface `Class` (`resetForTests` is test-only), and `JsonbHolder` held one `Jsonb` for the life of the JVM, whose index holds the entity classes of the layer that used it first. The Cyrano library sits in the parent layer, so these statics outlive every application layer.
+- **Status**: FIXED — both proxy caches are `ClassValue`s, so an entry lives and dies with its interface; the `Jsonb` is dropped by `CyranoMaintenance.resetCaches()`, which the Vauban integration calls when the container is destroyed (`@BeforeDestroyed(ApplicationScoped.class)`). The reflective fallbacks are unchanged.
+
 ## BUG-20261102-01 — a client call reads and writes by reflection on every request
 
 - **Date**: 2026-11-02

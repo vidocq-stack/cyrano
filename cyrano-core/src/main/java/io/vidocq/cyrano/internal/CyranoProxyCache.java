@@ -21,18 +21,23 @@ package io.vidocq.cyrano.internal;
 
 import java.lang.reflect.Method;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Cache of generated proxies — one {@code Cyrano$<Interface>} per client interface,
  * shared between all invocations of {@code RestClientBuilder.build()}.
  *
- * <p>Thread-safe via {@link ConcurrentHashMap#computeIfAbsent} — virtual-thread-friendly,
- * with no {@code synchronized}.</p>
+ * <p>The cache is a {@link ClassValue}: an entry lives and dies with the interface it describes, so the
+ * application layer a hot reload discards (a fresh class loader, in the same JVM) is not kept reachable by a
+ * JVM-wide table keyed by its classes. Thread-safe and virtual-thread-friendly, with no {@code synchronized}.</p>
  */
 public final class CyranoProxyCache {
 
-    private static final ConcurrentHashMap<Class<?>, Entry> CACHE = new ConcurrentHashMap<>();
+    private static final ClassValue<Entry> CACHE = new ClassValue<>() {
+        @Override
+        protected Entry computeValue(Class<?> iface) {
+            return build(iface);
+        }
+    };
 
     private CyranoProxyCache() {
         // utility
@@ -44,7 +49,7 @@ public final class CyranoProxyCache {
      * @param iface client interface annotated according to MicroProfile Rest Client 4.0 §3
      */
     public static Entry getOrGenerate(Class<?> iface) {
-        return CACHE.computeIfAbsent(iface, CyranoProxyCache::build);
+        return CACHE.get(iface);
     }
 
     private static Entry build(Class<?> iface) {
