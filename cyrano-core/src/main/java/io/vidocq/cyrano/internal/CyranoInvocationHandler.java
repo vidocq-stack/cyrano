@@ -460,16 +460,21 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
             return;
         }
         for (ParamBinding.FieldBinding fb : fields) {
-            Object v;
-            try { v = fb.field().get(beanObj); }
-            catch (IllegalAccessException ex) {
-                throw new IllegalStateException(
-                        "@BeanParam.field access denied: " + fb.field(), ex);
-            }
+            Object v = fb.accessor() != null ? fb.accessor().apply(beanObj) : readField(fb, beanObj);
             String str = valueOrDefault(v, fb.defaultValue());
             if (str != null) {
                 r.put(fb.kind(), fb.name(), str);
             }
+        }
+    }
+
+    /** The reflective read, for a field the generated code cannot reach or a client found by the scanner. */
+    private static Object readField(ParamBinding.FieldBinding fb, Object beanObj) {
+        try {
+            return fb.field().get(beanObj);
+        } catch (IllegalAccessException ex) {
+            throw new IllegalStateException(
+                    "@BeanParam.field access denied: " + fb.field(), ex);
         }
     }
 
@@ -699,7 +704,9 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     private String dynamicHeaderValue(Object proxy, RequestSpec spec, String headerName,
                                              RequestSpec.DynamicHeader dh) {
         try {
-            return invokeHeaderMethod(proxy, spec, dh.methodName(), headerName);
+            return dh.compute() != null
+                    ? computeHeader(dh, headerName, proxy)
+                    : invokeHeaderMethod(proxy, spec, dh.methodName(), headerName);
         } catch (RuntimeException ex) {
             if (dh.required()) throw ex;
             return null;
@@ -825,6 +832,22 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
      * Spec §6.5: the caller must see the exception of a compute method as-is (or the header is
      * silently omitted if required=false — decided upstream by dynamicHeaderValue).
      */
+    /** A compute method called by the generated code: same results and failures as the reflective call. */
+    private static String computeHeader(RequestSpec.DynamicHeader dh, String headerName, Object proxy) {
+        Object result;
+        try {
+            result = dh.compute().compute(proxy, headerName);
+        } catch (RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("@ClientHeaderParam(" + dh.methodName() + ") failed", ex);
+        }
+        if (result instanceof String[] arr) {
+            return String.join(",", arr);
+        }
+        return result == null ? null : result.toString();
+    }
+
     private static RuntimeException headerMethodFailure(java.lang.reflect.InvocationTargetException ite,
                                                         String methodName) {
         Throwable cause = ite.getCause();

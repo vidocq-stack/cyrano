@@ -69,10 +69,35 @@ public sealed interface ClientParamDescriptor {
     }
 
     /**
-     * Binding of one {@code @BeanParam} field, identified by name only — cyrano-core
-     * resolves the {@code java.lang.reflect.Field} lazily from {@link Bean#beanType()}.
+     * Binding of one {@code @BeanParam} field. {@code accessor} is the generated read of the field; it is
+     * {@code null} when the generated class cannot reach it (a private field), and cyrano-core then resolves the
+     * {@code java.lang.reflect.Field} from {@link Bean#beanType()}. The accessor is not part of equality.
      */
-    record BeanField(String fieldName, Kind kind, String name, String defaultValue) {
+    record BeanField(String fieldName, Kind kind, String name, String defaultValue,
+                     java.util.function.Function<Object, Object> accessor) {
         public enum Kind { PATH, QUERY, HEADER, COOKIE, FORM, MATRIX }
+
+        /** A field without generated read, as classes generated before it existed build it. */
+        public BeanField(String fieldName, Kind kind, String name, String defaultValue) {
+            this(fieldName, kind, name, defaultValue, null);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof BeanField that && fieldName.equals(that.fieldName) && kind == that.kind
+                    && java.util.Objects.equals(name, that.name)
+                    && java.util.Objects.equals(defaultValue, that.defaultValue);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(fieldName, kind, name, defaultValue);
+        }
+
+        @Override
+        public String toString() {
+            return "BeanField[fieldName=" + fieldName + ", kind=" + kind + ", name=" + name
+                    + ", defaultValue=" + defaultValue + "]";
+        }
     }
 }

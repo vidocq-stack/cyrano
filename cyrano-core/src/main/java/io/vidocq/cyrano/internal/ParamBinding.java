@@ -59,7 +59,13 @@ public sealed interface ParamBinding {
     }
 
     /** Binding of a {@code @BeanParam} field to an HTTP location. */
-    record FieldBinding(Field field, Kind kind, String name, String defaultValue) {
+    record FieldBinding(Field field, Kind kind, String name, String defaultValue,
+                        java.util.function.Function<Object, Object> accessor) {
         public enum Kind { PATH, QUERY, HEADER, COOKIE, FORM, MATRIX }
+
+        /** Found by the scanner: the field is read by reflection. */
+        FieldBinding(Field field, Kind kind, String name, String defaultValue) {
+            this(field, kind, name, defaultValue, null);
+        }
     }
 }

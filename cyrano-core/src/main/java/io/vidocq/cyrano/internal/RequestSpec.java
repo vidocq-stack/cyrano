@@ -74,6 +74,11 @@ public record RequestSpec(
      * @param required {@code true} (default) — any exception is spread;
      * {@code false} — the header is silently omitted if the invocation fails
      */
-    public record DynamicHeader(String methodName, boolean required) {
+    public record DynamicHeader(String methodName, boolean required,
+                                io.vidocq.cyrano.spi.gen.DynamicHeaderDescriptor.Compute compute) {
+        /** Found by the scanner: the compute method is looked up and invoked by reflection. */
+        public DynamicHeader(String methodName, boolean required) {
+            this(methodName, required, null);
+        }
     }
 }

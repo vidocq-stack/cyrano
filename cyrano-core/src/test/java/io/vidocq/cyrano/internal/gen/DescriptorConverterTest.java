@@ -225,4 +225,30 @@ class DescriptorConverterTest {
         var e = assertThrows(IllegalArgumentException.class, () -> DescriptorConverter.convert(bogus));
         assertTrue(e.getMessage().contains("missing"), e.getMessage());
     }
+
+    @Test
+    void generatedReadsAreUsedAndTheReflectiveOnesKeptForTheRest() {
+        java.util.function.Function<Object, Object> read = bean -> "generated";
+        DynamicHeaderDescriptor.Compute compute = (proxy, header) -> "computed";
+        var descriptor = new ClientDescriptor(OrderApi.class, List.of(
+                new ClientMethodDescriptor("search", List.of(SortedPagingBean.class), "GET", "/orders/search",
+                        List.of(new ClientParamDescriptor.Bean(0, SortedPagingBean.class, List.of(
+                                new ClientParamDescriptor.BeanField("sort",
+                                        ClientParamDescriptor.BeanField.Kind.QUERY, "sort", null, read),
+                                new ClientParamDescriptor.BeanField("page",
+                                        ClientParamDescriptor.BeanField.Kind.QUERY, "page", "0")))),
+                        List.of(), List.of(), Map.of(),
+                        Map.of("X-Gen", new DynamicHeaderDescriptor("gen", true, compute),
+                                "X-Refl", new DynamicHeaderDescriptor("refl", true)))));
+
+        RequestSpec spec = DescriptorConverter.convert(descriptor).get(0);
+
+        var fields = assertInstanceOf(io.vidocq.cyrano.internal.ParamBinding.Bean.class, spec.bindings().get(0)).fields();
+        assertSame(read, fields.get(0).accessor());
+        assertNull(fields.get(0).field(), "a generated read needs no Field");
+        assertNull(fields.get(1).accessor());
+        assertEquals("page", fields.get(1).field().getName(), "without a generated read, the Field is resolved");
+        assertSame(compute, spec.dynamicHeaders().get("X-Gen").compute());
+        assertNull(spec.dynamicHeaders().get("X-Refl").compute());
+    }
 }

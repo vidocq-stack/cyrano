@@ -449,3 +449,31 @@ grep -n "forName\|getMethod\|invoke" cyrano-cdi-vauban/src/main/java/io/vidocq/c
 `requires static org.eclipse.microprofile.config` plus an optional `ravel-mp-config-api` dependency: the API is read
 directly when it is present. The reflective lookup is unchanged and stays the fallback when the API is not readable
 (portable containers, class path setups). `CyranoBaseUriDirectConfigTest` covers both lookups.
+
+## BUG-20261102-03 — computed headers and `@BeanParam` fields are read by reflection on every call of a generated client
+
+- **Opened**: 2026-11-02
+- **Status**: ✅ FIXED 2026-11-02
+
+### Symptom
+
+Even when `cyrano-processor` generated the client, each call invoked the `@ClientHeaderParam("{method}")` compute
+methods with `Method.invoke` and read each `@BeanParam` field with `Field.get`.
+
+### Minimal Repro
+
+```bash
+grep -n "dm.invoke\|fb.field().get" cyrano-core/src/main/java/io/vidocq/cyrano/internal/CyranoInvocationHandler.java
+```
+
+### Root Cause
+
+The generated descriptor named the compute methods and fields only; the runtime resolved and used them reflectively.
+
+### Resolution
+
+The processor now emits a call of each compute method it can reach (`DynamicHeaderDescriptor.compute`) and a read of
+each field it can reach (`BeanField.accessor`). Private methods and fields, descriptors generated before this change
+and clients found by the scanner keep the reflective path, unchanged. Covered by
+`CyranoClientProcessorCoverageTest.computeMethodsAndBeanFieldsAreReadByGeneratedCode` and
+`DescriptorConverterTest.generatedReadsAreUsedAndTheReflectiveOnesKeptForTheRest`.

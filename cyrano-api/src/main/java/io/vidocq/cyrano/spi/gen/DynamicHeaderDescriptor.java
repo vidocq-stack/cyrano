@@ -26,6 +26,36 @@ package io.vidocq.cyrano.spi.gen;
  * @param methodName name of the {@code default}/{@code static} compute method
  * @param required   {@code true} (default) propagates compute failures;
  *                   {@code false} silently omits the header on failure
+ * @param compute    generated call of the compute method, or {@code null} when the generated class cannot reach it
+ *                   (a private method): the method is then found and invoked by reflection. Not part of equality.
  */
-public record DynamicHeaderDescriptor(String methodName, boolean required) {
+public record DynamicHeaderDescriptor(String methodName, boolean required, Compute compute) {
+
+    /** A descriptor without generated call, as classes generated before it existed build it. */
+    public DynamicHeaderDescriptor(String methodName, boolean required) {
+        this(methodName, required, null);
+    }
+
+    /** The generated call of a compute method: the proxy for a {@code default} method, then the header name. */
+    @FunctionalInterface
+    public interface Compute {
+        /** @return the header value, a {@code String} or a {@code String[]} */
+        Object compute(Object proxy, String headerName) throws Exception;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof DynamicHeaderDescriptor that
+                && methodName.equals(that.methodName) && required == that.required;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * methodName.hashCode() + Boolean.hashCode(required);
+    }
+
+    @Override
+    public String toString() {
+        return "DynamicHeaderDescriptor[methodName=" + methodName + ", required=" + required + "]";
+    }
 }

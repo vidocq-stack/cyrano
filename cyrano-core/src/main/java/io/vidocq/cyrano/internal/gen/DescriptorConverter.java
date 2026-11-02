@@ -73,7 +73,8 @@ public final class DescriptorConverter {
         Map<String, RequestSpec.DynamicHeader> dynamicHeaders = new LinkedHashMap<>();
         for (Map.Entry<String, DynamicHeaderDescriptor> e : md.dynamicHeaders().entrySet()) {
             dynamicHeaders.put(e.getKey(),
-                    new RequestSpec.DynamicHeader(e.getValue().methodName(), e.getValue().required()));
+                    new RequestSpec.DynamicHeader(e.getValue().methodName(), e.getValue().required(),
+                            e.getValue().compute()));
         }
         Type returnType = GenericTypes.returnType(iface, method);
         return new RequestSpec(
@@ -114,8 +115,10 @@ public final class DescriptorConverter {
                                             Class<?> beanType, List<ClientParamDescriptor.BeanField> beanFields) {
         List<ParamBinding.FieldBinding> fields = new ArrayList<>(beanFields.size());
         for (ClientParamDescriptor.BeanField bf : beanFields) {
-            Field field = resolveField(iface, md, beanType, bf.fieldName());
-            fields.add(new ParamBinding.FieldBinding(field, convertKind(bf.kind()), bf.name(), bf.defaultValue()));
+            // A generated read needs no Field; the reflective one stays for the fields it cannot reach.
+            Field field = bf.accessor() != null ? null : resolveField(iface, md, beanType, bf.fieldName());
+            fields.add(new ParamBinding.FieldBinding(field, convertKind(bf.kind()), bf.name(), bf.defaultValue(),
+                    bf.accessor()));
         }
         return new ParamBinding.Bean(index, fields);
     }

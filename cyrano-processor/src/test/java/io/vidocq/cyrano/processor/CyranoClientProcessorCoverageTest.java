@@ -408,4 +408,84 @@ class CyranoClientProcessorCoverageTest {
         assertEquals(Map.of("X-A", List.of("a"), "X-B", List.of("b")),
                 factory.descriptor().methods().getFirst().staticHeaders());
     }
+
+    // ------------------------------------------------------------------
+    // Generated access: compute methods and bean fields without reflection
+    // ------------------------------------------------------------------
+
+    @Test
+    void computeMethodsAndBeanFieldsAreReadByGeneratedCode() throws Exception {
+        File helper = writeSource("t/Tokens.java", """
+                package t;
+
+                public final class Tokens {
+                    private Tokens() {
+                    }
+
+                    public static String token(String headerName) throws java.io.IOException {
+                        return "for " + headerName;
+                    }
+                }
+                """);
+        File bean = writeSource("t/Query.java", """
+                package t;
+                import jakarta.ws.rs.HeaderParam;
+                import jakarta.ws.rs.QueryParam;
+
+                public class Query {
+                    @QueryParam("open") String open = "o";
+                    @QueryParam("count") public int count = 3;
+                    @HeaderParam("X-Hidden") private String hidden = "h";
+                }
+                """);
+        File api = writeSource("t/Generated.java", """
+                package t;
+                import jakarta.ws.rs.BeanParam;
+                import jakarta.ws.rs.GET;
+                import jakarta.ws.rs.Path;
+                import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam;
+                import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+
+                @RegisterRestClient
+                @Path("generated")
+                public interface Generated {
+                    @GET
+                    @ClientHeaderParam(name = "X-Default", value = "{local}")
+                    @ClientHeaderParam(name = "X-Static", value = "{shared}")
+                    @ClientHeaderParam(name = "X-External", value = "{t.Tokens.token}")
+                    @ClientHeaderParam(name = "X-Private", value = "{hidden}")
+                    String get(@BeanParam Query query);
+
+                    default String local() {
+                        return "local";
+                    }
+
+                    static String[] shared(String headerName) {
+                        return new String[] {headerName, "shared"};
+                    }
+
+                    private String hidden() {
+                        return "hidden";
+                    }
+                }
+                """);
+        var compilation = compile(helper, bean, api);
+        ClientProxyFactory factory = factoryOf(compilation, "t.Generated");
+        ClientMethodDescriptor get = factory.descriptor().methods().get(0);
+        Object proxy = factory.newProxy(new StubInvoker());
+
+        var headers = get.dynamicHeaders();
+        assertEquals("local", headers.get("X-Default").compute().compute(proxy, "X-Default"));
+        assertArrayEquals(new String[] {"X-Static", "shared"},
+                (String[]) headers.get("X-Static").compute().compute(proxy, "X-Static"));
+        assertEquals("for X-External", headers.get("X-External").compute().compute(proxy, "X-External"));
+        assertNull(headers.get("X-Private").compute(), "a private compute method stays on the reflective path");
+
+        var beanDescriptor = assertInstanceOf(ClientParamDescriptor.Bean.class, get.params().get(0));
+        Object query = compilation.loader().loadClass("t.Query").getConstructor().newInstance();
+        var fields = beanDescriptor.fields();
+        assertEquals("o", fields.get(0).accessor().apply(query));
+        assertEquals(3, fields.get(1).accessor().apply(query));
+        assertNull(fields.get(2).accessor(), "a private field stays on the reflective path");
+    }
 }

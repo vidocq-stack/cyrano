@@ -110,6 +110,8 @@ public final class CyranoClientProcessor extends AbstractProcessor {
 
     private final Set<String> generatedFqns = new LinkedHashSet<>();
     private final Set<String> factoryFqns = new TreeSet<>();
+    /** The client interface being generated: its package is where the generated code reads fields and methods. */
+    private TypeElement generating;
     private boolean servicesWritten;
 
     @Override
@@ -193,7 +195,8 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         }
     }
 
-    private record DynamicModel(String methodName, boolean required) {
+    /** {@code computeCall}: the generated call of the compute method, or {@code null} to keep the reflective one. */
+    private record DynamicModel(String methodName, boolean required, String computeCall) {
     }
 
     private sealed interface ParamModel {
@@ -202,7 +205,8 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         record Bean(int index, TypeMirror beanType, List<BeanFieldModel> fields) implements ParamModel {}
     }
 
-    private record BeanFieldModel(String fieldName, String kind, String name, String defaultValue) {
+    /** {@code accessor}: the generated read of the field, or {@code null} to keep the reflective one. */
+    private record BeanFieldModel(String fieldName, String kind, String name, String defaultValue, String accessor) {
     }
 
     private record MethodModel(ExecutableElement element,
@@ -221,6 +225,7 @@ public final class CyranoClientProcessor extends AbstractProcessor {
      * references through locators (candidates for transitive generation).
      */
     private List<TypeElement> generateClient(TypeElement iface) throws SkipGeneration, IOException {
+        generating = iface;
         if (!iface.getTypeParameters().isEmpty()) {
             throw new SkipGeneration("generic client interfaces are not emitted as source");
         }
@@ -387,7 +392,7 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         while (c != null && !c.getQualifiedName().contentEquals("java.lang.Object")) {
             for (VariableElement f : ElementFilter.fieldsIn(c.getEnclosedElements())) {
                 if (!f.getModifiers().contains(Modifier.STATIC) && seen.add(f.getSimpleName().toString())) {
-                    BeanFieldModel field = fieldModel(f);
+                    BeanFieldModel field = fieldModel(f, beanType);
                     if (field != null) fields.add(field);
                 }
             }
@@ -402,22 +407,29 @@ public final class CyranoClientProcessor extends AbstractProcessor {
      * Model of a {@code @BeanParam} field, or {@code null} when it carries no parameter annotation.
      * When a field carries several, the last one of PATH, QUERY, HEADER, COOKIE, FORM, MATRIX wins.
      */
-    private static BeanFieldModel fieldModel(VariableElement f) {
+    private BeanFieldModel fieldModel(VariableElement f, TypeMirror beanType) {
+        BeanFieldModel model = annotatedFieldModel(f);
+        if (model == null || !reachable(f)) return model;
+        String read = "bean$ -> ((" + types.erasure(beanType) + ") bean$)." + f.getSimpleName();
+        return new BeanFieldModel(model.fieldName(), model.kind(), model.name(), model.defaultValue(), read);
+    }
+
+    private static BeanFieldModel annotatedFieldModel(VariableElement f) {
         String dflt = f.getAnnotation(DefaultValue.class) != null
                 ? f.getAnnotation(DefaultValue.class).value() : null;
         String fieldName = f.getSimpleName().toString();
         MatrixParam fm = f.getAnnotation(MatrixParam.class);
-        if (fm != null) return new BeanFieldModel(fieldName, "MATRIX", fm.value(), dflt);
+        if (fm != null) return new BeanFieldModel(fieldName, "MATRIX", fm.value(), dflt, null);
         FormParam ff = f.getAnnotation(FormParam.class);
-        if (ff != null) return new BeanFieldModel(fieldName, "FORM", ff.value(), dflt);
+        if (ff != null) return new BeanFieldModel(fieldName, "FORM", ff.value(), dflt, null);
         CookieParam fc = f.getAnnotation(CookieParam.class);
-        if (fc != null) return new BeanFieldModel(fieldName, "COOKIE", fc.value(), dflt);
+        if (fc != null) return new BeanFieldModel(fieldName, "COOKIE", fc.value(), dflt, null);
         HeaderParam fh = f.getAnnotation(HeaderParam.class);
-        if (fh != null) return new BeanFieldModel(fieldName, "HEADER", fh.value(), dflt);
+        if (fh != null) return new BeanFieldModel(fieldName, "HEADER", fh.value(), dflt, null);
         QueryParam fq = f.getAnnotation(QueryParam.class);
-        if (fq != null) return new BeanFieldModel(fieldName, "QUERY", fq.value(), dflt);
+        if (fq != null) return new BeanFieldModel(fieldName, "QUERY", fq.value(), dflt, null);
         PathParam fp = f.getAnnotation(PathParam.class);
-        if (fp != null) return new BeanFieldModel(fieldName, "PATH", fp.value(), dflt);
+        if (fp != null) return new BeanFieldModel(fieldName, "PATH", fp.value(), dflt, null);
         return null;
     }
 
@@ -442,7 +454,7 @@ public final class CyranoClientProcessor extends AbstractProcessor {
             String[] values = h.value();
             if (values.length == 1 && isComputeExpression(values[0])) {
                 String methodName = values[0].substring(1, values[0].length() - 1);
-                into.dynamics().put(h.name(), new DynamicModel(methodName, h.required()));
+                into.dynamics().put(h.name(), new DynamicModel(methodName, h.required(), computeCall(iface, methodName)));
                 into.statics().remove(h.name());
             } else {
                 into.statics().put(h.name(), List.of(values));
@@ -492,6 +504,46 @@ public final class CyranoClientProcessor extends AbstractProcessor {
             }
         }
         return false;
+    }
+
+    /**
+     * The generated call of a compute method, the one the reflective lookup would pick (no parameter first), or
+     * {@code null} when the generated class cannot call it: the runtime then finds and invokes it by reflection.
+     */
+    private String computeCall(TypeElement iface, String computeRef) {
+        int lastDot = computeRef.lastIndexOf('.');
+        TypeElement owner = lastDot > 0 ? elements.getTypeElement(computeRef.substring(0, lastDot)) : iface;
+        String methodName = lastDot > 0 ? computeRef.substring(lastDot + 1) : computeRef;
+        if (owner == null) return null;
+        ExecutableElement chosen = null;
+        for (ExecutableElement m : ElementFilter.methodsIn(elements.getAllMembers(owner))) {
+            boolean candidate = m.getSimpleName().contentEquals(methodName) && isValidComputeSignature(m)
+                    && (lastDot <= 0 || m.getModifiers().contains(Modifier.STATIC));
+            if (candidate && (chosen == null || m.getParameters().isEmpty())) chosen = m;
+        }
+        if (chosen == null || !reachable(chosen) || chosen.getModifiers().contains(Modifier.ABSTRACT)) return null;
+        String args = chosen.getParameters().isEmpty() ? "()" : "(header$)";
+        String target = chosen.getModifiers().contains(Modifier.STATIC)
+                ? ((TypeElement) chosen.getEnclosingElement()).getQualifiedName().toString()
+                : "((" + iface.getQualifiedName() + ") proxy$)";
+        return "(proxy$, header$) -> " + target + "." + chosen.getSimpleName() + args;
+    }
+
+    /** Whether the generated class, in the package of the client interface, can name this field or method. */
+    private boolean reachable(Element member) {
+        if (member.getModifiers().contains(Modifier.PRIVATE)) return false;
+        TypeElement owner = (TypeElement) member.getEnclosingElement();
+        if (!sameModule(owner, generating)) return false;
+        String here = elements.getPackageOf(generating).getQualifiedName().toString();
+        boolean samePackage = elements.getPackageOf(owner).getQualifiedName().contentEquals(here);
+        boolean memberVisible = member.getModifiers().contains(Modifier.PUBLIC)
+                || owner.getKind().isInterface() || samePackage;
+        if (!memberVisible) return false;
+        for (Element e = owner; e instanceof TypeElement t; e = t.getEnclosingElement()) {
+            if (t.getModifiers().contains(Modifier.PRIVATE)) return false;
+            if (!t.getModifiers().contains(Modifier.PUBLIC) && !samePackage) return false;
+        }
+        return true;
     }
 
     private boolean isValidComputeSignature(ExecutableElement m) {
@@ -681,7 +733,9 @@ public final class CyranoClientProcessor extends AbstractProcessor {
                             .append("io.vidocq.cyrano.spi.gen.ClientParamDescriptor.BeanField.Kind.")
                             .append(field.kind()).append(", ")
                             .append(quote(field.name())).append(", ")
-                            .append(quoteOrNull(field.defaultValue())).append(")");
+                            .append(quoteOrNull(field.defaultValue()));
+                    if (field.accessor() != null) out.append(", ").append(field.accessor());
+                    out.append(")");
                 }
                 out.append("))");
             }
@@ -782,7 +836,9 @@ public final class CyranoClientProcessor extends AbstractProcessor {
             sb.append("java.util.Map.entry(").append(quote(e.getKey()))
                     .append(", new io.vidocq.cyrano.spi.gen.DynamicHeaderDescriptor(")
                     .append(quote(e.getValue().methodName())).append(", ")
-                    .append(e.getValue().required()).append("))");
+                    .append(e.getValue().required());
+            if (e.getValue().computeCall() != null) sb.append(", ").append(e.getValue().computeCall());
+            sb.append("))");
         }
         return sb.append(")").toString();
     }
