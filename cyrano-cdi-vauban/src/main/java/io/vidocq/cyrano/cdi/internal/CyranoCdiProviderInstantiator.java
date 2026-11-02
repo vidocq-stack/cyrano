@@ -104,10 +104,6 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
         return new InvocationContextImpl(target, method, args, invocation, chain).proceed();
     }
 
-    /**
-     * The method's own bindings, then for each other binding type the one the client interface declares, else the one
-     * the super-interface declaring an inherited method declares: the nearest declaration wins.
-     */
     /** What the interceptor bindings of a client call depend on. */
     private record BindingsOf(Class<?> clientInterface, Method method) {}
 
@@ -116,15 +112,19 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
      * and the creation of annotation proxies each time. Held by this instantiator, one per client, so a reloaded
      * application does not keep the previous classes alive.
      */
-    private final java.util.concurrent.ConcurrentHashMap<BindingsOf, Annotation[]> bindings =
+    private final java.util.concurrent.ConcurrentHashMap<BindingsOf, Annotation[]> bindingsByCall =
             new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Package-private for the test: the bindings this instantiator uses for a call. */
     Annotation[] bindingsFor(Class<?> clientInterface, Method method) {
-        return bindings.computeIfAbsent(new BindingsOf(clientInterface, method),
+        return bindingsByCall.computeIfAbsent(new BindingsOf(clientInterface, method),
                 k -> interceptorBindings(k.clientInterface(), k.method()));
     }
 
+    /**
+     * The method's own bindings, then for each other binding type the one the client interface declares, else the one
+     * the super-interface declaring an inherited method declares: the nearest declaration wins.
+     */
     private static Annotation[] interceptorBindings(Class<?> clientInterface, Method method) {
         List<Annotation> out = new ArrayList<>();
         collectBindings(out, method.getAnnotations());

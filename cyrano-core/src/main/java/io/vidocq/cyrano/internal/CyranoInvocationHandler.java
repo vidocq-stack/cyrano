@@ -1104,7 +1104,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     }
 
     /** A private field JSON-B leaves alone, with what it takes to fill it from the body. */
-    private record FieldPatch(String jsonName, Class<?> type, VarHandle handle) {
+    record FieldPatch(String jsonName, Class<?> type, VarHandle handle) {
         void apply(Object target, jakarta.json.JsonObject json) {
             if (handle == null || !json.containsKey(jsonName)) return;
             Object value = jsonValue(json.get(jsonName), type);
@@ -1135,7 +1135,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     };
 
     /** Package-private for the test: the patch plan of a class. */
-    static List<?> fieldPatchesOf(Class<?> rawType) {
+    static List<FieldPatch> fieldPatchesOf(Class<?> rawType) {
         return FIELD_PATCHES.get(rawType);
     }
 
