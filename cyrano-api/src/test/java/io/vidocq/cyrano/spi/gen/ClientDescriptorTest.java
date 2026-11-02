@@ -140,7 +140,7 @@ class ClientDescriptorTest {
         assertEquals(without.hashCode(), withCall.hashCode());
         assertEquals(without.toString(), withCall.toString());
         assertNotEquals(without, new DynamicHeaderDescriptor("m", false));
-        assertNotEquals(without, "m");
+        assertNotEquals("m", without);
 
         var kind = ClientParamDescriptor.BeanField.Kind.QUERY;
         var withRead = new ClientParamDescriptor.BeanField("f", kind, "q", "d", bean -> "v");
@@ -150,6 +150,6 @@ class ClientDescriptorTest {
         assertEquals(plain.toString(), withRead.toString());
         assertNotEquals(plain, new ClientParamDescriptor.BeanField("f", kind, "q", null));
         assertNotEquals(plain, new ClientParamDescriptor.BeanField("g", kind, "q", "d"));
-        assertNotEquals(plain, "f");
+        assertNotEquals("f", plain);
     }
 }

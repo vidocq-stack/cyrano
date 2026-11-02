@@ -33,7 +33,7 @@ class CyranoGeneratedAccessTest {
 
     static class Bean {
         String visible = "generated";
-        private String hidden = "reflective";
+        String reflective = "reflective";
     }
 
     private static String compute(Object value) {
@@ -52,14 +52,16 @@ class CyranoGeneratedAccessTest {
     @Test
     void failuresReachTheCallerAsTheReflectiveCallGivesThem() {
         IllegalArgumentException runtime = new IllegalArgumentException("boom");
-        var thrown = assertThrows(IllegalArgumentException.class, () -> CyranoInvocationHandler.computeHeader(
-                new RequestSpec.DynamicHeader("m", true, (p, h) -> { throw runtime; }), "X-H", null));
+        var failing = new RequestSpec.DynamicHeader("m", true, (p, h) -> { throw runtime; });
+        var thrown = assertThrows(IllegalArgumentException.class,
+                () -> CyranoInvocationHandler.computeHeader(failing, "X-H", null));
         assertSame(runtime, thrown);
 
         IOException checked = new IOException("io");
-        var wrapped = assertThrows(IllegalStateException.class, () -> CyranoInvocationHandler.computeHeader(
-                new RequestSpec.DynamicHeader("m", true, (p, h) -> { throw new UndeclaredThrowableException(checked); }),
-                "X-H", null));
+        var failingChecked = new RequestSpec.DynamicHeader("m", true,
+                (p, h) -> { throw new UndeclaredThrowableException(checked); });
+        var wrapped = assertThrows(IllegalStateException.class,
+                () -> CyranoInvocationHandler.computeHeader(failingChecked, "X-H", null));
         assertSame(checked, wrapped.getCause());
     }
 
@@ -70,7 +72,7 @@ class CyranoGeneratedAccessTest {
                 b -> ((Bean) b).visible);
         assertEquals("generated", CyranoInvocationHandler.fieldValue(generated, bean));
 
-        var field = Bean.class.getDeclaredField("hidden");
+        var field = Bean.class.getDeclaredField("reflective");
         field.setAccessible(true);
         var reflective = new ParamBinding.FieldBinding(field, ParamBinding.FieldBinding.Kind.QUERY, "h", null);
         assertEquals("reflective", CyranoInvocationHandler.fieldValue(reflective, bean));
