@@ -20,6 +20,7 @@
 package io.vidocq.cyrano.cdi.internal;
 
 import io.vidocq.cyrano.runtime.ProviderInstantiator;
+import jakarta.enterprise.context.spi.CreationalContext;
 import jakarta.enterprise.inject.spi.BeanManager;
 import jakarta.enterprise.inject.spi.CDI;
 import jakarta.enterprise.inject.spi.Interceptor;
@@ -77,6 +78,9 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
     @Override
     public Object aroundInvoke(Class<?> clientInterface, Object target, Method method, Object[] args,
                                Callable<Object> invocation) throws Exception {
+        if (released) {
+            return invocation.call(); // a closed client: the call is refused, no interceptor is created again
+        }
         BeanManager bm;
         try {
             bm = CDI.current().getBeanManager();
@@ -89,19 +93,82 @@ public final class CyranoCdiProviderInstantiator implements ProviderInstantiator
             return invocation.call();
         }
 
-        List<Interceptor<?>> interceptors = bm.resolveInterceptors(InterceptionType.AROUND_INVOKE, bindings);
-        if (interceptors == null || interceptors.isEmpty()) {
+        List<InterceptorInvocation> chain = chainFor(bm, new BindingsOf(clientInterface, method), bindings);
+        if (chain.isEmpty()) {
             return invocation.call();
         }
+        return new InvocationContextImpl(target, method, args, invocation, chain).proceed();
+    }
 
+    /*
+     * The interceptor instances of the client this instantiator serves: one per interceptor, as for any intercepted
+     * bean instance, created on first use and destroyed by release(). They used to be created on every call and
+     * never destroyed (BUG-20261102-04).
+     */
+    private final Object lock = new Object();
+    private volatile BeanManager instancesOf;
+    private volatile boolean released;
+    /** By interceptor class: a container may describe the same interceptor with a new Interceptor object each time. */
+    private final Map<Class<?>, Object> instances = new HashMap<>();
+    private final List<CreationalContext<?>> contexts = new ArrayList<>();
+    private final java.util.concurrent.ConcurrentHashMap<BindingsOf, List<InterceptorInvocation>> chains =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private List<InterceptorInvocation> chainFor(BeanManager bm, BindingsOf call, Annotation[] bindings) {
+        if (bm == instancesOf) {
+            List<InterceptorInvocation> known = chains.get(call);
+            if (known != null) {
+                return known;
+            }
+        }
+        synchronized (lock) {
+            if (bm != instancesOf) {
+                // another container (a reload): the instances of the previous one are not used any more
+                releaseInstances();
+                instancesOf = bm;
+            }
+            return chains.computeIfAbsent(call, k -> buildChain(bm, bindings));
+        }
+    }
+
+    private List<InterceptorInvocation> buildChain(BeanManager bm, Annotation[] bindings) {
+        List<Interceptor<?>> interceptors = bm.resolveInterceptors(InterceptionType.AROUND_INVOKE, bindings);
+        if (interceptors == null || interceptors.isEmpty()) {
+            return List.of();
+        }
         List<InterceptorInvocation> chain = new ArrayList<>(interceptors.size());
         for (Interceptor<?> interceptor : interceptors) {
-            var ctx = bm.createCreationalContext(interceptor);
-            Object instance = bm.getReference(interceptor, interceptor.getBeanClass(), ctx);
+            Object instance = instances.computeIfAbsent(interceptor.getBeanClass(), beanClass -> {
+                var ctx = bm.createCreationalContext(interceptor);
+                contexts.add(ctx);
+                return bm.getReference(interceptor, beanClass, ctx);
+            });
             chain.add(new InterceptorInvocation(interceptor, instance));
         }
+        return List.copyOf(chain);
+    }
 
-        return new InvocationContextImpl(target, method, args, invocation, chain).proceed();
+    /** Destroys the interceptor instances of the client: their {@code @PreDestroy} callbacks run. */
+    @Override
+    public void release() {
+        released = true;
+        synchronized (lock) {
+            releaseInstances();
+            instancesOf = null;
+        }
+    }
+
+    private void releaseInstances() {
+        chains.clear();
+        instances.clear();
+        for (CreationalContext<?> ctx : contexts) {
+            try {
+                ctx.release();
+            } catch (RuntimeException _) {
+                // a failing @PreDestroy must not prevent the others from running
+            }
+        }
+        contexts.clear();
     }
 
     /** What the interceptor bindings of a client call depend on. */

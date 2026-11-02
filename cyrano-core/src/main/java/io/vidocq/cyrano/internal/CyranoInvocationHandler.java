@@ -107,17 +107,28 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     public CyranoInvocationHandler(URI baseUri, List<RequestSpec> specs,
                                    CyranoHttpTransport transport,
                                    CyranoClientConfiguration configuration) {
+        this(baseUri, specs, transport, configuration, io.vidocq.cyrano.runtime.ProviderInstantiator.current());
+    }
+
+    /**
+     * A handler using {@code instantiator}: a sub-resource shares the one of its client, so that what it creates is
+     * released with the client. Package-private for the test.
+     */
+    CyranoInvocationHandler(URI baseUri, List<RequestSpec> specs, CyranoHttpTransport transport,
+                            CyranoClientConfiguration configuration,
+                            io.vidocq.cyrano.runtime.ProviderInstantiator instantiator) {
         this.baseUri = baseUri;
         this.specs = List.copyOf(specs);
         this.transport = transport;
         this.configuration = configuration;
-        this.instantiator = io.vidocq.cyrano.runtime.ProviderInstantiator.current();
+        this.instantiator = instantiator;
     }
 
-    /** Spec §8.1 — called by the synthetic close() of the proxy. */
+    /** Spec §8.1 — called by the synthetic close() of the proxy; releases the interceptors of the client. */
     @Override
     public void markClosed() {
         this.closed = true;
+        instantiator.release();
     }
 
     /**
@@ -1345,7 +1356,7 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         Class<?> subIface = spec.returnType();
         // Sub-resource proxies follow the same generated-first resolution chain (CG-01).
         var resolved = io.vidocq.cyrano.internal.gen.ClientProxyRegistry.resolve(subIface);
-        var subHandler = new CyranoInvocationHandler(subUri, resolved.specs(), transport, configuration);
+        var subHandler = new CyranoInvocationHandler(subUri, resolved.specs(), transport, configuration, instantiator);
         return resolved.instantiator().apply(subHandler);
     }
 

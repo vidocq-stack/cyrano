@@ -477,3 +477,30 @@ each field it can reach (`BeanField.accessor`). Private methods and fields, desc
 and clients found by the scanner keep the reflective path, unchanged. Covered by
 `CyranoClientProcessorCoverageTest.computeMethodsAndBeanFieldsAreReadByGeneratedCode` and
 `DescriptorConverterTest.generatedReadsAreUsedAndTheReflectiveOnesKeptForTheRest`.
+
+## BUG-20261102-04 — the CDI interceptors of a client are created on every call and never destroyed
+
+- **Opened**: 2026-11-02
+- **Status**: ✅ FIXED 2026-11-02
+
+### Symptom
+
+`CyranoCdiProviderInstantiator.aroundInvoke` resolved the interceptors and created a new instance of each one, with a
+new `CreationalContext`, on every call of a client method, and never released them: one allocation per interceptor per
+call, and `@Dependent` interceptors were never destroyed, so their `@PreDestroy` never ran and what they held leaked.
+
+### Minimal Repro
+
+`CyranoInterceptorLifecycleTest`: an interceptor counting its instances gives 10 instances for 10 calls, and 0
+`@PreDestroy` after the client is released.
+
+### Root Cause
+
+Nothing kept the instances, and the client's close (`markClosed`) did not reach the instantiator.
+
+### Resolution
+
+The instantiator (one per client) keeps one instance per interceptor, as for any intercepted bean instance, and the
+interceptor chain of each method. `ProviderInstantiator.release()` (no-op by default) is called by `markClosed` and
+releases the creational contexts, so `@PreDestroy` runs; a closed client creates no interceptor again. A sub-resource
+proxy shares its client's instantiator. Containers other than Vauban go through the same portable `BeanManager` calls.

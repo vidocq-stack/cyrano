@@ -72,6 +72,16 @@ public interface ProviderInstantiator {
     }
 
     /**
+     * Releases what this instantiator created for the client it serves (for instance the CDI interceptor instances,
+     * so their {@code @PreDestroy} callbacks run). Called once when the client is closed. The default does nothing.
+     *
+     * @since 0.4.0
+     */
+    default void release() {
+        // nothing to release
+    }
+
+    /**
      * Instantiator " plain Java" — invokes {@link Class#getDeclaredConstructor()}.
      * Used in pure SE mode (without CDI).
      */

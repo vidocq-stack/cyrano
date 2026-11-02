@@ -124,4 +124,26 @@ class CyranoInvocationHandlerTest {
         @Override public URI uri() { return request.uri(); }
         @Override public HttpClient.Version version() { return HttpClient.Version.HTTP_1_1; }
     }
+
+    @Test
+    void closingTheClientReleasesWhatItsInstantiatorCreated() {
+        var releases = new java.util.concurrent.atomic.AtomicInteger();
+        io.vidocq.cyrano.runtime.ProviderInstantiator instantiator = new io.vidocq.cyrano.runtime.ProviderInstantiator() {
+            @Override
+            public Object create(Class<?> componentClass) {
+                return null;
+            }
+
+            @Override
+            public void release() {
+                releases.incrementAndGet();
+            }
+        };
+        var handler = new CyranoInvocationHandler(URI.create("http://localhost:1"), List.of(),
+                new AlreadyAnsweredTransport("done"), new CyranoClientConfiguration(), instantiator);
+
+        handler.markClosed();
+
+        assertEquals(1, releases.get());
+    }
 }
