@@ -46,7 +46,7 @@
     <scm>
         <url>https://codefloe.com/Vidocq/cyrano</url>
         <connection>scm:git:https://codefloe.com/Vidocq/cyrano.git</connection>
-        <developerConnection>scm:git:git@forge.vidocq.dev:vidocq/cyrano.git</developerConnection>
+        <developerConnection>scm:git:ssh://git@codefloe.com/Vidocq/cyrano.git</developerConnection>
     </scm>
 
     <properties>
