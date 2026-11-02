@@ -526,7 +526,9 @@ public final class CyranoClientProcessor extends AbstractProcessor {
         String target = chosen.getModifiers().contains(Modifier.STATIC)
                 ? ((TypeElement) chosen.getEnclosingElement()).getQualifiedName().toString()
                 : "((" + iface.getQualifiedName() + ") proxy$)";
-        return "(proxy$, header$) -> " + target + "." + chosen.getSimpleName() + args;
+        return "(proxy$, header$) -> { try { return " + target + "." + chosen.getSimpleName() + args + "; }"
+                + " catch (java.lang.RuntimeException | java.lang.Error e$) { throw e$; }"
+                + " catch (java.lang.Exception e$) { throw new java.lang.reflect.UndeclaredThrowableException(e$); } }";
     }
 
     /** Whether the generated class, in the package of the client interface, can name this field or method. */

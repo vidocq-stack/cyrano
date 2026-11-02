@@ -460,12 +460,17 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
             return;
         }
         for (ParamBinding.FieldBinding fb : fields) {
-            Object v = fb.accessor() != null ? fb.accessor().apply(beanObj) : readField(fb, beanObj);
+            Object v = fieldValue(fb, beanObj);
             String str = valueOrDefault(v, fb.defaultValue());
             if (str != null) {
                 r.put(fb.kind(), fb.name(), str);
             }
         }
+    }
+
+    /** The value of a {@code @BeanParam} field: the generated read when there is one. Package-private for the test. */
+    static Object fieldValue(ParamBinding.FieldBinding fb, Object beanObj) {
+        return fb.accessor() != null ? fb.accessor().apply(beanObj) : readField(fb, beanObj);
     }
 
     /** The reflective read, for a field the generated code cannot reach or a client found by the scanner. */
@@ -829,18 +834,16 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
     }
 
     /**
-     * Spec §6.5: the caller must see the exception of a compute method as-is (or the header is
-     * silently omitted if required=false — decided upstream by dynamicHeaderValue).
+     * A compute method called by the generated code: same results and failures as the reflective call. Package-private
+     * for the test.
      */
-    /** A compute method called by the generated code: same results and failures as the reflective call. */
-    private static String computeHeader(RequestSpec.DynamicHeader dh, String headerName, Object proxy) {
+    static String computeHeader(RequestSpec.DynamicHeader dh, String headerName, Object proxy) {
         Object result;
         try {
             result = dh.compute().compute(proxy, headerName);
-        } catch (RuntimeException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new IllegalStateException("@ClientHeaderParam(" + dh.methodName() + ") failed", ex);
+        } catch (java.lang.reflect.UndeclaredThrowableException ex) {
+            // a checked exception of the compute method, wrapped by the generated call
+            throw new IllegalStateException("@ClientHeaderParam(" + dh.methodName() + ") failed", ex.getCause());
         }
         if (result instanceof String[] arr) {
             return String.join(",", arr);
@@ -848,6 +851,10 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
         return result == null ? null : result.toString();
     }
 
+    /**
+     * Spec §6.5: the caller must see the exception of a compute method as-is (or the header is
+     * silently omitted if required=false — decided upstream by dynamicHeaderValue).
+     */
     private static RuntimeException headerMethodFailure(java.lang.reflect.InvocationTargetException ite,
                                                         String methodName) {
         Throwable cause = ite.getCause();

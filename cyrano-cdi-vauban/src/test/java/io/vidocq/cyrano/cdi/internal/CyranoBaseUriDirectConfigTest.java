@@ -44,4 +44,59 @@ class CyranoBaseUriDirectConfigTest {
             System.clearProperty(key);
         }
     }
+
+    @Test
+    void aValueOfTheConfigurationIsReadDirectly() {
+        var previous = safeInstance();
+        org.eclipse.microprofile.config.spi.ConfigProviderResolver.setInstance(new OneValueResolver("cfg"));
+        try {
+            assertEquals(Optional.of("cfg"), CyranoBaseUriResolver.defaultMpConfigLookup().apply("any.key"));
+        } finally {
+            org.eclipse.microprofile.config.spi.ConfigProviderResolver.setInstance(previous);
+        }
+    }
+
+    private static org.eclipse.microprofile.config.spi.ConfigProviderResolver safeInstance() {
+        try {
+            return org.eclipse.microprofile.config.spi.ConfigProviderResolver.instance();
+        } catch (RuntimeException | java.util.ServiceConfigurationError _) {
+            return null;
+        }
+    }
+
+    /** A configuration holding one value for every key. */
+    private static final class OneValueResolver extends org.eclipse.microprofile.config.spi.ConfigProviderResolver {
+        private final org.eclipse.microprofile.config.Config config;
+
+        OneValueResolver(String value) {
+            config = (org.eclipse.microprofile.config.Config) java.lang.reflect.Proxy.newProxyInstance(
+                    getClass().getClassLoader(), new Class<?>[] {org.eclipse.microprofile.config.Config.class},
+                    (proxy, method, args) -> method.getName().equals("getOptionalValue") ? Optional.of(value) : null);
+        }
+
+        @Override
+        public org.eclipse.microprofile.config.Config getConfig() {
+            return config;
+        }
+
+        @Override
+        public org.eclipse.microprofile.config.Config getConfig(ClassLoader loader) {
+            return config;
+        }
+
+        @Override
+        public org.eclipse.microprofile.config.spi.ConfigBuilder getBuilder() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void registerConfig(org.eclipse.microprofile.config.Config config, ClassLoader classLoader) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void releaseConfig(org.eclipse.microprofile.config.Config config) {
+            throw new UnsupportedOperationException();
+        }
+    }
 }

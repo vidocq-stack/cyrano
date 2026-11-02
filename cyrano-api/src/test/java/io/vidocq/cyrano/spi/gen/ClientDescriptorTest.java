@@ -130,4 +130,26 @@ class ClientDescriptorTest {
         assertEquals("m", new ClientParamDescriptor.Matrix(0, "m", null).name());
         assertEquals("p", new ClientParamDescriptor.Path(0, "p", null).name());
     }
+
+    @Test
+    void theGeneratedCodeTakesNoPartInEquality() {
+        DynamicHeaderDescriptor.Compute compute = (proxy, header) -> "v";
+        var withCall = new DynamicHeaderDescriptor("m", true, compute);
+        var without = new DynamicHeaderDescriptor("m", true);
+        assertEquals(without, withCall);
+        assertEquals(without.hashCode(), withCall.hashCode());
+        assertEquals(without.toString(), withCall.toString());
+        assertNotEquals(without, new DynamicHeaderDescriptor("m", false));
+        assertNotEquals(without, "m");
+
+        var kind = ClientParamDescriptor.BeanField.Kind.QUERY;
+        var withRead = new ClientParamDescriptor.BeanField("f", kind, "q", "d", bean -> "v");
+        var plain = new ClientParamDescriptor.BeanField("f", kind, "q", "d");
+        assertEquals(plain, withRead);
+        assertEquals(plain.hashCode(), withRead.hashCode());
+        assertEquals(plain.toString(), withRead.toString());
+        assertNotEquals(plain, new ClientParamDescriptor.BeanField("f", kind, "q", null));
+        assertNotEquals(plain, new ClientParamDescriptor.BeanField("g", kind, "q", "d"));
+        assertNotEquals(plain, "f");
+    }
 }

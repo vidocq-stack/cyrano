@@ -36,11 +36,14 @@ public record DynamicHeaderDescriptor(String methodName, boolean required, Compu
         this(methodName, required, null);
     }
 
-    /** The generated call of a compute method: the proxy for a {@code default} method, then the header name. */
+    /**
+     * The generated call of a compute method: the proxy for a {@code default} method, then the header name. A checked
+     * exception of the method reaches the caller wrapped in an {@link java.lang.reflect.UndeclaredThrowableException}.
+     */
     @FunctionalInterface
     public interface Compute {
         /** @return the header value, a {@code String} or a {@code String[]} */
-        Object compute(Object proxy, String headerName) throws Exception;
+        Object compute(Object proxy, String headerName);
     }
 
     @Override
