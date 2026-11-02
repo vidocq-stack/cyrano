@@ -20,7 +20,8 @@
 package io.vidocq.cyrano.internal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -89,7 +90,7 @@ class CyranoPerRequestReflectionTest {
         assertEquals("yes", server.last().header("X-Counted"));
     }
 
-    /** A private field without accessor: JSON-B's default visibility leaves it alone. */
+    /** A private field without accessor: JSON-B leaves it alone, the client fills it as it always did. */
     public static final class Reading {
         public String name;
         private String secret;
@@ -103,6 +104,11 @@ class CyranoPerRequestReflectionTest {
         }
     }
 
+    /** Only public members: nothing for the client to fill behind JSON-B. */
+    public static final class Plain {
+        public String name;
+    }
+
     @Path("/api")
     public interface ReadingApi {
         @GET
@@ -111,13 +117,21 @@ class CyranoPerRequestReflectionTest {
     }
 
     @Test
-    void aPrivateFieldWithoutAccessorIsNotFilledBehindJsonB() {
+    void aPrivateFieldWithoutAccessorIsStillFilled() {
         server.respond(200, "{\"name\":\"n\",\"secret\":\"s\"}").contentType(MediaType.APPLICATION_JSON);
         ReadingApi client = RestClientBuilder.newBuilder().baseUri(server.baseUri()).build(ReadingApi.class);
 
         Reading reading = client.get();
 
         assertEquals("n", reading.name);
-        assertNull(reading.secret());
+        assertEquals("s", reading.secret());
+    }
+
+    @Test
+    void theFieldsToFillAreFoundOncePerClass() {
+        assertSame(CyranoInvocationHandler.fieldPatchesOf(Reading.class),
+                CyranoInvocationHandler.fieldPatchesOf(Reading.class));
+        assertEquals(1, CyranoInvocationHandler.fieldPatchesOf(Reading.class).size());
+        assertTrue(CyranoInvocationHandler.fieldPatchesOf(Plain.class).isEmpty());
     }
 }

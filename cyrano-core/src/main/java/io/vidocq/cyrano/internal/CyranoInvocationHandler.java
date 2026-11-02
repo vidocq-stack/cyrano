@@ -1083,7 +1083,149 @@ public class CyranoInvocationHandler implements io.vidocq.cyrano.spi.gen.ClientI
 
     private Object readJson(String body, Type type) {
         if (body == null || body.isEmpty()) return null;
-        return jsonbFor(rawType(type)).fromJson(body, type);
+        Object mapped = jsonbFor(rawType(type)).fromJson(body, type);
+        if (type instanceof Class<?> cls) {
+            patchPrivateFieldsFromJson(mapped, cls, body);
+        }
+        return mapped;
+    }
+
+    private static void patchPrivateFieldsFromJson(Object target, Class<?> rawType, String body) {
+        if (target == null || body == null || body.isBlank()) return;
+        // The fields to patch and their handles are found once per class: a class with none — most DTOs — costs
+        // nothing more, and the body is no longer parsed a second time for it.
+        List<FieldPatch> patches = FIELD_PATCHES.get(rawType);
+        if (patches.isEmpty()) return;
+        jakarta.json.JsonObject json = readJsonObjectOrEmpty(body);
+        if (json.isEmpty()) return;
+        for (FieldPatch patch : patches) {
+            patch.apply(target, json);
+        }
+    }
+
+    /** A private field JSON-B leaves alone, with what it takes to fill it from the body. */
+    private record FieldPatch(String jsonName, Class<?> type, VarHandle handle) {
+        void apply(Object target, jakarta.json.JsonObject json) {
+            if (handle == null || !json.containsKey(jsonName)) return;
+            Object value = jsonValue(json.get(jsonName), type);
+            if (value == null) return;
+            try {
+                handle.set(target, value);
+            } catch (RuntimeException _) {
+                //best-effort fallback only
+            }
+        }
+    }
+
+    private static final ClassValue<List<FieldPatch>> FIELD_PATCHES = new ClassValue<>() {
+        @Override
+        protected List<FieldPatch> computeValue(Class<?> rawType) {
+            List<FieldPatch> out = new ArrayList<>();
+            Class<?> cursor = rawType;
+            while (cursor != null && cursor != Object.class) {
+                for (var field : cursor.getDeclaredFields()) {
+                    if (isPatchable(field) && isFillable(field.getType()) && leftAloneByJsonb(cursor, field)) {
+                        out.add(new FieldPatch(jsonNameOf(field), field.getType(), handleOf(cursor, field)));
+                    }
+                }
+                cursor = cursor.getSuperclass();
+            }
+            return List.copyOf(out);
+        }
+    };
+
+    /** Package-private for the test: the patch plan of a class. */
+    static List<?> fieldPatchesOf(Class<?> rawType) {
+        return FIELD_PATCHES.get(rawType);
+    }
+
+    /**
+     * Whether JSON-B's default visibility leaves the field alone: not public, and no public setter. The fields JSON-B
+     * fills itself are not written a second time (that wrote the raw JSON over a value an adapter had converted).
+     */
+    private static boolean leftAloneByJsonb(Class<?> owner, Field field) {
+        if (Modifier.isPublic(field.getModifiers())) return false;
+        String name = field.getName();
+        String setter = "set" + Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        for (Method method : owner.getMethods()) {
+            if (method.getName().equals(setter) && method.getParameterCount() == 1) return false;
+        }
+        return true;
+    }
+
+    /** The types {@link #jsonValue} can produce: other fields are never patched. */
+    private static boolean isFillable(Class<?> type) {
+        return type == String.class || type == int.class || type == Integer.class || type == long.class
+                || type == Long.class || type == boolean.class || type == Boolean.class;
+    }
+
+    private static VarHandle handleOf(Class<?> owner, Field field) {
+        try {
+            return MethodHandles.privateLookupIn(owner, MethodHandles.lookup())
+                    .findVarHandle(owner, field.getName(), field.getType());
+        } catch (RuntimeException | ReflectiveOperationException _) {
+            return null; //best-effort fallback only
+        }
+    }
+
+    private static jakarta.json.JsonObject readJsonObjectOrEmpty(String body) {
+        try (var reader = jakarta.json.Json.createReader(new java.io.StringReader(body))) {
+            return reader.readObject();
+        } catch (RuntimeException _) {
+            return jakarta.json.JsonValue.EMPTY_JSON_OBJECT; //not a JSON object: nothing to patch
+        }
+    }
+
+    private static boolean isPatchable(Field field) {
+        return !Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers())
+                && field.getAnnotation(JsonbTransient.class) == null;
+    }
+
+    private static String jsonNameOf(Field field) {
+        JsonbProperty named = field.getAnnotation(JsonbProperty.class);
+        if (named != null && named.value() != null && !named.value().isBlank()) {
+            return named.value();
+        }
+        return field.getName();
+    }
+
+    private static Object jsonValue(jakarta.json.JsonValue value, Class<?> targetType) {
+        if (value == null || value == jakarta.json.JsonValue.NULL) return null;
+        if (targetType == String.class) {
+            return jsonString(value);
+        }
+        if (targetType == int.class || targetType == Integer.class) {
+            return jsonInt(value);
+        }
+        if (targetType == long.class || targetType == Long.class) {
+            return jsonLong(value);
+        }
+        if (targetType == boolean.class || targetType == Boolean.class) {
+            return value == jakarta.json.JsonValue.TRUE
+                    || "true".equalsIgnoreCase(value.toString());
+        }
+        return null;
+    }
+
+    private static Object jsonString(jakarta.json.JsonValue value) {
+        if (value.getValueType() == jakarta.json.JsonValue.ValueType.STRING) {
+            return ((jakarta.json.JsonString) value).getString();
+        }
+        return value.toString();
+    }
+
+    private static Object jsonInt(jakarta.json.JsonValue value) {
+        if (value.getValueType() == jakarta.json.JsonValue.ValueType.NUMBER) {
+            return ((jakarta.json.JsonNumber) value).intValue();
+        }
+        return Integer.parseInt(value.toString());
+    }
+
+    private static Object jsonLong(jakarta.json.JsonValue value) {
+        if (value.getValueType() == jakarta.json.JsonValue.ValueType.NUMBER) {
+            return ((jakarta.json.JsonNumber) value).longValue();
+        }
+        return Long.parseLong(value.toString());
     }
 
     @SuppressWarnings("unchecked")
