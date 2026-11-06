@@ -5,7 +5,7 @@
 This page describes the full pipeline of a Cyrano REST call, from the moment the interface is annotated to the moment the typed value is returned. Everything is build-time-friendly: no dynamic reflection, no hot classpath scan, no `synchronized` on the hot path.
 
 [#generated-code]
-== Generated code and reflective fallback [.tag-new]#NEW#
+== Generated code and reflective fallback
 
 Every brick of the suite documents, in a section of this name, what it generates, who generates it and when, what
 looks it up at run time, and what runs instead when it is missing. For Cyrano that is the client proxy of each
