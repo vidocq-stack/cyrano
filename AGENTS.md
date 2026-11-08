@@ -151,3 +151,7 @@ Provide `modules/ROOT/images/<project>-logo.png` (PNG), referenced from `index.a
 Use **Java Modules** (or **Java module** for a single module) when referring to
 the Java Platform Module System. Do **not** use the abbreviation **JPMS** — in
 prose, identifiers, or documentation.
+
+## Architecture rules
+
+- The architecture rules (module dependencies, layers, no reflection outside the documented fallbacks, no platform thread, no `ThreadLocal`) are ArchUnit tests in `cyrano-architecture-tests`, built on the shared `vidocq-archrules` library of `vidocq-parent` (test scope; Vidocq/vidocq#289). A new reflective path is documented in `internals.adoc` and added to the rule's fallback list with its reason, never silently.

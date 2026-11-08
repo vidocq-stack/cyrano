@@ -294,3 +294,10 @@ Neither module is published. Nothing in Cyrano is tied to Vauban: `cyrano-cdi-va
 | `./run-official-tck-mp-rest-client-4.0.sh -Dtest=ConfigKeyTest`
 | Targeted TCK test.
 |===
+
+== Architecture rules
+
+`io.vidocq.cyrano:cyrano-architecture-tests` is a **test-only** module, never released. It runs Cyrano's architecture
+rules on the classes of every shipped module: the dependencies of each module (Jakarta REST, JSON-P and JSON-B, the MicroProfile REST Client and Config APIs, nothing else), the layers between the modules, no reflection outside the documented fallbacks of `internals.adoc`, no platform thread, no
+`ThreadLocal`. The rules come from `io.vidocq:vidocq-archrules`, the shared build and test library of `vidocq-parent`,
+in test scope; it brings ArchUnit (Apache-2.0), also test scope. A change that breaks a rule fails the build.

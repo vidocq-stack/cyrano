@@ -130,6 +130,7 @@
         <module>cyrano-core</module>
         <module>cyrano-cdi-vauban</module>
         <module>cyrano-it-other-containers</module>
+        <module>cyrano-architecture-tests</module>
     </modules>
 
     <dependencyManagement>
